@@ -1,6 +1,7 @@
 import networkx as nx
 import osmnx as ox
 from flask import current_app
+from app.services.astar.astar import OSMNetworkXAStar
 
 class RouteFinder:
     """
@@ -45,9 +46,22 @@ class RouteFinder:
                 print(f"[VERBOSE] Start Node ID: {start_node}")
                 print(f"[VERBOSE] End Node ID: {end_node}")
 
-            # Calculate the shortest path using A*
+            # Calculate the shortest path using custom A* implementation
             # weight='length' uses the distance in meters
-            route = nx.shortest_path(self.graph, start_node, end_node, weight='length')
+            # route = nx.shortest_path(self.graph, start_node, end_node, weight='length')
+            
+            # Initialise custom A* adapter
+            astar_solver = OSMNetworkXAStar(self.graph)
+            
+            # Find path
+            # The library returns a generator or list, we need a list of node IDs
+            route_generator = astar_solver.astar(start_node, end_node)
+            
+            if route_generator is None:
+                print(f"No route found between {start_node} and {end_node}")
+                return None, None, None
+                
+            route = list(route_generator)
 
             if current_app.config.get('VERBOSE_LOGGING'):
                 print(f"[VERBOSE] Route found: {len(route)} nodes")
