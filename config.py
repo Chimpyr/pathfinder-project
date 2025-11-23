@@ -6,3 +6,4 @@ class Config:
     DEFAULT_CITY = "Bristol, UK"
     DEBUG = True
     VERBOSE_LOGGING = True
+    WALKING_SPEED_KMH = 5.0

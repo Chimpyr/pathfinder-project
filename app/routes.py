@@ -30,7 +30,7 @@ def index():
                 finder = RouteFinder(graph)
                 # route: List of graph node IDs representing the path (calculated by A* in RouteFinder).
                 # start_point/end_point: (lat, lon) tuples of the geocoded addresses.
-                route, start_point, end_point = finder.find_route(start_location, end_location)
+                route, start_point, end_point, distance, time_seconds = finder.find_route(start_location, end_location)
 
                 if route:
                     map_html = MapRenderer.render_map(graph, route, start_point, end_point)
@@ -43,7 +43,25 @@ def index():
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             if error:
                 return jsonify({'error': error}), 400
-            return jsonify({'map_html': map_html})
+            
+            response_data = {
+                'map_html': map_html,
+                'stats': {
+                    'distance_km': f"{distance / 1000:.2f}",
+                    'time_min': int(time_seconds // 60),
+                    'pace_kmh': current_app.config.get('WALKING_SPEED_KMH', 5.0)
+                }
+            }
+
+            if current_app.config.get('VERBOSE_LOGGING') or current_app.config.get('DEBUG'):
+                response_data['debug_info'] = {
+                    'start_coord': start_point,
+                    'end_coord': end_point,
+                    'node_count': len(route) if route else 0,
+                    'graph_nodes': len(graph.nodes) if 'graph' in locals() else 0
+                }
+
+            return jsonify(response_data)
 
     # Initial load // show a default map of the city
     if map_html is None:

@@ -74,6 +74,28 @@
                 </button>
             </form>
 
+            <div id="route-stats" class="mt-6 hidden space-y-4">
+                <div class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">Route Details</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Distance</p>
+                            <p class="text-xl font-bold text-primary-600 dark:text-primary-400"><span id="stat-distance"></span> km</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Est. Time</p>
+                            <p class="text-xl font-bold text-primary-600 dark:text-primary-400"><span id="stat-time"></span> min</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2 italic">Assuming pace of <span id="stat-pace"></span> km/h</p>
+                </div>
+
+                <div id="debug-info" class="hidden p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono text-gray-600 dark:text-gray-400 overflow-x-auto">
+                    <h4 class="font-bold mb-1 border-b border-gray-300 dark:border-gray-600 pb-1">Debug Info</h4>
+                    <pre id="debug-content"></pre>
+                </div>
+            </div>
+
             <div id="error-message" class="mt-6 p-4 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hidden border border-red-100 dark:border-red-800 text-sm"></div>
             
             <!-- Instructions / Info -->
@@ -125,6 +147,12 @@
         const btnText = document.getElementById('btn-text');
         const btnSpinner = document.getElementById('btn-spinner');
         const errorMsg = document.getElementById('error-message');
+        const routeStats = document.getElementById('route-stats');
+        const statDistance = document.getElementById('stat-distance');
+        const statTime = document.getElementById('stat-time');
+        const statPace = document.getElementById('stat-pace');
+        const debugInfo = document.getElementById('debug-info');
+        const debugContent = document.getElementById('debug-content');
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -133,6 +161,7 @@
             btnText.textContent = 'Calculating...';
             btnSpinner.classList.remove('hidden');
             errorMsg.classList.add('hidden');
+            routeStats.classList.add('hidden');
             
             const formData = new FormData(form);
 
@@ -156,6 +185,23 @@
                     
                     mapContainer.innerHTML = '';
                     mapContainer.appendChild(iframe);
+
+                    // Update Stats
+                    if (data.stats) {
+                        statDistance.textContent = data.stats.distance_km;
+                        statTime.textContent = data.stats.time_min;
+                        statPace.textContent = data.stats.pace_kmh;
+                        routeStats.classList.remove('hidden');
+                    }
+
+                    // Update Debug Info
+                    if (data.debug_info) {
+                        debugContent.textContent = JSON.stringify(data.debug_info, null, 2);
+                        debugInfo.classList.remove('hidden');
+                    } else {
+                        debugInfo.classList.add('hidden');
+                    }
+
                 } else {
                     errorMsg.textContent = data.error || 'An error occurred.';
                     errorMsg.classList.remove('hidden');

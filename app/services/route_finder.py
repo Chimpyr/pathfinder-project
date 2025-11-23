@@ -28,6 +28,8 @@ class RouteFinder:
         Returns:
             list: A list of node IDs representing the path.
             tuple: (start_coords, end_coords) where coords are (lat, lon).
+            float: Total distance in meters.
+            float: Estimated time in seconds.
         """
         try:
             # Geocode the start and end locations to (lat, lon)
@@ -67,7 +69,36 @@ class RouteFinder:
                 print(f"[VERBOSE] Route found: {len(route)} nodes")
                 print(f"[VERBOSE] First 5 nodes: {route[:5]}")
 
-            return route, start_point, end_point
+            # Calculate total distance
+            distance = self._calculate_total_distance(route)
+
+            # Calculate time
+            time_seconds = self._calculate_estimated_time(distance)
+
+            return route, start_point, end_point, distance, time_seconds
         except Exception as e:
             print(f"Error finding route: {e}")
-            return None, None, None
+            return None, None, None, 0, 0
+
+    def _calculate_total_distance(self, route):
+        """
+        Calculates the total distance of the route in meters.
+        """
+        distance = 0.0
+        for u, v in zip(route[:-1], route[1:]):
+            try:
+                edge_data = self.graph.get_edge_data(u, v)
+                # edge_data is a dict keyed by key (0, 1, ...). We want the one with min length.
+                lengths = [d.get('length', 0) for d in edge_data.values()]
+                distance += min(lengths)
+            except Exception:
+                pass
+        return distance
+
+    def _calculate_estimated_time(self, distance):
+        """
+        Calculates the estimated walking time in seconds based on config speed.
+        """
+        speed_kmh = current_app.config.get('WALKING_SPEED_KMH', 5.0)
+        speed_ms = speed_kmh * 1000 / 3600
+        return distance / speed_ms if speed_ms > 0 else 0

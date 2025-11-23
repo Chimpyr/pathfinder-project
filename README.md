@@ -46,6 +46,19 @@ You can easily change the color scheme by editing `app/static/css/style.css`. Lo
 }
 ```
 
+### Debug Options
+To enable verbose logging and see debug information in the UI:
+1.  Open `config.py`.
+2.  Set `VERBOSE_LOGGING = True`.
+3.  Restart the application.
+4.  A "Debug Info" section will appear in the sidebar after searching for a route.
+
+### Walking Speed
+To adjust the estimated walking time:
+1.  Open `config.py`.
+2.  Edit `WALKING_SPEED_KMH` (default is 5.0 km/h).
+3.  Restart the application.
+
 ## Troubleshooting
 -   **"No module named..."**: Ensure you ran `pip install -r requirements.txt`.
 -   **Graph loading takes too long**: This depends on your internet speed and the size of the city. Bristol takes ~10-30s. Larger cities like London will take longer.
