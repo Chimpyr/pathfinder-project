@@ -37,7 +37,7 @@ class Config:
 ```
 *Note: The first time you run with a new city, it will take a moment to download the map data.*
 
-### Customizing Colors
+### Customising Colours
 You can easily change the color scheme by editing `app/static/css/style.css`. Look for the variables at the top:
 ```css
 :root {
@@ -62,3 +62,20 @@ To adjust the estimated walking time:
 ## Troubleshooting
 -   **"No module named..."**: Ensure you ran `pip install -r requirements.txt`.
 -   **Graph loading takes too long**: This depends on your internet speed and the size of the city. Bristol takes ~10-30s. Larger cities like London will take longer.
+
+## How Caching Works
+The application uses a **two-layer caching system** to improve performance:
+
+1.  **Disk Cache (`cache/` folder)**:
+    *   Managed by the `osmnx` library.
+    *   Stores raw map data downloaded from OpenStreetMap.
+    *   **Benefit**: Prevents re-downloading data from the internet on subsequent runs.
+    *   **Lifespan**: Permanent (until you delete the folder).
+
+2.  **In-Memory Cache (RAM)**:
+    *   Managed by the `GraphManager` class.
+    *   Stores the loaded graph object in your computer's memory.
+    *   **Benefit**: Provides instant access to the map during your current session.
+    *   **Lifespan**: Temporary (cleared when you close the application).
+
+**Summary**: The first run downloads from the internet (Slow). Restarting the app loads from disk (Fast). Searching again within the same session uses RAM (Instant).

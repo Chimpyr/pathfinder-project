@@ -6,8 +6,8 @@ class GraphManager:
     """
     Manages the loading and caching of the OpenStreetMap graph.
     """
-    _graph = None
-    _city = None
+    _graph = None  # This will hold the heavy map data
+    _city = None   # This remembers which city we currently have loaded
 
     @classmethod
     def get_graph(cls, city_name):
