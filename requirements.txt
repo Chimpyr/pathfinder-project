@@ -3,3 +3,8 @@ osmnx
 networkx
 folium
 geopy
+pytest
+pyrosm
+requests
+tqdm
+protobuf

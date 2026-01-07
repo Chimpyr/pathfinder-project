@@ -21,3 +21,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Cache and entire cache directory
+.cache
+
+# Data directory
+app/data
+

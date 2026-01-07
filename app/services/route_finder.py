@@ -17,13 +17,13 @@ class RouteFinder:
         """
         self.graph = graph
 
-    def find_route(self, start_location, end_location):
+    def find_route(self, start_point, end_point):
         """
-        Finds the shortest path between two locations.
+        Finds the shortest path between two locations (coordinates).
 
         Args:
-            start_location (str): The starting address/place.
-            end_location (str): The ending address/place.
+            start_point (tuple): (lat, lon) start location.
+            end_point (tuple): (lat, lon) end location.
 
         Returns:
             list: A list of node IDs representing the path.
@@ -32,13 +32,8 @@ class RouteFinder:
             float: Estimated time in seconds.
         """
         try:
-            # Geocode the start and end locations to (lat, lon)
-            start_point = ox.geocode(start_location)
-            end_point = ox.geocode(end_location)
-
             if current_app.config.get('VERBOSE_LOGGING'):
-                print(f"\n[VERBOSE] Start Location: {start_location} -> {start_point}")
-                print(f"[VERBOSE] End Location: {end_location} -> {end_point}")
+                print(f"[VERBOSE] Finding route for coords: {start_point} -> {end_point}")
 
             # Find the nearest nodes in the graph to these points
             start_node = ox.distance.nearest_nodes(self.graph, start_point[1], start_point[0])

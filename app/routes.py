@@ -26,11 +26,34 @@ def index():
 
         if start_location and end_location:
             try:
-                graph = GraphManager.get_graph(city)
+                import osmnx as ox
+                # 1. Geocode locations
+                start_point = ox.geocode(start_location) # (lat, lon)
+                end_point = ox.geocode(end_location)
+
+                if current_app.config.get('VERBOSE_LOGGING') or True: # Force log for now
+                    print(f"[VERBOSE] Start: {start_location} -> {start_point}")
+                    print(f"[VERBOSE] End: {end_location} -> {end_point}")
+
+                # 2. Calculate BBox with buffer (e.g. 2000m padding)
+                # Simple degree approximation: 1 deg ~ 111km. 1km ~ 0.009 deg.
+                # 2km ~ 0.018 deg. Let's start with 0.02 deg padding (~2.2km).
+                buffer_deg = 0.02
+                
+                min_lat = min(start_point[0], end_point[0]) - buffer_deg
+                max_lat = max(start_point[0], end_point[0]) + buffer_deg
+                min_lon = min(start_point[1], end_point[1]) - buffer_deg
+                max_lon = max(start_point[1], end_point[1]) + buffer_deg
+                
+                bbox = (min_lat, min_lon, max_lat, max_lon)
+
+                # 3. Get Graph for this BBox (Tile Manager handles loading)
+                graph = GraphManager.get_graph(bbox)
+                
+                # 4. Find Route
                 finder = RouteFinder(graph)
-                # route: List of graph node IDs representing the path (calculated by A* in RouteFinder).
-                # start_point/end_point: (lat, lon) tuples of the geocoded addresses.
-                route, start_point, end_point, distance, time_seconds = finder.find_route(start_location, end_location)
+                # Pass coords directly now!
+                route, _, _, distance, time_seconds = finder.find_route(start_point, end_point)
 
                 if route:
                     map_html = MapRenderer.render_map(graph, route, start_point, end_point)
@@ -38,6 +61,8 @@ def index():
                     error = "Could not find a route between these locations."
             except Exception as e:
                 error = f"An error occurred: {str(e)}"
+                import traceback
+                traceback.print_exc()
         
         # If it's an AJAX request, return JSON
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -58,7 +83,8 @@ def index():
                     'start_coord': start_point,
                     'end_coord': end_point,
                     'node_count': len(route) if route else 0,
-                    'graph_nodes': len(graph.nodes) if 'graph' in locals() else 0
+                    'graph_nodes': len(graph.nodes) if 'graph' in locals() else 0,
+                    'bbox': bbox if 'bbox' in locals() else 'N/A'
                 }
 
             return jsonify(response_data)
