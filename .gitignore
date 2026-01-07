@@ -28,3 +28,9 @@ Thumbs.db
 # Data directory
 app/data
 
+# Overpass API cache
+.cache
+# cache directory
+cache
+# all files in cache directory
+cache/*

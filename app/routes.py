@@ -84,7 +84,8 @@ def index():
                     'end_coord': end_point,
                     'node_count': len(route) if route else 0,
                     'graph_nodes': len(graph.nodes) if 'graph' in locals() else 0,
-                    'bbox': bbox if 'bbox' in locals() else 'N/A'
+                    'bbox': bbox if 'bbox' in locals() else 'N/A',
+                    'loaded_pbf': GraphManager.get_loaded_file_path()
                 }
 
             return jsonify(response_data)

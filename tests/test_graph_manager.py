@@ -10,9 +10,10 @@ def test_get_graph_singleton():
     GraphManager._graph = None
     GraphManager._loader = None
     
-    # First call
+    # First call - Use Bristol BBox to hit local file
     print("Calling get_graph (first time)...")
-    graph1 = GraphManager.get_graph(bbox=(0,0,0,0)) # bbox is ignored
+    bristol_bbox = (51.44, -2.60, 51.46, -2.58)
+    graph1 = GraphManager.get_graph(bbox=bristol_bbox)
     
     assert isinstance(graph1, nx.MultiDiGraph)
     assert len(graph1.nodes) > 0
@@ -20,7 +21,7 @@ def test_get_graph_singleton():
     
     # Second call
     print("Calling get_graph (second time)...")
-    graph2 = GraphManager.get_graph(bbox=(0,0,0,0))
+    graph2 = GraphManager.get_graph(bbox=bristol_bbox)
     
     # Should be identical object
     assert graph1 is graph2
@@ -31,7 +32,9 @@ def test_graph_has_attributes():
     Test that the loaded graph has the expected attributes from OSMDataLoader.
     """
     GraphManager._graph = None
-    graph = GraphManager.get_graph()
+    # Pass bbox to trigger correct file loading
+    bristol_bbox = (51.44, -2.60, 51.46, -2.58)
+    graph = GraphManager.get_graph(bbox=bristol_bbox)
     
     # Check random edge for 'surface' or 'lit' or other tags
     found_tags = False

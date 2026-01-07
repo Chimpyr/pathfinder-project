@@ -27,9 +27,9 @@ class GraphManager:
             # Initialize loader (defaults to Bristol PBF)
             cls._loader = OSMDataLoader()
             
-            # Load the entire graph
-            # This might take ~10-20s for the first load, then it's in memory.
-            cls._graph = cls._loader.load_graph()
+            # Load the graph for the specific bbox region
+            # This triggers Geofabrik Index lookup and download if needed
+            cls._graph = cls._loader.load_graph(bbox)
             
             # Features are essentially embedded in the graph edges/nodes by pyrosm, 
             # but our old code expected graph.features as a GeoDataFrame?
@@ -46,3 +46,12 @@ class GraphManager:
                 cls._graph.features = None # or empty DataFrame if code breaks
 
         return cls._graph
+
+    @classmethod
+    def get_loaded_file_path(cls):
+        """
+        Returns the path of the currently loaded PBF file.
+        """
+        if cls._loader and cls._loader.file_path:
+            return cls._loader.file_path
+        return "None (Graph not initialized)"
