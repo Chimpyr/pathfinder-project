@@ -2,6 +2,7 @@ import os
 import requests
 import json
 from tqdm import tqdm
+import pandas as pd
 from pyrosm import OSM
 from shapely.geometry import shape, Point
 
@@ -20,7 +21,7 @@ except ImportError:
 class OSMDataLoader:
     """
     Handles the robust downloading and parsing of local OSM PBF files.
-    Uses Geofabrik Index for intelligent file discovery.
+    Uses Geofabrik Index for file discovery.
     """
     
     INDEX_URL = "https://download.geofabrik.de/index-v1.json"
@@ -131,6 +132,7 @@ class OSMDataLoader:
             try:
                 # We request nodes=True to ensure we get all data.
                 # Logic to handle tuple/graph return types from Pyrosm
+                # TODO: Currently walking is the only network type supported, in the future accept cycling and running (consider these as separate networks)
                 result = osm.get_network(
                     network_type="walking",
                     extra_attributes=extra_attributes,
@@ -165,6 +167,12 @@ class OSMDataLoader:
             # Final validation
             if graph and hasattr(graph, "nodes"):
                 self.log(f"[OSMDataLoader] Graph loaded: {len(graph.nodes)} nodes, {len(graph.edges)} edges.")
+                
+                # Extract and attach additional features
+                print("[OSMDataLoader] Extracting additional features (POIs, Greenery, Water)...")
+                features_gdf = self._extract_features(osm)
+                graph.features = features_gdf
+                
                 return graph
             else:
                 raise ValueError("Failed to load a valid graph object.")
@@ -172,6 +180,82 @@ class OSMDataLoader:
         except Exception as e:
             print(f"[OSMDataLoader] Error parsing PBF: {e}")
             raise
+
+    def _extract_features(self, osm):
+        """
+        Extracts POIs, Green Spaces, and Water in a Single Pass for performance.
+        Returns a combined GeoDataFrame.
+        """
+        self.log("[OSMDataLoader] Extracting additional features (Single Pass Optimization)...")
+        
+        # Define combined filter for all features we want
+        # This forces pyrosm to read the file once and grab everything matching these tags.
+        custom_filter = {
+            'amenity': True, 
+            'shop': True, 
+            'tourism': True,
+            'landuse': ['grass', 'forest', 'recreation_ground', 'village_green', 'allotments', 'meadow', 'reservoir', 'basin'],
+            'natural': ['wood', 'scrub', 'heath', 'moor', 'water', 'wetland'],
+            'leisure': ['park', 'garden', 'playground', 'nature_reserve', 'common'],
+            'waterway': ['river', 'canal', 'stream', 'riverbank', 'drain', 'ditch']
+        }
+        
+        try:
+            # Single pass read
+            gdf = osm.get_data_by_custom_criteria(custom_filter=custom_filter)
+            
+            if gdf is None or gdf.empty:
+                self.log("  [Warn] No features found.")
+                return pd.DataFrame()
+
+            # Initialize feature_group
+            gdf['feature_group'] = 'other'
+
+            # --- Categorization Logic ---
+            
+            # 1. POIs
+            # Any non-null value in these columns counts as a POI
+            poi_cols = [c for c in ['amenity', 'shop', 'tourism'] if c in gdf.columns]
+            if poi_cols:
+                # If any of these columns are not null, it's a POI
+                # We use a mask
+                mask = gdf[poi_cols].notna().any(axis=1)
+                gdf.loc[mask, 'feature_group'] = 'poi'
+
+            # 2. Green Spaces
+            green_landuse = ['grass', 'forest', 'recreation_ground', 'village_green', 'allotments', 'meadow']
+            green_natural = ['wood', 'scrub', 'heath', 'moor']
+            green_leisure = ['park', 'garden', 'playground', 'nature_reserve', 'common']
+            
+            if 'landuse' in gdf.columns:
+                gdf.loc[gdf['landuse'].isin(green_landuse), 'feature_group'] = 'green'
+            if 'natural' in gdf.columns:
+                gdf.loc[gdf['natural'].isin(green_natural), 'feature_group'] = 'green'
+            if 'leisure' in gdf.columns:
+                gdf.loc[gdf['leisure'].isin(green_leisure), 'feature_group'] = 'green'
+
+            # 3. Water
+            water_natural = ['water', 'wetland']
+            water_landuse = ['reservoir', 'basin'] 
+            
+            if 'natural' in gdf.columns:
+                gdf.loc[gdf['natural'].isin(water_natural), 'feature_group'] = 'water'
+            if 'landuse' in gdf.columns:
+                gdf.loc[gdf['landuse'].isin(water_landuse), 'feature_group'] = 'water'
+            if 'waterway' in gdf.columns:
+                # Anything with a waterway tag is water
+                gdf.loc[gdf['waterway'].notna(), 'feature_group'] = 'water'
+
+            # Cleanup
+            # Drop geometry nulls
+            gdf = gdf[gdf.geometry.notna()]
+            
+            self.log(f"  > Total extracted features: {len(gdf)}")
+            return gdf
+
+        except Exception as e:
+            self.log(f"  [Error] Feature extraction failed: {e}")
+            return pd.DataFrame()
 
     def _find_pbf_url_for_location(self, lat, lon):
         """
