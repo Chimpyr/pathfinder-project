@@ -1,6 +1,14 @@
+"""
+Graph Manager Module
+
+Manages the retrieval and caching of street network graphs with LRU eviction.
+Supports multi-region routing by caching multiple graphs keyed by region name.
+"""
+
 import os
 import time
 import networkx as nx
+from typing import Dict, Optional, Tuple, Any
 from app.services.data_loader import OSMDataLoader
 from app.services.quietness_processor import process_graph_quietness
 from app.services.visibility_processor import process_graph_greenness, process_graph_greenness_fast
@@ -11,130 +19,251 @@ except ImportError:
     current_app = None
     def has_app_context(): return False
 
+
+def get_config(key: str, default: Any) -> Any:
+    """Get configuration value from Flask app or return default."""
+    if has_app_context() and current_app:
+        return current_app.config.get(key, default)
+    return default
+
+
 def get_greenness_mode() -> str:
     """Get the configured greenness processing mode."""
-    if has_app_context() and current_app:
-        return current_app.config.get('GREENNESS_MODE', 'FAST').upper()
-    # Default to FAST when running outside Flask context
-    return 'FAST'
+    return get_config('GREENNESS_MODE', 'FAST').upper()
+
+
+def get_max_cached_regions() -> int:
+    """Get the maximum number of regions to cache."""
+    return get_config('MAX_CACHED_REGIONS', 3)
+
+
+class CachedGraph:
+    """Container for a cached graph with metadata."""
+    
+    def __init__(self, graph: nx.MultiDiGraph, region_name: str, 
+                 bbox: Optional[Tuple], loader: OSMDataLoader, timings: Dict):
+        self.graph = graph
+        self.region_name = region_name
+        self.bbox = bbox
+        self.loader = loader
+        self.timings = timings
+        self.last_used = time.time()
+    
+    def touch(self):
+        """Update last used timestamp."""
+        self.last_used = time.time()
+
 
 class GraphManager:
     """
-    Manages the retrieval and caching of the street network graph.
-    Now optimised to use local PBF data via OSMDataLoader.
+    Manages the retrieval and caching of street network graphs.
+    
+    Uses LRU (Least Recently Used) eviction to cache multiple region graphs.
+    This allows efficient multi-region routing without reloading for each query.
     """
-    _graph = None
-    _loader = None
-    _timings = {}  # Stores execution timings for profiling
+    
+    # Class-level cache: region_name -> CachedGraph
+    _cache: Dict[str, CachedGraph] = {}
+    _current_region: Optional[str] = None
     
     @classmethod
-    def get_graph(cls, bbox=None):
+    def _find_region_for_bbox(cls, bbox: Optional[Tuple]) -> Tuple[str, str]:
         """
-        Returns the street network graph.
+        Determine which region a bbox falls within.
+        
+        Returns:
+            Tuple of (region_name, pbf_url)
+        """
+        loader = OSMDataLoader()
+        
+        if bbox is None:
+            # Default to Bristol
+            return 'bristol', None
+        
+        # Calculate centre point
+        lat = (bbox[0] + bbox[2]) / 2
+        lon = (bbox[1] + bbox[3]) / 2
+        
+        # Use loader's method to find the right PBF
+        pbf_url, region_name = loader._find_pbf_url_for_location(lat, lon)
+        
+        if region_name is None:
+            region_name = 'unknown'
+        
+        return region_name, pbf_url
+    
+    @classmethod
+    def _evict_lru(cls):
+        """Evict the least recently used cache entry."""
+        if not cls._cache:
+            return
+        
+        oldest_key = min(cls._cache.keys(), 
+                        key=lambda k: cls._cache[k].last_used)
+        
+        print(f"[GraphManager] Evicting cached region: {oldest_key}")
+        del cls._cache[oldest_key]
+    
+    @classmethod
+    def _load_graph_for_region(cls, bbox: Optional[Tuple], 
+                                region_name: str) -> CachedGraph:
+        """Load and process a graph for a specific region."""
+        total_start = time.perf_counter()
+        timings = {}
+        
+        print(f"[GraphManager] Loading graph for region: {region_name}")
+        
+        # Initialise loader
+        loader = OSMDataLoader()
+        
+        # Load the graph
+        t0 = time.perf_counter()
+        graph = loader.load_graph(bbox)
+        timings['Graph Loading'] = time.perf_counter() - t0
+        print(f"  [Timer] Graph Loading: {timings['Graph Loading']:.2f}s")
+        
+        # Process quietness
+        t0 = time.perf_counter()
+        print("[GraphManager] Processing quietness attributes...")
+        graph = process_graph_quietness(graph)
+        timings['Quietness Processing'] = time.perf_counter() - t0
+        print(f"  [Timer] Quietness Processing: {timings['Quietness Processing']:.2f}s")
+        
+        # Process greenness based on mode
+        greenness_mode = get_greenness_mode()
+        print(f"[GraphManager] Greenness mode: {greenness_mode}")
+        
+        if greenness_mode == 'NOVACK':
+            print("[GraphManager] Processing greenness visibility (NOVACK mode)...")
+            
+            t0 = time.perf_counter()
+            green_gdf = loader.extract_green_areas()
+            timings['Extract Green Areas'] = time.perf_counter() - t0
+            print(f"  [Timer] Extract Green Areas: {timings['Extract Green Areas']:.2f}s")
+            
+            t0 = time.perf_counter()
+            buildings_gdf = loader.extract_buildings()
+            timings['Extract Buildings'] = time.perf_counter() - t0
+            print(f"  [Timer] Extract Buildings: {timings['Extract Buildings']:.2f}s")
+            
+            t0 = time.perf_counter()
+            graph = process_graph_greenness(graph, green_gdf, buildings_gdf)
+            timings['Greenness Processing (NOVACK)'] = time.perf_counter() - t0
+            print(f"  [Timer] Greenness Processing: {timings['Greenness Processing (NOVACK)']:.2f}s")
+            
+        elif greenness_mode == 'FAST':
+            print("[GraphManager] Processing scenic scores (FAST mode)...")
+            
+            t0 = time.perf_counter()
+            green_gdf = loader.extract_green_areas()
+            timings['Extract Green Areas'] = time.perf_counter() - t0
+            print(f"  [Timer] Extract Green Areas: {timings['Extract Green Areas']:.2f}s")
+            
+            t0 = time.perf_counter()
+            water_gdf = loader.extract_water()
+            timings['Extract Water'] = time.perf_counter() - t0
+            print(f"  [Timer] Extract Water: {timings['Extract Water']:.2f}s")
+            
+            t0 = time.perf_counter()
+            graph = process_graph_greenness_fast(graph, green_gdf, water_gdf)
+            timings['Scenic Processing (FAST)'] = time.perf_counter() - t0
+            print(f"  [Timer] Scenic Processing: {timings['Scenic Processing (FAST)']:.2f}s")
+            
+        else:
+            print("[GraphManager] Greenness processing disabled.")
+        
+        # Compatibility shim
+        if not hasattr(graph, 'features'):
+            graph.features = None
+        
+        # Print timing summary
+        total_time = time.perf_counter() - total_start
+        timings['TOTAL'] = total_time
+        
+        print("\n" + "="*50)
+        print(f"[GraphManager] TIMING SUMMARY ({region_name})")
+        print("="*50)
+        for step, duration in timings.items():
+            if step != 'TOTAL':
+                pct = (duration / total_time) * 100
+                print(f"  {step}: {duration:.2f}s ({pct:.1f}%)")
+        print("-"*50)
+        print(f"  TOTAL: {total_time:.2f}s")
+        print("="*50 + "\n")
+        
+        return CachedGraph(graph, region_name, bbox, loader, timings)
+    
+    @classmethod
+    def get_graph(cls, bbox: Optional[Tuple] = None) -> nx.MultiDiGraph:
+        """
+        Returns the street network graph for the given bbox.
+        
+        Uses LRU cache to store multiple region graphs. If the region is
+        already cached, returns the cached graph. Otherwise loads a new
+        graph and caches it, evicting the oldest if at capacity.
         
         Args:
-            bbox (tuple, optional): Ignored in this implementation as we load the full region PBF.
-                                    Maintained for interface compatibility.
+            bbox: Bounding box tuple (min_lat, min_lon, max_lat, max_lon).
+                  If None, defaults to Bristol.
 
         Returns:
-            networkx.MultiDiGraph: The graph with .features attached.
+            networkx.MultiDiGraph: The processed graph with features.
         """
-        if cls._graph is None:
-            total_start = time.perf_counter()
-            cls._timings = {}
-            
-            print("[GraphManager] Initialising Graph from Local PBF...")
-            # Initialise loader (defaults to Bristol PBF)
-            cls._loader = OSMDataLoader()
-            
-            # Load the graph for the specific bbox region
-            t0 = time.perf_counter()
-            cls._graph = cls._loader.load_graph(bbox)
-            cls._timings['Graph Loading'] = time.perf_counter() - t0
-            print(f"  [Timer] Graph Loading: {cls._timings['Graph Loading']:.2f}s")
-            
-            # Process quietness attributes (noise_factor)
-            t0 = time.perf_counter()
-            print("[GraphManager] Processing quietness attributes...")
-            cls._graph = process_graph_quietness(cls._graph)
-            cls._timings['Quietness Processing'] = time.perf_counter() - t0
-            print(f"  [Timer] Quietness Processing: {cls._timings['Quietness Processing']:.2f}s")
-            
-            # Process greenness based on configured mode
-            greenness_mode = get_greenness_mode()
-            print(f"[GraphManager] Greenness mode: {greenness_mode}")
-            
-            if greenness_mode == 'NOVACK':
-                # Full isovist ray-casting (slow but accurate)
-                print("[GraphManager] Processing greenness visibility (NOVACK mode)...")
-                
-                t0 = time.perf_counter()
-                green_gdf = cls._loader.extract_green_areas()
-                cls._timings['Extract Green Areas'] = time.perf_counter() - t0
-                print(f"  [Timer] Extract Green Areas: {cls._timings['Extract Green Areas']:.2f}s")
-                
-                t0 = time.perf_counter()
-                buildings_gdf = cls._loader.extract_buildings()
-                cls._timings['Extract Buildings'] = time.perf_counter() - t0
-                print(f"  [Timer] Extract Buildings: {cls._timings['Extract Buildings']:.2f}s")
-                
-                t0 = time.perf_counter()
-                cls._graph = process_graph_greenness(cls._graph, green_gdf, buildings_gdf)
-                cls._timings['Greenness Processing (NOVACK)'] = time.perf_counter() - t0
-                print(f"  [Timer] Greenness Processing (NOVACK): {cls._timings['Greenness Processing (NOVACK)']:.2f}s")
-                
-            elif greenness_mode == 'FAST':
-                # Simple buffer intersection (quick scenic scoring)
-                print("[GraphManager] Processing scenic scores (FAST mode)...")
-                
-                t0 = time.perf_counter()
-                green_gdf = cls._loader.extract_green_areas()
-                cls._timings['Extract Green Areas'] = time.perf_counter() - t0
-                print(f"  [Timer] Extract Green Areas: {cls._timings['Extract Green Areas']:.2f}s")
-                
-                t0 = time.perf_counter()
-                water_gdf = cls._loader.extract_water()
-                cls._timings['Extract Water'] = time.perf_counter() - t0
-                print(f"  [Timer] Extract Water: {cls._timings['Extract Water']:.2f}s")
-                
-                t0 = time.perf_counter()
-                cls._graph = process_graph_greenness_fast(cls._graph, green_gdf, water_gdf)
-                cls._timings['Scenic Processing (FAST)'] = time.perf_counter() - t0
-                print(f"  [Timer] Scenic Processing (FAST): {cls._timings['Scenic Processing (FAST)']:.2f}s")
-                
-            else:  # OFF
-                print("[GraphManager] Greenness processing disabled.")
-            
-            # Shim for compatibility if needed.
-            if not hasattr(cls._graph, 'features'):
-                cls._graph.features = None
-            
-            # Print timing summary
-            total_time = time.perf_counter() - total_start
-            cls._timings['TOTAL'] = total_time
-            print("\n" + "="*50)
-            print("[GraphManager] TIMING SUMMARY")
-            print("="*50)
-            for step, duration in cls._timings.items():
-                if step != 'TOTAL':
-                    pct = (duration / total_time) * 100
-                    print(f"  {step}: {duration:.2f}s ({pct:.1f}%)")
-            print("-"*50)
-            print(f"  TOTAL: {total_time:.2f}s")
-            print("="*50 + "\n")
-
-        return cls._graph
-
+        # Determine which region this bbox falls within
+        region_name, _ = cls._find_region_for_bbox(bbox)
+        
+        # Check cache
+        if region_name in cls._cache:
+            print(f"[GraphManager] Cache HIT for region: {region_name}")
+            cached = cls._cache[region_name]
+            cached.touch()
+            cls._current_region = region_name
+            return cached.graph
+        
+        # Cache miss - need to load
+        print(f"[GraphManager] Cache MISS for region: {region_name}")
+        
+        # Check capacity and evict if needed
+        max_regions = get_max_cached_regions()
+        if len(cls._cache) >= max_regions:
+            cls._evict_lru()
+        
+        # Load and cache
+        cached = cls._load_graph_for_region(bbox, region_name)
+        cls._cache[region_name] = cached
+        cls._current_region = region_name
+        
+        return cached.graph
+    
     @classmethod
-    def get_loaded_file_path(cls):
-        """
-        Returns the path of the currently loaded PBF file.
-        """
-        if cls._loader and cls._loader.file_path:
-            return cls._loader.file_path
+    def get_loaded_file_path(cls) -> str:
+        """Returns the path of the currently loaded PBF file."""
+        if cls._current_region and cls._current_region in cls._cache:
+            loader = cls._cache[cls._current_region].loader
+            if loader and loader.file_path:
+                return loader.file_path
         return "None (Graph not initialised)"
-
+    
     @classmethod
-    def get_timings(cls):
-        """Returns the timing breakdown from the last graph load."""
-        return cls._timings.copy()
+    def get_timings(cls) -> Dict[str, float]:
+        """Returns the timing breakdown from the current region's load."""
+        if cls._current_region and cls._current_region in cls._cache:
+            return cls._cache[cls._current_region].timings.copy()
+        return {}
+    
+    @classmethod
+    def get_cache_info(cls) -> Dict[str, Any]:
+        """Returns information about the current cache state."""
+        return {
+            'cached_regions': list(cls._cache.keys()),
+            'current_region': cls._current_region,
+            'max_regions': get_max_cached_regions(),
+            'cache_size': len(cls._cache)
+        }
+    
+    @classmethod
+    def clear_cache(cls):
+        """Clear all cached graphs."""
+        cls._cache.clear()
+        cls._current_region = None
+        print("[GraphManager] Cache cleared.")

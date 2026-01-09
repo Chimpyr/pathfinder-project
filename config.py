@@ -2,7 +2,7 @@ import os
 
 class Config:
     """Base configuration."""
-    SECRET_KEY = os.environ.get('SECRET_KEY')
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'you-will-never-guess'
     DEFAULT_CITY = "Bristol, UK"
     DEBUG = True
     VERBOSE_LOGGING = True
@@ -14,3 +14,8 @@ class Config:
     # - FAST: Simple buffer intersection (quick, ~30 seconds)
     # - NOVACK: Full isovist ray-casting (accurate but slow, ~10+ minutes)
     GREENNESS_MODE = 'FAST'
+    
+    # Graph caching configuration
+    # Maximum number of region graphs to keep in memory (LRU eviction)
+    # Higher = more memory usage, fewer reloads for multi-region routing
+    MAX_CACHED_REGIONS = 3

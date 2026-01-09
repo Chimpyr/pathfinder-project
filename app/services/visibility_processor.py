@@ -452,10 +452,17 @@ def calculate_edge_scenic_score_fast(
         green_area = 0.0
         for idx in candidates:
             geom = green_geoms[idx]
-            if buffer.intersects(geom):
-                intersection = buffer.intersection(geom)
-                if not intersection.is_empty:
-                    green_area += intersection.area
+            try:
+                # Fix invalid geometries with buffer(0)
+                if not geom.is_valid:
+                    geom = geom.buffer(0)
+                if buffer.intersects(geom):
+                    intersection = buffer.intersection(geom)
+                    if not intersection.is_empty:
+                        green_area += intersection.area
+            except Exception:
+                # Skip problematic geometries
+                continue
         green_score = min(1.0, green_area / buffer_area)
     
     # Calculate water intersection
@@ -465,10 +472,17 @@ def calculate_edge_scenic_score_fast(
         water_area = 0.0
         for idx in candidates:
             geom = water_geoms[idx]
-            if buffer.intersects(geom):
-                intersection = buffer.intersection(geom)
-                if not intersection.is_empty:
-                    water_area += intersection.area
+            try:
+                # Fix invalid geometries with buffer(0)
+                if not geom.is_valid:
+                    geom = geom.buffer(0)
+                if buffer.intersects(geom):
+                    intersection = buffer.intersection(geom)
+                    if not intersection.is_empty:
+                        water_area += intersection.area
+            except Exception:
+                # Skip problematic geometries
+                continue
         water_score = min(1.0, water_area / buffer_area)
     
     return green_score, water_score
