@@ -252,6 +252,154 @@ class OSMDataLoader:
             self.log(f"  [Error] Feature extraction failed: {e}")
             return pd.DataFrame()
 
+    def extract_green_areas(self) -> 'gpd.GeoDataFrame':
+        """
+        Extract green space polygons for visibility analysis.
+        
+        Tags extracted:
+        - landuse: grass, forest, meadow, recreation_ground, village_green, allotments
+        - leisure: park, garden, playground, nature_reserve, common
+        - natural: wood, scrub, heath, moor
+        
+        Returns:
+            GeoDataFrame of green polygons projected to EPSG:32630 (metres).
+        """
+        import geopandas as gpd
+        
+        if not self.file_path or not os.path.exists(self.file_path):
+            self.log("[OSMDataLoader] Cannot extract green areas - PBF not loaded.")
+            return gpd.GeoDataFrame()
+        
+        self.log("[OSMDataLoader] Extracting green areas for visibility analysis...")
+        
+        try:
+            osm = OSM(self.file_path)
+            
+            custom_filter = {
+                'landuse': ['grass', 'forest', 'meadow', 'recreation_ground', 
+                           'village_green', 'allotments'],
+                'leisure': ['park', 'garden', 'playground', 'nature_reserve', 'common'],
+                'natural': ['wood', 'scrub', 'heath', 'moor']
+            }
+            
+            gdf = osm.get_data_by_custom_criteria(custom_filter=custom_filter)
+            
+            if gdf is None or gdf.empty:
+                self.log("  [Warn] No green areas found.")
+                return gpd.GeoDataFrame()
+            
+            # Filter for polygons only (exclude points/lines)
+            gdf = gdf[gdf.geometry.notna()]
+            gdf = gdf[gdf.geometry.geom_type.isin(['Polygon', 'MultiPolygon'])]
+            
+            # Project to metres (UTM zone 30N for Bristol/UK)
+            if gdf.crs is None:
+                gdf = gdf.set_crs('EPSG:4326')
+            gdf = gdf.to_crs('EPSG:32630')
+            
+            self.log(f"  > Extracted {len(gdf)} green area polygons.")
+            return gdf
+            
+        except Exception as e:
+            self.log(f"  [Error] Green area extraction failed: {e}")
+            return gpd.GeoDataFrame()
+
+    def extract_buildings(self) -> 'gpd.GeoDataFrame':
+        """
+        Extract building polygons for visibility occlusion.
+        
+        Tags extracted:
+        - building: any value (True matches all)
+        - barrier: wall (solid barriers that block visibility)
+        
+        Returns:
+            GeoDataFrame of building polygons projected to EPSG:32630 (metres).
+        """
+        import geopandas as gpd
+        
+        if not self.file_path or not os.path.exists(self.file_path):
+            self.log("[OSMDataLoader] Cannot extract buildings - PBF not loaded.")
+            return gpd.GeoDataFrame()
+        
+        self.log("[OSMDataLoader] Extracting buildings for visibility analysis...")
+        
+        try:
+            osm = OSM(self.file_path)
+            
+            # Get buildings - pyrosm has a dedicated method for this
+            gdf = osm.get_buildings()
+            
+            if gdf is None or gdf.empty:
+                self.log("  [Warn] No buildings found.")
+                return gpd.GeoDataFrame()
+            
+            # Filter for polygons only
+            gdf = gdf[gdf.geometry.notna()]
+            gdf = gdf[gdf.geometry.geom_type.isin(['Polygon', 'MultiPolygon'])]
+            
+            # Project to metres (UTM zone 30N for Bristol/UK)
+            if gdf.crs is None:
+                gdf = gdf.set_crs('EPSG:4326')
+            gdf = gdf.to_crs('EPSG:32630')
+            
+            self.log(f"  > Extracted {len(gdf)} building polygons.")
+            return gdf
+            
+        except Exception as e:
+            self.log(f"  [Error] Building extraction failed: {e}")
+            return gpd.GeoDataFrame()
+
+    def extract_water(self) -> 'gpd.GeoDataFrame':
+        """
+        Extract water feature polygons for scenic scoring.
+        
+        Tags extracted:
+        - natural: water, wetland
+        - landuse: reservoir, basin
+        - waterway: river, canal, riverbank
+        
+        Returns:
+            GeoDataFrame of water polygons projected to EPSG:32630 (metres).
+        """
+        import geopandas as gpd
+        
+        if not self.file_path or not os.path.exists(self.file_path):
+            self.log("[OSMDataLoader] Cannot extract water - PBF not loaded.")
+            return gpd.GeoDataFrame()
+        
+        self.log("[OSMDataLoader] Extracting water features...")
+        
+        try:
+            osm = OSM(self.file_path)
+            
+            custom_filter = {
+                'natural': ['water', 'wetland'],
+                'landuse': ['reservoir', 'basin'],
+                'waterway': ['river', 'canal', 'riverbank']
+            }
+            
+            gdf = osm.get_data_by_custom_criteria(custom_filter=custom_filter)
+            
+            if gdf is None or gdf.empty:
+                self.log("  [Warn] No water features found.")
+                return gpd.GeoDataFrame()
+            
+            # Filter for polygons only (exclude lines)
+            gdf = gdf[gdf.geometry.notna()]
+            gdf = gdf[gdf.geometry.geom_type.isin(['Polygon', 'MultiPolygon'])]
+            
+            # Project to metres
+            if gdf.crs is None:
+                gdf = gdf.set_crs('EPSG:4326')
+            gdf = gdf.to_crs('EPSG:32630')
+            
+            self.log(f"  > Extracted {len(gdf)} water feature polygons.")
+            return gdf
+            
+        except Exception as e:
+            self.log(f"  [Error] Water extraction failed: {e}")
+            return gpd.GeoDataFrame()
+
     def _find_pbf_url_for_location(self, lat, lon):
         """
         Downloads/Loads Geofabrik Index and finds the smallest polygon containing the point.

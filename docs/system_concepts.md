@@ -140,3 +140,77 @@ A `raw_quiet_cost` attribute (formula: `length / noise_factor`) will be added wh
 - Smoothest surface
 - etc.
 
+---
+
+## 5. Custom Features: Greenness Visibility Index
+
+Implements **Novack et al. (2018)** methodology for calculating visible green area, accounting for buildings blocking the view.
+
+### How It Works
+
+After quietness processing, `GraphManager` runs the `VisibilityProcessor`:
+
+```python
+green_gdf = cls._loader.extract_green_areas()
+buildings_gdf = cls._loader.extract_buildings()
+cls._graph = process_graph_greenness(cls._graph, green_gdf, buildings_gdf)
+```
+
+### Algorithm (Isovist-Based)
+
+1. **Discretise** each edge into sample points (every 50m)
+2. For each point, **cast 72 rays** (every 5°) from the observation point
+3. **Trim rays** at building facades (occlusion)
+4. Construct **isovist polygon** (visible area)
+5. **Intersect** with green spaces
+6. **Score** = visible green area / (π × 100²)
+
+### New Edge Attributes
+
+```python
+edge_data = G[123456789][987654321][0]
+
+# After VisibilityProcessor:
+{
+    'length': 45.2,
+    'highway': 'residential',
+    'noise_factor': 2.0,
+    'green_visibility_score': 0.35,   # <--- NEW: 0.0-1.0 ratio
+    # ... other OSM tags
+}
+```
+
+### Future Use (WSM A*)
+
+A `raw_green_cost` attribute will be added when the WSM A* algorithm is implemented.
+
+---
+
+## 6. Scenic Mode Toggle (FAST vs NOVACK)
+
+Processing mode is controlled by `GREENNESS_MODE` in `config.py`:
+
+```python
+GREENNESS_MODE = 'FAST'  # Options: 'OFF', 'FAST', 'NOVACK'
+```
+
+| Mode | Algorithm | Speed | Edge Attributes |
+|------|-----------|-------|-----------------|
+| **OFF** | Skip | Instant | (none) |
+| **FAST** | 30m buffer intersection | ~30s | `scenic_score`, `green_proximity_score`, `water_proximity_score` |
+| **NOVACK** | Isovist ray-casting | ~10+ min | `green_visibility_score` |
+
+### FAST Mode
+
+Uses simple buffer intersection around edge midpoints:
+1. Create 30m circular buffer at edge midpoint
+2. Calculate intersection with green/water polygons
+3. Score = intersection area / buffer area
+
+### NOVACK Mode
+
+Full Novack et al. (2018) isovist analysis:
+1. Cast 72 rays (5° resolution) from sample points
+2. Trim rays at building facades
+3. Calculate visible green area
+
