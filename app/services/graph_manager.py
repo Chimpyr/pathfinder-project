@@ -12,6 +12,7 @@ from typing import Dict, Optional, Tuple, Any
 from app.services.data_loader import OSMDataLoader
 from app.services.quietness_processor import process_graph_quietness
 from app.services.visibility_processor import process_graph_greenness, process_graph_greenness_fast
+from app.services.cache_manager import get_cache_manager
 
 try:
     from flask import current_app, has_app_context
@@ -191,6 +192,10 @@ class GraphManager:
         print(f"  TOTAL: {total_time:.2f}s")
         print("="*50 + "\n")
         
+        # Save to disk cache for next time
+        cache_mgr = get_cache_manager()
+        cache_mgr.save_graph(graph, region_name, greenness_mode, loader.file_path)
+        
         return CachedGraph(graph, region_name, bbox, loader, timings)
     
     @classmethod
@@ -211,24 +216,40 @@ class GraphManager:
         """
         # Determine which region this bbox falls within
         region_name, _ = cls._find_region_for_bbox(bbox)
+        greenness_mode = get_greenness_mode()
         
-        # Check cache
+        # Check memory cache first
         if region_name in cls._cache:
-            print(f"[GraphManager] Cache HIT for region: {region_name}")
+            print(f"[GraphManager] Memory cache HIT for region: {region_name}")
             cached = cls._cache[region_name]
             cached.touch()
             cls._current_region = region_name
             return cached.graph
         
-        # Cache miss - need to load
-        print(f"[GraphManager] Cache MISS for region: {region_name}")
+        # Check disk cache
+        cache_mgr = get_cache_manager()
+        loader = OSMDataLoader()
+        loader.ensure_data_for_bbox(bbox)  # Ensure PBF exists for mtime check
         
-        # Check capacity and evict if needed
+        if cache_mgr.is_cache_valid(region_name, greenness_mode, loader.file_path):
+            print(f"[GraphManager] Disk cache HIT for region: {region_name}")
+            graph = cache_mgr.load_graph(region_name, greenness_mode)
+            if graph is not None:
+                # Store in memory cache too
+                cached = CachedGraph(graph, region_name, bbox, loader, {})
+                cls._cache[region_name] = cached
+                cls._current_region = region_name
+                return cached.graph
+        
+        # Full cache miss - need to load and process
+        print(f"[GraphManager] Cache MISS for region: {region_name} - full processing required")
+        
+        # Check memory capacity and evict if needed
         max_regions = get_max_cached_regions()
         if len(cls._cache) >= max_regions:
             cls._evict_lru()
         
-        # Load and cache
+        # Load, process, and cache
         cached = cls._load_graph_for_region(bbox, region_name)
         cls._cache[region_name] = cached
         cls._current_region = region_name
