@@ -1,11 +1,12 @@
 import os
 import networkx as nx
 from app.services.data_loader import OSMDataLoader
+from app.services.quietness_processor import process_graph_quietness
 
 class GraphManager:
     """
     Manages the retrieval and caching of the street network graph.
-    Now optimized to use local PBF data via OSMDataLoader.
+    Now optimised to use local PBF data via OSMDataLoader.
     """
     _graph = None
     _loader = None
@@ -23,23 +24,17 @@ class GraphManager:
             networkx.MultiDiGraph: The graph with .features attached.
         """
         if cls._graph is None:
-            print("[GraphManager] Initializing Graph from Local PBF...")
-            # Initialize loader (defaults to Bristol PBF)
+            print("[GraphManager] Initialising Graph from Local PBF...")
+            # Initialise loader (defaults to Bristol PBF)
             cls._loader = OSMDataLoader()
             
             # Load the graph for the specific bbox region
             # This triggers Geofabrik Index lookup and download if needed
             cls._graph = cls._loader.load_graph(bbox)
             
-            # Features are essentially embedded in the graph edges/nodes by pyrosm, 
-            # but our old code expected graph.features as a GeoDataFrame?
-            # Pyrosm doesn't attach .features attribute like osmnx does.
-            # However, Pyrosm edges have attributes.
-            # If downstream code expects `graph.features`, we might need to attach something?
-            # Let's check where graph.features is used. 
-            # MapRenderer uses it? Or just for POIs?
-            # If we need POIs separately, we might need a separate call.
-            # But for now, let's just ensure the graph is returned.
+            # Process quietness attributes (noise_factor, raw_quiet_cost)
+            print("[GraphManager] Processing quietness attributes...")
+            cls._graph = process_graph_quietness(cls._graph)
             
             # Shim for compatibility if needed.
             if not hasattr(cls._graph, 'features'):
@@ -54,4 +49,4 @@ class GraphManager:
         """
         if cls._loader and cls._loader.file_path:
             return cls._loader.file_path
-        return "None (Graph not initialized)"
+        return "None (Graph not initialised)"

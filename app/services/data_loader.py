@@ -7,14 +7,9 @@ from pyrosm import OSM
 from shapely.geometry import shape, Point
 
 try:
-    from pyrosm import to_graph
-except ImportError:
-    # Attempt fallback or local definition if missing in this version
-    to_graph = None
-
-try:
     from flask import current_app, has_app_context
 except ImportError:
+    # For CLI usage, there is no Flask app context, so we mock these
     current_app = None
     def has_app_context(): return False
 
@@ -50,7 +45,7 @@ class OSMDataLoader:
 
     def __init__(self, data_dir: str = "app/data"):
         """
-        Initialize the loader.
+        Initialise the loader.
         
         Args:
             data_dir (str): Relative directory to store data.
@@ -119,7 +114,7 @@ class OSMDataLoader:
         self.log(f"[OSMDataLoader] Parsing PBF data: {self.file_path} (This uses pyrosm for speed)")
         
         try:
-            # Initialize Pyrosm
+            # Initialise Pyrosm
             # We don't filter by bbox during load to ensure full connectivity
             osm = OSM(self.file_path)
             
@@ -186,7 +181,7 @@ class OSMDataLoader:
         Extracts POIs, Green Spaces, and Water in a Single Pass for performance.
         Returns a combined GeoDataFrame.
         """
-        self.log("[OSMDataLoader] Extracting additional features (Single Pass Optimization)...")
+        self.log("[OSMDataLoader] Extracting additional features (Single Pass Optimisation)...")
         
         # Define combined filter for all features we want
         # This forces pyrosm to read the file once and grab everything matching these tags.
@@ -208,10 +203,10 @@ class OSMDataLoader:
                 self.log("  [Warn] No features found.")
                 return pd.DataFrame()
 
-            # Initialize feature_group
+            # Initialise feature_group
             gdf['feature_group'] = 'other'
 
-            # --- Categorization Logic ---
+            # --- Categorisation Logic ---
             
             # 1. POIs
             # Any non-null value in these columns counts as a POI

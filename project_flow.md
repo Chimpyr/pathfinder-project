@@ -14,7 +14,7 @@ The application follows a standard **Model-View-Controller (MVC)** pattern (adap
 
 ### A. Application Startup
 1.  **`run.py`**: The entry point. It imports the `app` instance.
-2.  **`app/__init__.py`**: The `create_app()` factory function initializes the Flask app and registers blueprints (routes).
+2.  **`app/__init__.py`**: The `create_app()` factory function initialises the Flask app and registers blueprints (routes).
 3.  **`config.py`**: Loads configuration settings (e.g., `DEFAULT_CITY`).
 
 ### B. User Request (Find Route)

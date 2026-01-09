@@ -90,3 +90,53 @@ def calculate_cost(edge_data):
 ```
 
 The graph provides the raw data locally so the `RouteFinder` can run this logic millions of times instantly.
+
+---
+
+## 4. Custom Features: Quietness Value
+
+Beyond raw OSM tags, we compute **derived attributes** on edges during graph loading. The first of these is the **quietness value**, based on Wang et al. (2021) research validating road hierarchy as a proxy for traffic noise.
+
+### How It Works
+
+After loading the graph from the PBF file, `GraphManager` runs the `QuietnessProcessor` to classify each edge:
+
+```python
+# In graph_manager.py
+cls._graph = process_graph_quietness(cls._graph)
+```
+
+### Edge Classification
+
+Each edge receives a `noise_factor` attribute based on its `highway` tag:
+
+| Highway Type | Examples | `noise_factor` | Description |
+|--------------|----------|----------------|-------------|
+| **Noisy** | motorway, primary, secondary | 1.0 | High traffic, loud |
+| **Quiet** | residential, footway, path | 2.0 | Low traffic, peaceful |
+| **Neutral** | tertiary, unclassified | 1.5 | Unknown/moderate |
+
+### New Edge Attributes
+
+```python
+edge_data = G[123456789][987654321][0]
+
+# After QuietnessProcessor:
+{
+    'length': 45.2,
+    'highway': 'residential',
+    'noise_factor': 2.0,           # <---  Quietness classification
+    # ... other OSM tags
+}
+```
+
+### Future Use (WSM A*)
+
+A `raw_quiet_cost` attribute (formula: `length / noise_factor`) will be added when the **Weighted Sum Model (WSM)** A* algorithm is implemented. This will allow users to balance route preferences:
+
+- Shortest distance
+- Quietest route
+- Best-lit route
+- Smoothest surface
+- etc.
+

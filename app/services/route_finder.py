@@ -5,7 +5,7 @@ from app.services.astar.astar import OSMNetworkXAStar
 
 class RouteFinder:
     """
-    Service to calculate the shortest path between two points using just a simple A* algorithms (as MVP, so doesn't include constraints yet)
+    Service to calculate the shortest path between two points using WSM A* implementation.
     """
 
     def __init__(self, graph):

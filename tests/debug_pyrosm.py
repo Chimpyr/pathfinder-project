@@ -21,10 +21,10 @@ def debug_load():
         return
 
     # 2. Try minimal Init
-    print("Initializing OSM...")
+    print("Initialising OSM...")
     try:
         osm = OSM(pbf_path)
-        print("OSM initialized.")
+        print("OSM initialised.")
     except Exception as e:
         print(f"Failed to init OSM: {e}")
         return
