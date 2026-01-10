@@ -12,6 +12,7 @@ from typing import Dict, Optional, Tuple, Any
 from app.services.data_loader import OSMDataLoader
 from app.services.quietness_processor import process_graph_quietness
 from app.services.visibility_processor import process_graph_greenness, process_graph_greenness_fast
+from app.services.elevation_processor import process_graph_elevation
 from app.services.cache_manager import get_cache_manager
 
 try:
@@ -36,6 +37,11 @@ def get_greenness_mode() -> str:
 def get_max_cached_regions() -> int:
     """Get the maximum number of regions to cache."""
     return get_config('MAX_CACHED_REGIONS', 3)
+
+
+def get_elevation_mode() -> str:
+    """Get the configured elevation processing mode."""
+    return get_config('ELEVATION_MODE', 'FAST').upper()
 
 
 class CachedGraph:
@@ -173,6 +179,21 @@ class GraphManager:
         else:
             print("[GraphManager] Greenness processing disabled.")
         
+        # Process elevation based on mode
+        elevation_mode = get_elevation_mode()
+        print(f"[GraphManager] Elevation mode: {elevation_mode}")
+        
+        if elevation_mode == 'FAST':
+            print("[GraphManager] Processing elevation gradients (FAST mode)...")
+            
+            t0 = time.perf_counter()
+            graph = process_graph_elevation(graph)
+            timings['Elevation Processing (FAST)'] = time.perf_counter() - t0
+            print(f"  [Timer] Elevation Processing: {timings['Elevation Processing (FAST)']:.2f}s")
+            
+        else:
+            print("[GraphManager] Elevation processing disabled.")
+        
         # Compatibility shim
         if not hasattr(graph, 'features'):
             graph.features = None
@@ -194,7 +215,7 @@ class GraphManager:
         
         # Save to disk cache for next time
         cache_mgr = get_cache_manager()
-        cache_mgr.save_graph(graph, region_name, greenness_mode, loader.file_path)
+        cache_mgr.save_graph(graph, region_name, greenness_mode, elevation_mode, loader.file_path)
         
         return CachedGraph(graph, region_name, bbox, loader, timings)
     
@@ -217,6 +238,7 @@ class GraphManager:
         # Determine which region this bbox falls within
         region_name, _ = cls._find_region_for_bbox(bbox)
         greenness_mode = get_greenness_mode()
+        elevation_mode = get_elevation_mode()
         
         # Check memory cache first
         if region_name in cls._cache:
@@ -231,9 +253,9 @@ class GraphManager:
         loader = OSMDataLoader()
         loader.ensure_data_for_bbox(bbox)  # Ensure PBF exists for mtime check
         
-        if cache_mgr.is_cache_valid(region_name, greenness_mode, loader.file_path):
+        if cache_mgr.is_cache_valid(region_name, greenness_mode, elevation_mode, loader.file_path):
             print(f"[GraphManager] Disk cache HIT for region: {region_name}")
-            graph = cache_mgr.load_graph(region_name, greenness_mode)
+            graph = cache_mgr.load_graph(region_name, greenness_mode, elevation_mode)
             if graph is not None:
                 # Store in memory cache too
                 cached = CachedGraph(graph, region_name, bbox, loader, {})

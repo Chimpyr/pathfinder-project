@@ -27,6 +27,7 @@ class CacheManager:
     - Cache version (code changes)
     - PBF file modification time
     - Greenness mode setting
+    - Elevation mode setting
     """
     
     def __init__(self, cache_dir: str = "app/data/cache"):
@@ -64,15 +65,17 @@ class CacheManager:
         except IOError as e:
             print(f"[CacheManager] Warning: Could not save manifest: {e}")
     
-    def _get_cache_key(self, region_name: str, greenness_mode: str) -> str:
+    def _get_cache_key(self, region_name: str, greenness_mode: str, 
+                        elevation_mode: str = 'OFF') -> str:
         """Generate a unique cache key for a region + mode combination."""
-        return f"{region_name}_{greenness_mode.lower()}"
+        return f"{region_name}_{greenness_mode.lower()}_{elevation_mode.lower()}"
     
     def _get_cache_path(self, cache_key: str) -> str:
         """Get the file path for a cache entry."""
         return os.path.join(self.cache_dir, f"{cache_key}_v{CACHE_VERSION}.pickle")
     
-    def is_cache_valid(self, region_name: str, greenness_mode: str, 
+    def is_cache_valid(self, region_name: str, greenness_mode: str,
+                       elevation_mode: str = 'OFF',
                        pbf_path: Optional[str] = None) -> bool:
         """
         Check if a valid cache exists for the given region and mode.
@@ -80,12 +83,13 @@ class CacheManager:
         Args:
             region_name: Name of the region (e.g., 'cornwall').
             greenness_mode: Processing mode ('OFF', 'FAST', 'NOVACK').
+            elevation_mode: Elevation mode ('OFF', 'FAST').
             pbf_path: Path to the PBF file (for mtime validation).
         
         Returns:
             True if valid cache exists, False otherwise.
         """
-        cache_key = self._get_cache_key(region_name, greenness_mode)
+        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode)
         cache_path = self._get_cache_path(cache_key)
         
         # Check file exists
@@ -116,18 +120,20 @@ class CacheManager:
         
         return True
     
-    def load_graph(self, region_name: str, greenness_mode: str) -> Optional[nx.MultiDiGraph]:
+    def load_graph(self, region_name: str, greenness_mode: str,
+                   elevation_mode: str = 'OFF') -> Optional[nx.MultiDiGraph]:
         """
         Load a cached graph from disk.
         
         Args:
             region_name: Name of the region.
             greenness_mode: Processing mode.
+            elevation_mode: Elevation mode.
         
         Returns:
             The cached graph, or None if not found/invalid.
         """
-        cache_key = self._get_cache_key(region_name, greenness_mode)
+        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode)
         cache_path = self._get_cache_path(cache_key)
         
         if not os.path.exists(cache_path):
@@ -152,7 +158,8 @@ class CacheManager:
             return None
     
     def save_graph(self, graph: nx.MultiDiGraph, region_name: str, 
-                   greenness_mode: str, pbf_path: Optional[str] = None):
+                   greenness_mode: str, elevation_mode: str = 'OFF',
+                   pbf_path: Optional[str] = None):
         """
         Save a processed graph to disk cache.
         
@@ -160,9 +167,10 @@ class CacheManager:
             graph: The fully-processed NetworkX graph.
             region_name: Name of the region.
             greenness_mode: Processing mode used.
+            elevation_mode: Elevation mode used.
             pbf_path: Path to source PBF (for invalidation tracking).
         """
-        cache_key = self._get_cache_key(region_name, greenness_mode)
+        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode)
         cache_path = self._get_cache_path(cache_key)
         
         try:

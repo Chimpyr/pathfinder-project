@@ -15,7 +15,14 @@ class Config:
     # - NOVACK: Full isovist ray-casting (accurate but slow, ~10+ minutes)
     GREENNESS_MODE = 'FAST'
     
+    # Elevation processing mode
+    # Options: 'OFF', 'FAST'
+    # - OFF: Skip elevation processing (no gradient data)
+    # - FAST: Fetch from Open Topo Data API (~30-60s for large graphs)
+    ELEVATION_MODE = 'FAST'
+    
     # Graph caching configuration
     # Maximum number of region graphs to keep in memory (LRU eviction)
     # Higher = more memory usage, fewer reloads for multi-region routing
     MAX_CACHED_REGIONS = 3
+
