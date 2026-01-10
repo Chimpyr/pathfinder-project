@@ -10,7 +10,7 @@ NOTE: API calls are mocked to avoid network dependencies in unit tests.
 import pytest
 import networkx as nx
 from unittest.mock import patch, MagicMock
-from app.services.elevation_processor import (
+from app.services.processors.elevation import (
     calculate_edge_gradient,
     process_graph_elevation,
     configure_elevation_api,
@@ -76,7 +76,7 @@ class TestFetchNodeElevations:
         result = fetch_node_elevations(None)
         assert result is None
     
-    @patch('app.services.elevation_processor.ox', None)
+    @patch('app.services.processors.elevation.ox', None)
     def test_handles_missing_osmnx(self):
         """Should return graph unchanged when osmnx not available."""
         G = nx.MultiDiGraph()
@@ -123,7 +123,7 @@ class TestProcessGraphElevation:
         result = process_graph_elevation(None)
         assert result is None
     
-    @patch('app.services.elevation_processor.fetch_node_elevations')
+    @patch('app.services.processors.elevation.fetch_node_elevations')
     def test_assigns_raw_slope_cost(self, mock_fetch, mock_graph_with_elevations):
         """All edges should have raw_slope_cost attribute after processing."""
         # Mock the fetch to return graph with elevations already set
@@ -134,7 +134,7 @@ class TestProcessGraphElevation:
         for u, v, k, data in processed.edges(keys=True, data=True):
             assert 'raw_slope_cost' in data, f"Edge ({u}, {v}, {k}) missing raw_slope_cost"
     
-    @patch('app.services.elevation_processor.fetch_node_elevations')
+    @patch('app.services.processors.elevation.fetch_node_elevations')
     def test_correct_gradient_calculation(self, mock_fetch, mock_graph_with_elevations):
         """Gradient values should be calculated correctly."""
         mock_fetch.return_value = mock_graph_with_elevations
@@ -153,7 +153,7 @@ class TestProcessGraphElevation:
         edge_3_4 = processed[3][4][0]
         assert abs(edge_3_4['raw_slope_cost'] - 0.05) < 0.001
     
-    @patch('app.services.elevation_processor.fetch_node_elevations')
+    @patch('app.services.processors.elevation.fetch_node_elevations')
     def test_short_edge_gets_zero_gradient(self, mock_fetch, mock_graph_with_elevations):
         """Very short edges should get 0.0 gradient."""
         mock_fetch.return_value = mock_graph_with_elevations
@@ -164,7 +164,7 @@ class TestProcessGraphElevation:
         edge_1_4 = processed[1][4][0]
         assert edge_1_4['raw_slope_cost'] == 0.0
     
-    @patch('app.services.elevation_processor.fetch_node_elevations')
+    @patch('app.services.processors.elevation.fetch_node_elevations')
     def test_missing_elevation_defaults_to_zero(self, mock_fetch, mock_graph):
         """Edges with missing elevation data should default to 0.0 gradient."""
         # No elevation data on nodes
@@ -175,7 +175,7 @@ class TestProcessGraphElevation:
         for u, v, k, data in processed.edges(keys=True, data=True):
             assert data['raw_slope_cost'] == 0.0
     
-    @patch('app.services.elevation_processor.fetch_node_elevations')
+    @patch('app.services.processors.elevation.fetch_node_elevations')
     def test_returns_same_graph_object(self, mock_fetch, mock_graph_with_elevations):
         """Should modify graph in-place and return the same object."""
         mock_fetch.return_value = mock_graph_with_elevations
@@ -184,7 +184,7 @@ class TestProcessGraphElevation:
         
         assert processed is mock_graph_with_elevations
     
-    @patch('app.services.elevation_processor.fetch_node_elevations')
+    @patch('app.services.processors.elevation.fetch_node_elevations')
     def test_gradient_is_valid_float(self, mock_fetch, mock_graph_with_elevations):
         """Gradient values should be non-negative floats."""
         mock_fetch.return_value = mock_graph_with_elevations
@@ -200,7 +200,7 @@ class TestProcessGraphElevation:
 class TestConfigureElevationApi:
     """Tests for the configure_elevation_api function."""
     
-    @patch('app.services.elevation_processor.ox')
+    @patch('app.services.processors.elevation.ox')
     def test_sets_url_template(self, mock_ox):
         """Should set osmnx elevation URL template."""
         mock_ox.settings = MagicMock()
@@ -209,7 +209,7 @@ class TestConfigureElevationApi:
         
         assert 'opentopodata.org' in mock_ox.settings.elevation_url_template
     
-    @patch('app.services.elevation_processor.ox', None)
+    @patch('app.services.processors.elevation.ox', None)
     def test_handles_missing_osmnx(self):
         """Should not raise when osmnx not available."""
         # Should not raise any exception

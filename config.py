@@ -19,7 +19,19 @@ class Config:
     # Options: 'OFF', 'FAST'
     # - OFF: Skip elevation processing (no gradient data)
     # - FAST: Fetch from Open Topo Data API (~30-60s for large graphs)
-    ELEVATION_MODE = 'FAST'
+    ELEVATION_MODE = 'OFF'
+    
+    # Water proximity processing mode
+    # Options: 'OFF', 'FAST'
+    # - OFF: Skip water processing (no water proximity data)
+    # - FAST: Buffer intersection for water features
+    WATER_MODE = 'FAST'
+    
+    # Social/POI proximity processing mode
+    # Options: 'OFF', 'FAST'
+    # - OFF: Skip social processing (no POI proximity data)
+    # - FAST: Buffer intersection for tourist/social POIs
+    SOCIAL_MODE = 'FAST'
     
     # Graph caching configuration
     # Maximum number of region graphs to keep in memory (LRU eviction)

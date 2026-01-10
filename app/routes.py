@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, current_app, jsonify
-from app.services.graph_manager import GraphManager
-from app.services.route_finder import RouteFinder
-from app.services.map_renderer import MapRenderer
+from app.services.core.graph_manager import GraphManager
+from app.services.routing.route_finder import RouteFinder
+from app.services.rendering.map_renderer import MapRenderer
 
 main = Blueprint('main', __name__)
 

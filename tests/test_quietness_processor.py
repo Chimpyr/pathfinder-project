@@ -9,7 +9,7 @@ NOTE: compute_raw_quiet_cost tests are marked as skip until WSM A* implementatio
 
 import pytest
 import networkx as nx
-from app.services.quietness_processor import (
+from app.services.processors.quietness import (
     classify_highway,
     compute_raw_quiet_cost,
     process_graph_quietness,
