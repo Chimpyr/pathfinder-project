@@ -6,7 +6,7 @@ Complete technical documentation of the pedestrian routing engine.
 
 ## Overview
 
-ScenicPathFinder is a pedestrian routing engine that calculates walking routes with support for weighted multi-criteria pathfinding (quietness, greenness, etc.).
+ScenicPathFinder is a pedestrian routing engine that calculates walking routes with support for weighted multi-criteria pathfinding (quietness, greenness, water proximity, social POIs).
 
 ```
 User Input → Geocoding → Region Detection → Graph Loading → A* Routing → Map Display
@@ -19,20 +19,35 @@ User Input → Geocoding → Region Detection → Graph Loading → A* Routing �
 ```
 ScenicPathFinder/
 ├── app/
-│   ├── services/           # Core business logic
-│   │   ├── cache_manager.py      # Disk caching (pickle)
-│   │   ├── data_loader.py        # PBF download + parsing
-│   │   ├── graph_manager.py      # Two-tier cache orchestration
-│   │   ├── quietness_processor.py # Highway noise classification
-│   │   ├── visibility_processor.py # Green/scenic scoring
-│   │   ├── route_finder.py       # A* pathfinding
-│   │   └── map_renderer.py       # Folium map generation
-│   ├── routes.py           # Flask endpoints
-│   ├── templates/          # HTML templates
-│   └── data/               # Downloaded PBF files + cache
-├── config.py               # Application settings
-├── run.py                  # Entry point
-└── docs/                   # Documentation
+│   ├── services/
+│   │   ├── core/                    # Infrastructure
+│   │   │   ├── cache_manager.py     # Disk caching (pickle)
+│   │   │   ├── data_loader.py       # PBF download + parsing
+│   │   │   └── graph_manager.py     # Two-tier cache orchestration
+│   │   │
+│   │   ├── processors/              # Edge attribute processors
+│   │   │   ├── greenness.py         # Green visibility (FAST/NOVACK)
+│   │   │   ├── water.py             # Water proximity scoring
+│   │   │   ├── social.py            # POI proximity scoring
+│   │   │   ├── elevation.py         # Gradient calculation
+│   │   │   ├── quietness.py         # Highway noise classification
+│   │   │   └── orchestrator.py      # Scenic pipeline coordinator
+│   │   │
+│   │   ├── routing/                 # Pathfinding
+│   │   │   ├── route_finder.py      # A* pathfinding wrapper
+│   │   │   └── astar/               # Custom A* implementation
+│   │   │
+│   │   └── rendering/               # Map output
+│   │       └── map_renderer.py      # Folium map generation
+│   │
+│   ├── routes.py                    # Flask endpoints
+│   ├── templates/                   # HTML templates
+│   └── data/                        # Downloaded PBF files + cache
+│
+├── config.py                        # Application settings
+├── run.py                           # Entry point
+├── tests/                           # Test suite
+└── docs/                            # Documentation
 ```
 
 ---
@@ -45,8 +60,8 @@ User enters start/end locations (addresses or postcodes).
 
 ```
 POST / 
-  start: "pl34 0dt"
-  end: "Tintagel Castle"
+  start: "Clifton Suspension Bridge"
+  end: "Bristol Temple Meads"
 ```
 
 ### 2. Geocoding
@@ -54,8 +69,8 @@ POST /
 `routes.py` uses **osmnx** to convert addresses to coordinates:
 
 ```python
-start_point = ox.geocode("pl34 0dt")  # → (50.657, -4.750)
-end_point = ox.geocode("Tintagel Castle")  # → (50.669, -4.762)
+start_point = ox.geocode("Clifton Suspension Bridge")  # → (51.454, -2.627)
+end_point = ox.geocode("Bristol Temple Meads")  # → (51.449, -2.580)
 ```
 
 ### 3. Bounding Box Calculation
@@ -71,7 +86,7 @@ bbox = (min_lat - 0.02, min_lon - 0.02, max_lat + 0.02, max_lon + 0.02)
 `GraphManager` identifies the correct OSM extract:
 
 ```python
-region_name = "cornwall"  # From Geofabrik index
+region_name = "bristol"  # From Geofabrik index
 ```
 
 ### 5. Graph Loading (Two-Tier Cache)
@@ -114,7 +129,7 @@ map_html = MapRenderer.render_map(graph, route, start, end)
 
 ## Core Services
 
-### OSMDataLoader (`data_loader.py`)
+### OSMDataLoader (`core/data_loader.py`)
 
 Downloads and parses OpenStreetMap data.
 
@@ -123,12 +138,13 @@ Downloads and parses OpenStreetMap data.
 - `extract_green_areas()` - Parks, forests (→ GeoDataFrame)
 - `extract_buildings()` - Building polygons for occlusion
 - `extract_water()` - Rivers, lakes for scenic scoring
+- `extract_pois()` - Tourist/social POIs for social scoring
 
-**Data source:** Geofabrik regional extracts (e.g., `cornwall.osm.pbf`)
+**Data source:** Geofabrik regional extracts (e.g., `bristol.osm.pbf`)
 
 ---
 
-### GraphManager (`graph_manager.py`)
+### GraphManager (`core/graph_manager.py`)
 
 Orchestrates graph loading with two-tier caching.
 
@@ -143,18 +159,31 @@ Orchestrates graph loading with two-tier caching.
 
 ---
 
-### CacheManager (`cache_manager.py`)
+### CacheManager (`core/cache_manager.py`)
 
 Handles disk serialisation and cache invalidation.
 
 **Invalidation triggers:**
 - `CACHE_VERSION` changes (code update)
 - PBF file modified
-- `GREENNESS_MODE` changes
+- Processing mode changes (GREENNESS_MODE, ELEVATION_MODE, etc.)
 
 ---
 
-### QuietnessProcessor (`quietness_processor.py`)
+## Processor Modules
+
+### ScenicOrchestrator (`processors/orchestrator.py`)
+
+Coordinates the scenic processing pipeline based on configuration.
+
+**Responsibilities:**
+- Read config modes (GREENNESS_MODE, WATER_MODE, SOCIAL_MODE)
+- Call enabled processors in sequence
+- Pass timing information to graph_manager
+
+---
+
+### QuietnessProcessor (`processors/quietness.py`)
 
 Classifies highway types by expected noise level.
 
@@ -168,45 +197,75 @@ Classifies highway types by expected noise level.
 
 ---
 
-### VisibilityProcessor (`visibility_processor.py`)
+### GreennessProcessor (`processors/greenness.py`)
 
-Calculates green/scenic visibility scores.
+Calculates green space proximity/visibility scores.
 
-**Modes:**
+**Edge attribute:** `raw_green_cost` (0.0 = very green, 1.0 = no green)
 
-| Mode | Algorithm | Edge Attributes |
-|------|-----------|-----------------|
-| OFF | Skip | (none) |
-| FAST | 30m buffer intersection | `scenic_score`, `green_proximity_score`, `water_proximity_score` |
-| NOVACK | Isovist ray-casting | `green_visibility_score` |
+| Mode | Algorithm | Speed |
+|------|-----------|-------|
+| OFF | Skip | Instant |
+| FAST | 30m buffer intersection | ~45s |
+| NOVACK | Isovist ray-casting | ~10min |
 
 ---
 
-### ElevationProcessor (`elevation_processor.py`)
+### WaterProcessor (`processors/water.py`)
+
+Calculates proximity to water features.
+
+**Edge attribute:** `raw_water_cost` (0.0 = near water, 1.0 = no water)
+
+| Mode | Algorithm | Speed |
+|------|-----------|-------|
+| OFF | Skip | Instant |
+| FAST | 30m buffer intersection | ~26s |
+
+---
+
+### SocialProcessor (`processors/social.py`)
+
+Calculates proximity to tourist and social POIs.
+
+**Edge attribute:** `raw_social_cost` (0.0 = near POIs, 1.0 = no POIs)
+
+**POI categories:**
+- `tourism`: attraction, viewpoint, museum, artwork, gallery
+- `historic`: castle, monument, memorial, ruins
+- `amenity`: cafe, restaurant, pub, theatre, cinema
+
+| Mode | Algorithm | Speed |
+|------|-----------|-------|
+| OFF | Skip | Instant |
+| FAST | 50m buffer intersection | ~13s |
+
+---
+
+### ElevationProcessor (`processors/elevation.py`)
 
 Fetches elevation data and calculates edge gradients.
 
-**Modes:**
+**Edge attribute:** `raw_slope_cost` (absolute gradient, e.g. 0.05 = 5% grade)
 
-| Mode | Algorithm | Edge Attributes |
-|------|-----------|-----------------|
-| OFF | Skip | (none) |
-| FAST | Open Topo Data API (ASTER30m) | `raw_slope_cost` |
+| Mode | Algorithm | Speed |
+|------|-----------|-------|
+| OFF | Skip | Instant |
+| FAST | Open Topo Data API (ASTER30m) | ~25min* |
+
+*Rate-limited by free API tier (1 req/sec)
 
 **Formula:** `raw_slope_cost = |elevation_v - elevation_u| / length`
 
 ---
 
-### RouteFinder (`route_finder.py`)
+### RouteFinder (`routing/route_finder.py`)
 
 A* pathfinding using edge weights.
 
 **Current:** Uses `length` attribute for shortest path.
 
-**Future (WSM A Star):** Will combine multiple criteria:
-```python
-cost = w1 * length + w2 * noise_factor + w3 * scenic_score
-```
+**Future (WSM A*):** Will combine multiple criteria with user-configurable weights.
 
 ---
 
@@ -218,11 +277,17 @@ class Config:
     WALKING_SPEED_KMH = 5.0
     VERBOSE_LOGGING = True
     
-    # Scenic processing mode
+    # Greenness processing mode
     GREENNESS_MODE = 'FAST'  # OFF | FAST | NOVACK
     
+    # Water processing mode
+    WATER_MODE = 'FAST'      # OFF | FAST
+    
+    # Social POI processing mode
+    SOCIAL_MODE = 'FAST'     # OFF | FAST
+    
     # Elevation processing mode
-    ELEVATION_MODE = 'FAST'  # OFF | FAST
+    ELEVATION_MODE = 'OFF'   # OFF | FAST
     
     # Cache capacity
     MAX_CACHED_REGIONS = 3
@@ -235,7 +300,7 @@ class Config:
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                         USER REQUEST                              │
-│                    "pl34 0dt" → "Tintagel"                        │
+│             "Clifton Suspension Bridge" → "Temple Meads"          │
 └────────────────────────────┬─────────────────────────────────────┘
                              │
                              ▼
@@ -258,15 +323,15 @@ class Config:
                              │
                              ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                   ATTRIBUTE PROCESSORS                            │
-│         Quietness (noise_factor) + Visibility (scenic_score)      │
+│                   SCENIC ORCHESTRATOR                             │
+│    Quietness → Greenness → Water → Social → Elevation             │
 └────────────────────────────┬─────────────────────────────────────┘
                              │
                              ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                   PROCESSED GRAPH                                 │
-│  Nodes: {id, x, y, ...}                                           │
-│  Edges: {length, highway, noise_factor, scenic_score, ...}        │
+│  Nodes: {id, x, y, elevation, ...}                                │
+│  Edges: {length, noise_factor, raw_*_cost, ...}                   │
 └────────────────────────────┬─────────────────────────────────────┘
                              │
                              ▼
@@ -292,6 +357,8 @@ class Config:
 
 ## Edge Attributes (After Processing)
 
+All cost attributes use the convention: **lower = better for routing**.
+
 ```python
 edge = G[node_u][node_v][0]
 
@@ -303,47 +370,60 @@ edge = G[node_u][node_v][0]
     'lit': 'yes',
     
     # From QuietnessProcessor
-    'noise_factor': 2.0,      # 1.0-5.0
+    'noise_factor': 2.0,      # 1.0-5.0 (higher = noisier)
     
-    # From VisibilityProcessor (FAST mode)
-    'green_proximity_score': 0.35,   # 0.0-1.0
-    'water_proximity_score': 0.10,   # 0.0-1.0
-    'scenic_score': 0.28,            # weighted combination
+    # From GreennessProcessor (FAST mode)
+    'raw_green_cost': 0.35,   # 0.0-1.0 (0 = green, 1 = no green)
+    
+    # From WaterProcessor (FAST mode)
+    'raw_water_cost': 0.90,   # 0.0-1.0 (0 = water, 1 = no water)
+    
+    # From SocialProcessor (FAST mode)
+    'raw_social_cost': 0.75,  # 0.0-1.0 (0 = POIs, 1 = no POIs)
     
     # From ElevationProcessor (FAST mode)
-    'raw_slope_cost': 0.05,          # 0.0+ (0.05 = 5% grade)
+    'raw_slope_cost': 0.05,   # 0.0+ (0.05 = 5% grade)
 }
 ```
 
 ---
 
-## Performance Benchmarks
+## Performance Benchmarks (Bristol, 325K edges)
 
 | Operation | Typical Time |
 |-----------|--------------|
 | Memory cache hit | <1ms |
 | Disk cache hit | ~2-5s |
-| Full processing (Cornwall, 1.7M edges) | ~355s |
+| Graph Loading | ~16s |
+| Quietness Processing | ~0.4s |
+| Greenness Processing (FAST) | ~45s |
+| Water Processing (FAST) | ~26s |
+| Social Processing (FAST) | ~13s |
+| **Total (first load)** | **~110s** |
 | A* route calculation | <100ms |
 
 ---
 
 ## Future: WSM A* Integration
 
-The edge attributes (`noise_factor`, `scenic_score`, etc.) are designed for use in a **Weighted Sum Model** A* implementation:
+The edge attributes (`noise_factor`, `raw_*_cost`) are designed for use in a **Weighted Sum Model** A* implementation:
 
 ```python
 # User sets weights via UI sliders
 weights = {
-    'distance': 0.5,
-    'quietness': 0.3,
-    'greenness': 0.2
+    'distance': 0.4,
+    'quietness': 0.2,
+    'greenness': 0.2,
+    'water': 0.1,
+    'social': 0.1
 }
 
-# Edge cost calculation
+# Edge cost calculation (lower cost = preferred)
 cost = (weights['distance'] * edge['length'] +
         weights['quietness'] * edge['length'] / edge['noise_factor'] +
-        weights['greenness'] * edge['length'] / (edge['scenic_score'] + 0.5))
+        weights['greenness'] * edge['length'] * edge['raw_green_cost'] +
+        weights['water'] * edge['length'] * edge['raw_water_cost'] +
+        weights['social'] * edge['length'] * edge['raw_social_cost'])
 ```
 
-This enables personalised routing: "shortest but avoiding main roads with preference for parks".
+This enables personalised routing: "shortest but avoiding main roads with preference for parks and waterfront".
