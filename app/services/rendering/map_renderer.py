@@ -60,3 +60,31 @@ class MapRenderer:
             ).add_to(m)
 
         return m.get_root().render()
+
+    @staticmethod
+    def route_to_coords(graph, route):
+        """
+        Extract route node coordinates for client-side rendering.
+        
+        Converts a list of node IDs to [[lat, lon], ...] format
+        suitable for Leaflet polyline display.
+        
+        Args:
+            graph (networkx.MultiDiGraph): The street network graph.
+            route (list): List of node IDs representing the path.
+        
+        Returns:
+            list: Array of [lat, lon] coordinate pairs.
+        """
+        if not route:
+            return []
+        
+        coords = []
+        for node in route:
+            try:
+                point = graph.nodes[node]
+                coords.append([point['y'], point['x']])  # [lat, lon]
+            except KeyError:
+                continue
+        
+        return coords
