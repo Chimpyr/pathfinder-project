@@ -36,6 +36,7 @@ class MapController {
         this.startMarker = null;
         this.endMarker = null;
         this.routeLayer = null;
+        this.debugLayers = [];  // Debug edge feature overlays
         
         // Interaction state: 'idle' | 'setting_start' | 'setting_end' | 'ready'
         this.state = 'idle';
@@ -267,10 +268,101 @@ class MapController {
             this.routeLayer = null;
         }
         
+        // Clear debug layers
+        this.clearDebugLayers();
+        
         this.state = 'setting_start';
         this.options.onMarkersCleared();
         
         console.log('[MapController] Cleared all markers and route');
+    }
+    
+    /**
+     * Display debug edge features as coloured overlays on the map.
+     * 
+     * Each edge segment is coloured based on its dominant feature (lowest cost).
+     * Green = greenness, Blue = water proximity, Amber = social POIs.
+     * Tooltips show all feature values on hover.
+     * 
+     * @param {Array} edgeFeatures - Array of edge feature objects from API.
+     */
+    displayEdgeFeatures(edgeFeatures) {
+        // Clear any existing debug layers first
+        this.clearDebugLayers();
+        
+        if (!edgeFeatures || edgeFeatures.length === 0) {
+            console.log('[MapController] No edge features to display');
+            return;
+        }
+        
+        edgeFeatures.forEach((edge, idx) => {
+            // Determine dominant feature (lowest cost = best)
+            const features = {
+                green: edge.green_cost,
+                water: edge.water_cost,
+                social: edge.social_cost
+            };
+            
+            // Find best feature (lowest non-null cost)
+            let bestFeature = null;
+            let bestValue = Infinity;
+            
+            for (const [name, value] of Object.entries(features)) {
+                if (value !== null && value !== undefined && value < bestValue) {
+                    bestValue = value;
+                    bestFeature = name;
+                }
+            }
+            
+            // Colour mapping for feature types
+            const colours = {
+                green: '#22c55e',   // Green for greenness
+                water: '#3b82f6',   // Blue for water proximity
+                social: '#f59e0b',  // Amber for social POIs
+                default: '#6b7280'  // Grey for no features or unknown
+            };
+            
+            const colour = colours[bestFeature] || colours.default;
+            
+            // Create segment polyline with thicker, semi-transparent styling
+            const segment = L.polyline(
+                [edge.from_coord, edge.to_coord],
+                {
+                    color: colour,
+                    weight: 8,
+                    opacity: 0.7,
+                    className: 'debug-edge-segment'
+                }
+            ).addTo(this.map);
+            
+            // Build tooltip content with all feature values
+            const tooltipContent = `
+                <strong>Edge ${idx + 1}</strong><br>
+                Highway: ${edge.highway}<br>
+                Length: ${edge.length_m}m<br>
+                <hr style="margin: 4px 0; border-color: #ddd;">
+                🔊 Noise: ${edge.noise_factor ?? 'N/A'}<br>
+                🌿 Green: ${edge.green_cost?.toFixed(2) ?? 'N/A'}<br>
+                💧 Water: ${edge.water_cost?.toFixed(2) ?? 'N/A'}<br>
+                🏛️ Social: ${edge.social_cost?.toFixed(2) ?? 'N/A'}<br>
+                ⛰️ Slope: ${edge.slope_cost?.toFixed(3) ?? 'N/A'}
+            `;
+            segment.bindTooltip(tooltipContent, { sticky: true });
+            
+            this.debugLayers.push(segment);
+        });
+        
+        console.log(`[MapController] Displayed ${edgeFeatures.length} debug edge features`);
+    }
+    
+    /**
+     * Clear debug visualisation layers from the map.
+     */
+    clearDebugLayers() {
+        if (this.debugLayers && this.debugLayers.length > 0) {
+            this.debugLayers.forEach(layer => this.map.removeLayer(layer));
+            this.debugLayers = [];
+        }
     }
     
     /**

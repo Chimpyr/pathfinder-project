@@ -12,6 +12,60 @@ from app.services.rendering.map_renderer import MapRenderer
 
 main = Blueprint('main', __name__)
 
+# Threshold for showing visual edge features on the map (metres)
+VISUAL_DEBUG_THRESHOLD_M = 750.0
+
+
+def _extract_edge_features(graph, route, max_edges=None):
+    """
+    Extract feature data for edges in a route.
+    
+    Extracts coordinate pairs and all scenic/routing feature values
+    for each edge (consecutive node pair) in the provided route.
+    
+    Args:
+        graph: NetworkX MultiDiGraph with processed edges.
+        route: List of node IDs representing the path.
+        max_edges: Optional limit on number of edges to extract.
+    
+    Returns:
+        list: List of dicts containing edge coordinates and feature values.
+              Returns empty list if route is None or too short.
+    """
+    if not route or len(route) < 2:
+        return []
+    
+    edges = []
+    edge_pairs = list(zip(route[:-1], route[1:]))
+    
+    if max_edges:
+        edge_pairs = edge_pairs[:max_edges]
+    
+    for u, v in edge_pairs:
+        try:
+            u_data = graph.nodes[u]
+            v_data = graph.nodes[v]
+            edge_data = graph.get_edge_data(u, v)
+            
+            # Get first edge key's data (for MultiDiGraph)
+            if edge_data:
+                data = list(edge_data.values())[0]
+                edges.append({
+                    'from_coord': [u_data['y'], u_data['x']],
+                    'to_coord': [v_data['y'], v_data['x']],
+                    'highway': data.get('highway', 'unknown'),
+                    'length_m': round(data.get('length', 0), 1),
+                    'noise_factor': data.get('noise_factor', None),
+                    'green_cost': data.get('raw_green_cost', None),
+                    'water_cost': data.get('raw_water_cost', None),
+                    'social_cost': data.get('raw_social_cost', None),
+                    'slope_cost': data.get('raw_slope_cost', None)
+                })
+        except KeyError:
+            continue
+    
+    return edges
+
 
 @main.route('/', methods=['GET'])
 def index():
@@ -209,6 +263,21 @@ def calculate_route():
                 'bbox': bbox,
                 'loaded_pbf': GraphManager.get_loaded_file_path()
             }
+            
+            # Always include first 5 edges with feature data for debug panel
+            first_5_edges = _extract_edge_features(graph, route, max_edges=5)
+            response_data['debug_info']['edge_preview'] = first_5_edges
+            
+            # For short routes, include ALL edge features for visual map overlay
+            if distance < VISUAL_DEBUG_THRESHOLD_M:
+                all_edges = _extract_edge_features(graph, route)
+                response_data['edge_features'] = all_edges
+                response_data['debug_info']['visual_debug_enabled'] = True
+            else:
+                response_data['debug_info']['visual_debug_enabled'] = False
+                response_data['debug_info']['visual_debug_reason'] = (
+                    f"Route too long ({distance/1000:.2f}km > 0.75km threshold)"
+                )
         
         return jsonify(response_data)
         

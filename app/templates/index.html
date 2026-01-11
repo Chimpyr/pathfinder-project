@@ -131,9 +131,17 @@
                     <p class="text-xs text-gray-400 mt-2 italic">Assuming pace of <span id="stat-pace"></span> km/h</p>
                 </div>
 
-                <div id="debug-info" class="hidden p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono text-gray-600 dark:text-gray-400 overflow-x-auto">
-                    <h4 class="font-bold mb-1 border-b border-gray-300 dark:border-gray-600 pb-1">Debug Info</h4>
-                    <pre id="debug-content"></pre>
+                <div id="debug-info" class="hidden p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
+                    <h4 class="font-bold mb-2 border-b border-gray-300 dark:border-gray-600 pb-1">Debug Info</h4>
+                    
+                    <!-- Edge Preview Section (rendered by JS) -->
+                    <div id="edge-preview-container" class="hidden my-3 font-sans"></div>
+                    
+                    <!-- Collapsible Raw Debug Data -->
+                    <details class="mt-2">
+                        <summary class="cursor-pointer text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Raw Debug Data</summary>
+                        <pre id="debug-content" class="mt-2 overflow-x-auto font-mono"></pre>
+                    </details>
                 </div>
             </div>
 

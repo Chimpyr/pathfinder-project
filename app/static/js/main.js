@@ -119,6 +119,51 @@ function updateCoordsDisplay() {
 }
 
 // ============================================================================
+// Debug Edge Preview Rendering
+// ============================================================================
+
+/**
+ * Render edge preview in debug info panel.
+ * 
+ * Shows first 5 edges with their feature values prominently,
+ * using emoji indicators and a compact grid layout.
+ * 
+ * @param {Array} edges - Array of edge feature objects from API.
+ */
+function renderEdgePreview(edges) {
+    const container = document.getElementById('edge-preview-container');
+    if (!container || !edges || edges.length === 0) {
+        if (container) container.classList.add('hidden');
+        return;
+    }
+    
+    let html = '<h5 class="font-semibold mb-2 text-gray-700 dark:text-gray-300">First 5 Edges:</h5>';
+    html += '<div class="space-y-2">';
+    
+    edges.forEach((edge, idx) => {
+        html += `
+            <div class="p-2 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-medium text-sm">${idx + 1}. ${edge.highway}</span>
+                    <span class="text-xs text-gray-500">${edge.length_m}m</span>
+                </div>
+                <div class="grid grid-cols-5 gap-1 text-xs">
+                    <span class="text-red-500" title="Noise Factor (1=quiet, 5=noisy)">🔊 ${edge.noise_factor ?? '-'}</span>
+                    <span class="text-green-500" title="Greenness (0=green, 1=no green)">🌿 ${edge.green_cost?.toFixed(2) ?? '-'}</span>
+                    <span class="text-blue-500" title="Water (0=near, 1=far)">💧 ${edge.water_cost?.toFixed(2) ?? '-'}</span>
+                    <span class="text-amber-500" title="Social POIs (0=near, 1=far)">🏛️ ${edge.social_cost?.toFixed(2) ?? '-'}</span>
+                    <span class="text-purple-500" title="Slope (gradient %)">⛰️ ${edge.slope_cost?.toFixed(3) ?? '-'}</span>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+    container.classList.remove('hidden');
+}
+
+// ============================================================================
 // Geocoding Functions
 // ============================================================================
 
@@ -361,12 +406,27 @@ routeForm.addEventListener('submit', async (e) => {
                 routeStats.classList.remove('hidden');
             }
             
-            // Update Debug Info
+            // Display edge features on map (only for short routes)
+            if (data.edge_features && data.edge_features.length > 0) {
+                mapController.displayEdgeFeatures(data.edge_features);
+            } else {
+                mapController.clearDebugLayers();
+            }
+            
+            // Update Debug Info panel
             if (data.debug_info) {
+                // Render edge preview prominently
+                if (data.debug_info.edge_preview) {
+                    renderEdgePreview(data.debug_info.edge_preview);
+                }
+                
+                // Show raw debug data in collapsible section
                 debugContent.textContent = JSON.stringify(data.debug_info, null, 2);
                 debugInfo.classList.remove('hidden');
             } else {
                 debugInfo.classList.add('hidden');
+                const edgePreviewContainer = document.getElementById('edge-preview-container');
+                if (edgePreviewContainer) edgePreviewContainer.classList.add('hidden');
             }
             
         } else {

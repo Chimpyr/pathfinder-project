@@ -37,7 +37,8 @@ class CacheManager:
         Args:
             cache_dir: Directory for cache files (relative to project root).
         """
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        # Navigate from app/services/core/ up to project root (4 levels)
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         self.cache_dir = os.path.join(base_dir, cache_dir)
         self.manifest_path = os.path.join(self.cache_dir, "manifest.json")
         

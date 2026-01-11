@@ -50,7 +50,8 @@ class OSMDataLoader:
         Args:
             data_dir (str): Relative directory to store data.
         """
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        # Navigate from app/services/core/ up to project root (4 levels)
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         self.data_dir = os.path.join(base_dir, data_dir)
         
         if not os.path.exists(self.data_dir):
