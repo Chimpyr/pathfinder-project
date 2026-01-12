@@ -6,9 +6,9 @@ Based on Wang et al. (2021) research validating road hierarchy as a proxy for tr
 
 Higher noise_factor = quieter road = lower cost when routing for quiet paths.
 
-NOTE: This module pre-computes quietness attributes on graph edges.
-The actual cost weighting is NOT applied here - it will be integrated
-into the modified A* WSM (Weighted Sum Model) algorithm later.
+Edge attributes added:
+- noise_factor: Classification value (1.0=noisy, 2.0=quiet, 1.5=neutral)
+- raw_quiet_cost: Inverted cost for normalisation (lower = quieter)
 """
 
 from typing import Optional
@@ -61,44 +61,16 @@ def classify_highway(highway_tag: Optional[str]) -> float:
         return NOISE_FACTOR_DEFAULT
 
 
-def compute_raw_quiet_cost(length: float, noise_factor: float) -> float:
-    """
-    Compute the raw quiet cost for an edge.
-    
-    TODO: Implement this function when integrating with WSM A* algorithm.
-    
-    Formula (to be implemented): raw_quiet_cost = length / noise_factor
-    
-    Quieter roads (higher noise_factor) will result in lower cost,
-    making them more attractive for quiet route finding.
-    
-    The WSM will use raw_quiet_cost as one of multiple weighted factors
-    when calculating edge traversal costs.
-    See: app/services/astar/ for integration point.
-    
-    Args:
-        length: Edge length in meters.
-        noise_factor: The noise factor from classify_highway().
-    
-    Returns:
-        float: The raw quiet cost value (currently returns 0.0 - not implemented).
-    """
-    # TODO: Implement when WSM A* is ready
-    # Formula: return length / noise_factor if noise_factor > 0 else length / NOISE_FACTOR_DEFAULT
-    pass
-
-
 def process_graph_quietness(graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
     """
     Process all edges in the graph to assign quietness attributes.
     
     Iterates through every edge and assigns:
     - noise_factor: Classification based on highway tag (1.0=noisy, 2.0=quiet, 1.5=neutral)
-    
-    TODO: raw_quiet_cost will be added when WSM A* is implemented.
+    - raw_quiet_cost: Inverted value for normalisation (lower = quieter)
     
     Args:
-        graph: NetworkX MultiDiGraph with edge attributes including 'highway' and 'length'.
+        graph: NetworkX MultiDiGraph with edge attributes including 'highway'.
     
     Returns:
         nx.MultiDiGraph: The same graph object with quietness attributes added.
@@ -122,12 +94,9 @@ def process_graph_quietness(graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
         # Update edge attributes in-place
         graph[u][v][key]['noise_factor'] = noise_factor
         
-        # TODO: Add raw_quiet_cost assignment when WSM A* is implemented
-        # raw_quiet_cost = compute_raw_quiet_cost(length, noise_factor)
-        # graph[u][v][key]['raw_quiet_cost'] = raw_quiet_cost
-        
         edges_processed += 1
     
     print(f"[QuietnessProcessor] Processed {edges_processed} edges with noise_factor attribute.")
     
     return graph
+

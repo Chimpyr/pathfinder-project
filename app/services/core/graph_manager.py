@@ -13,6 +13,7 @@ from app.services.core.data_loader import OSMDataLoader
 from app.services.processors.quietness import process_graph_quietness
 from app.services.processors.orchestrator import process_scenic_attributes
 from app.services.processors.elevation import process_graph_elevation
+from app.services.processors.normalisation import normalise_graph_costs
 from app.services.core.cache_manager import get_cache_manager
 
 try:
@@ -158,6 +159,14 @@ class GraphManager:
             
         else:
             print("[GraphManager] Elevation processing disabled.")
+        
+        # Normalise all cost attributes to 0-1 range
+        normalisation_mode = get_config('NORMALISATION_MODE', 'STATIC')
+        print(f"[GraphManager] Normalising cost attributes ({normalisation_mode})...")
+        t0 = time.perf_counter()
+        graph = normalise_graph_costs(graph, mode=normalisation_mode)
+        timings['Normalisation'] = time.perf_counter() - t0
+        print(f"  [Timer] Normalisation: {timings['Normalisation']:.2f}s")
         
         # Compatibility shim
         if not hasattr(graph, 'features'):

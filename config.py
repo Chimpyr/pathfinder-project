@@ -34,6 +34,12 @@ class Config:
     # - FAST: Buffer intersection for tourist/social POIs
     SOCIAL_MODE = 'FAST'
     
+    # Normalisation mode for scenic cost attributes
+    # Options: 'STATIC', 'DYNAMIC'
+    # - STATIC: Uses raw values directly (0-1 attrs kept as-is, only slope normalised)
+    # - DYNAMIC: Rescales all attributes per-map (best edge = 0, worst = 1)
+    NORMALISATION_MODE = 'STATIC'
+    
     # Graph caching configuration
     # Maximum number of region graphs to keep in memory (LRU eviction)
     # Higher = more memory usage, fewer reloads for multi-region routing
