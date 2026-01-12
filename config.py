@@ -16,10 +16,11 @@ class Config:
     GREENNESS_MODE = 'FAST'
     
     # Elevation processing mode
-    # Options: 'OFF', 'FAST'
+    # Options: 'OFF', 'API', 'LOCAL'
     # - OFF: Skip elevation processing (no gradient data)
-    # - FAST: Fetch from Open Topo Data API (~30-60s for large graphs)
-    ELEVATION_MODE = 'OFF'
+    # - API: Fetch from Open Topo Data API (no download, slower ~30-60s)
+    # - LOCAL: Download Copernicus GLO-30 tiles for fast local lookup (~1-3s)
+    ELEVATION_MODE = 'LOCAL'
     
     # Water proximity processing mode
     # Options: 'OFF', 'FAST'

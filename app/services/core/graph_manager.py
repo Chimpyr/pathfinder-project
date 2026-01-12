@@ -146,13 +146,15 @@ class GraphManager:
         elevation_mode = get_elevation_mode()
         print(f"[GraphManager] Elevation mode: {elevation_mode}")
         
-        if elevation_mode == 'FAST':
-            print("[GraphManager] Processing elevation gradients (FAST mode)...")
+        if elevation_mode in ('API', 'FAST', 'LOCAL'):
+            # FAST is legacy name for API mode
+            actual_mode = 'LOCAL' if elevation_mode == 'LOCAL' else 'API'
+            print(f"[GraphManager] Processing elevation gradients ({actual_mode} mode)...")
             
             t0 = time.perf_counter()
-            graph = process_graph_elevation(graph)
-            timings['Elevation Processing (FAST)'] = time.perf_counter() - t0
-            print(f"  [Timer] Elevation Processing: {timings['Elevation Processing (FAST)']:.2f}s")
+            graph = process_graph_elevation(graph, mode=actual_mode)
+            timings[f'Elevation Processing ({actual_mode})'] = time.perf_counter() - t0
+            print(f"  [Timer] Elevation Processing: {timings[f'Elevation Processing ({actual_mode})']:.2f}s")
             
         else:
             print("[GraphManager] Elevation processing disabled.")

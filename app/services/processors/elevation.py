@@ -2,7 +2,9 @@
 Elevation Processor Module
 
 Fetches elevation data for graph nodes and calculates edge gradients.
-Uses Open Topo Data API (AW3D30/SRTM datasets) via osmnx integration.
+Supports two modes:
+- API: Remote lookup via Open Topo Data API (slower, no storage needed)
+- LOCAL: Fast local lookup from downloaded Copernicus GLO-30 DEM tiles
 
 Edge attribute added: raw_slope_cost (absolute gradient as decimal, e.g. 0.1 = 10% grade)
 
@@ -19,6 +21,12 @@ try:
     import osmnx as ox
 except ImportError:
     ox = None
+
+try:
+    from app.services.core.dem_loader import DEMDataLoader, RASTERIO_AVAILABLE
+except ImportError:
+    DEMDataLoader = None
+    RASTERIO_AVAILABLE = False
 
 # Open Topo Data API configuration
 # Uses ASTER Global DEM (~30m resolution) - similar to AW3D30
@@ -109,6 +117,63 @@ def fetch_node_elevations(graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
     return graph
 
 
+def fetch_node_elevations_local(graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
+    """
+    Fetch elevation data using locally downloaded DEM tiles.
+    
+    Uses Copernicus GLO-30 dataset via DEMDataLoader for fast lookups.
+    Tiles are downloaded once and cached for subsequent requests.
+    
+    Args:
+        graph: NetworkX MultiDiGraph with nodes containing 'x' (lon) and 'y' (lat).
+    
+    Returns:
+        The same graph with 'elevation' attribute added to nodes.
+    """
+    if graph is None:
+        return graph
+    
+    if not RASTERIO_AVAILABLE or DEMDataLoader is None:
+        print("[ElevationProcessor] WARNING: rasterio not available, falling back to API mode")
+        return fetch_node_elevations(graph)
+    
+    node_count = graph.number_of_nodes()
+    print(f"[ElevationProcessor] LOCAL mode: fetching elevations for {node_count} nodes...")
+    
+    # Initialise DEM loader
+    loader = DEMDataLoader()
+    
+    # Collect all node coordinates
+    node_ids = list(graph.nodes())
+    coords = [(graph.nodes[n].get('y'), graph.nodes[n].get('x')) for n in node_ids]
+    
+    # Calculate bounding box for tile pre-download
+    lats = [c[0] for c in coords if c[0] is not None]
+    lons = [c[1] for c in coords if c[1] is not None]
+    
+    if lats and lons:
+        bbox = (min(lats), min(lons), max(lats), max(lons))
+        loader.ensure_tiles_for_bbox(bbox)
+    
+    # Batch lookup
+    elevations = loader.get_elevations_batch(coords)
+    
+    # Assign to nodes
+    elevations_added = 0
+    for node_id, coord in zip(node_ids, coords):
+        elevation = elevations.get(coord)
+        if elevation is not None:
+            graph.nodes[node_id]['elevation'] = elevation
+            elevations_added += 1
+    
+    print(f"[ElevationProcessor] LOCAL mode: assigned {elevations_added}/{node_count} elevations")
+    
+    # Free memory
+    loader.clear_memory_cache()
+    
+    return graph
+
+
 def calculate_edge_gradient(length: float, elevation_u: Optional[float], 
                             elevation_v: Optional[float]) -> Optional[float]:
     """
@@ -142,12 +207,13 @@ def calculate_edge_gradient(length: float, elevation_u: Optional[float],
     return gradient
 
 
-def process_graph_elevation(graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
+def process_graph_elevation(graph: nx.MultiDiGraph, 
+                            mode: str = 'API') -> nx.MultiDiGraph:
     """
     Process all edges to calculate and assign gradient attributes.
     
     Workflow:
-    1. Fetch elevation data for all nodes (via Open Topo Data API)
+    1. Fetch elevation data for all nodes (via API or LOCAL DEM tiles)
     2. Calculate gradient for each edge using node elevations
     3. Store raw_slope_cost attribute on each edge
     
@@ -156,6 +222,7 @@ def process_graph_elevation(graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
     
     Args:
         graph: NetworkX MultiDiGraph with edge 'length' attributes.
+        mode: Elevation fetch mode - 'API' or 'LOCAL'.
     
     Returns:
         The same graph with 'raw_slope_cost' added to edges.
@@ -163,11 +230,17 @@ def process_graph_elevation(graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
     if graph is None:
         return graph
     
-    # Step 1: Fetch node elevations
+    # Step 1: Fetch node elevations based on mode
     t0 = time.perf_counter()
-    graph = fetch_node_elevations(graph)
+    
+    if mode.upper() == 'LOCAL':
+        graph = fetch_node_elevations_local(graph)
+    else:
+        # Default to API mode
+        graph = fetch_node_elevations(graph)
+    
     fetch_time = time.perf_counter() - t0
-    print(f"  [Timer] Elevation fetch: {fetch_time:.2f}s")
+    print(f"  [Timer] Elevation fetch ({mode}): {fetch_time:.2f}s")
     
     # Step 2: Calculate gradients for each edge
     edges_processed = 0

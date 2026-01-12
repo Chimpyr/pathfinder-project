@@ -1,10 +1,10 @@
 """
 Test suite for the Elevation Processor module.
 
-Tests gradient calculation and graph processing.
+Tests gradient calculation and graph processing for both API and LOCAL modes.
 Uses mocked NetworkX graphs to verify correctness without making real API calls.
 
-NOTE: API calls are mocked to avoid network dependencies in unit tests.
+NOTE: API calls and DEM lookups are mocked to avoid network dependencies in unit tests.
 """
 
 import pytest
@@ -15,6 +15,7 @@ from app.services.processors.elevation import (
     process_graph_elevation,
     configure_elevation_api,
     fetch_node_elevations,
+    fetch_node_elevations_local,
     MIN_EDGE_LENGTH,
 )
 
@@ -214,3 +215,108 @@ class TestConfigureElevationApi:
         """Should not raise when osmnx not available."""
         # Should not raise any exception
         configure_elevation_api()
+
+
+class TestFetchNodeElevationsLocal:
+    """Tests for the fetch_node_elevations_local function."""
+    
+    @pytest.fixture
+    def mock_graph(self):
+        """Creates a mock NetworkX MultiDiGraph with node coordinates."""
+        G = nx.MultiDiGraph()
+        
+        # Add nodes with coordinates (Bristol area)
+        G.add_node(1, x=-2.58, y=51.45)
+        G.add_node(2, x=-2.59, y=51.46)
+        G.add_node(3, x=-2.60, y=51.47)
+        
+        # Add edges
+        G.add_edge(1, 2, 0, highway='residential', length=100.0)
+        G.add_edge(2, 3, 0, highway='footway', length=50.0)
+        
+        return G
+    
+    def test_handles_none_graph(self):
+        """Should return None when given None graph."""
+        result = fetch_node_elevations_local(None)
+        assert result is None
+    
+    @patch('app.services.processors.elevation.RASTERIO_AVAILABLE', False)
+    @patch('app.services.processors.elevation.fetch_node_elevations')
+    def test_falls_back_to_api_without_rasterio(self, mock_api_fetch, mock_graph):
+        """Should fall back to API mode when rasterio unavailable."""
+        mock_api_fetch.return_value = mock_graph
+        
+        result = fetch_node_elevations_local(mock_graph)
+        
+        mock_api_fetch.assert_called_once()
+        assert result is mock_graph
+    
+    @patch('app.services.processors.elevation.DEMDataLoader')
+    @patch('app.services.processors.elevation.RASTERIO_AVAILABLE', True)
+    def test_uses_dem_loader(self, mock_loader_class, mock_graph):
+        """Should use DEMDataLoader for elevation lookups."""
+        mock_loader = MagicMock()
+        mock_loader_class.return_value = mock_loader
+        
+        # Mock elevation results
+        mock_loader.get_elevations_batch.return_value = {
+            (51.45, -2.58): 20.0,
+            (51.46, -2.59): 25.0,
+            (51.47, -2.60): 30.0
+        }
+        
+        result = fetch_node_elevations_local(mock_graph)
+        
+        # Verify DEMDataLoader was used
+        mock_loader.ensure_tiles_for_bbox.assert_called_once()
+        mock_loader.get_elevations_batch.assert_called_once()
+        
+        # Verify elevations were assigned
+        assert result.nodes[1].get('elevation') == 20.0
+        assert result.nodes[2].get('elevation') == 25.0
+        assert result.nodes[3].get('elevation') == 30.0
+
+
+class TestProcessGraphElevationModes:
+    """Tests for process_graph_elevation with different modes."""
+    
+    @pytest.fixture
+    def mock_graph_with_elevations(self):
+        """Creates a graph with pre-set elevations."""
+        G = nx.MultiDiGraph()
+        
+        G.add_node(1, x=-2.58, y=51.45, elevation=10.0)
+        G.add_node(2, x=-2.59, y=51.46, elevation=20.0)
+        
+        G.add_edge(1, 2, 0, highway='residential', length=100.0)
+        
+        return G
+    
+    @patch('app.services.processors.elevation.fetch_node_elevations')
+    def test_api_mode_uses_fetch_node_elevations(self, mock_fetch, mock_graph_with_elevations):
+        """API mode should use the API-based fetch function."""
+        mock_fetch.return_value = mock_graph_with_elevations
+        
+        process_graph_elevation(mock_graph_with_elevations, mode='API')
+        
+        mock_fetch.assert_called_once()
+    
+    @patch('app.services.processors.elevation.fetch_node_elevations_local')
+    def test_local_mode_uses_local_fetch(self, mock_fetch, mock_graph_with_elevations):
+        """LOCAL mode should use the local DEM-based fetch function."""
+        mock_fetch.return_value = mock_graph_with_elevations
+        
+        process_graph_elevation(mock_graph_with_elevations, mode='LOCAL')
+        
+        mock_fetch.assert_called_once()
+    
+    @patch('app.services.processors.elevation.fetch_node_elevations')
+    def test_default_mode_is_api(self, mock_fetch, mock_graph_with_elevations):
+        """Default mode should be API."""
+        mock_fetch.return_value = mock_graph_with_elevations
+        
+        process_graph_elevation(mock_graph_with_elevations)
+        
+        mock_fetch.assert_called_once()
+
