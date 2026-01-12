@@ -1,22 +1,26 @@
 """
 Test suite for the Elevation Processor module.
 
-Tests gradient calculation and graph processing for both API and LOCAL modes.
+Tests gradient calculation, Tobler's hiking function, and directional gradients.
 Uses mocked NetworkX graphs to verify correctness without making real API calls.
 
 NOTE: API calls and DEM lookups are mocked to avoid network dependencies in unit tests.
 """
 
 import pytest
+import math
 import networkx as nx
 from unittest.mock import patch, MagicMock
 from app.services.processors.elevation import (
     calculate_edge_gradient,
+    calculate_tobler_cost,
+    calculate_directional_gradients,
     process_graph_elevation,
     configure_elevation_api,
     fetch_node_elevations,
     fetch_node_elevations_local,
     MIN_EDGE_LENGTH,
+    ACTIVITY_PARAMS,
 )
 
 
@@ -320,3 +324,190 @@ class TestProcessGraphElevationModes:
         
         mock_fetch.assert_called_once()
 
+
+class TestToblerHikingFunction:
+    """Tests for Tobler's hiking function cost calculation."""
+    
+    def test_flat_terrain_returns_one(self):
+        """Flat terrain (0% grade) should return cost multiplier of 1.0."""
+        result = calculate_tobler_cost(0.0)
+        assert abs(result - 1.0) < 0.05  # Allow small tolerance
+    
+    def test_mild_downhill_faster_than_flat(self):
+        """Mild downhill (~5%) should be faster than flat (cost < 1.0)."""
+        result = calculate_tobler_cost(-0.05)
+        assert result < 1.0
+    
+    def test_uphill_slower_than_flat(self):
+        """Any uphill gradient should be slower than flat (cost > 1.0)."""
+        result_5_percent = calculate_tobler_cost(0.05)
+        result_10_percent = calculate_tobler_cost(0.10)
+        result_20_percent = calculate_tobler_cost(0.20)
+        
+        assert result_5_percent > 1.0
+        assert result_10_percent > result_5_percent
+        assert result_20_percent > result_10_percent
+    
+    def test_steep_downhill_slower_than_mild_downhill(self):
+        """Steep downhill (>10%) should be slower than mild downhill (~5%)."""
+        mild_downhill = calculate_tobler_cost(-0.05)
+        steep_downhill = calculate_tobler_cost(-0.20)
+        
+        assert steep_downhill > mild_downhill
+    
+    def test_steep_gradients_are_symmetrically_slow(self):
+        """Very steep gradients should have similar cost in both directions."""
+        steep_uphill = calculate_tobler_cost(0.35)
+        steep_downhill = calculate_tobler_cost(-0.35)
+        
+        # Both should be significantly slower than flat
+        assert steep_uphill > 2.0
+        assert steep_downhill > 2.0
+    
+    def test_running_mode_has_different_parameters(self):
+        """Running mode should use different parameters than walking."""
+        walking_cost = calculate_tobler_cost(0.10, activity='walking')
+        running_cost = calculate_tobler_cost(0.10, activity='running')
+        
+        # Costs should be different due to different parameters
+        assert walking_cost != running_cost
+    
+    def test_invalid_activity_defaults_to_walking(self):
+        """Unknown activity mode should default to walking parameters."""
+        result = calculate_tobler_cost(0.05, activity='cycling')
+        expected = calculate_tobler_cost(0.05, activity='walking')
+        
+        assert result == expected
+
+
+class TestDirectionalGradients:
+    """Tests for directional gradient calculation."""
+    
+    def test_uphill_edge(self):
+        """Uphill edge (u lower than v) should have positive uphill_gradient."""
+        uphill, downhill, tobler, raw = calculate_directional_gradients(
+            length=100.0,
+            elevation_u=50.0,
+            elevation_v=60.0
+        )
+        
+        assert uphill == 0.1  # 10m rise over 100m
+        assert downhill == 0.0
+        assert raw == 0.1
+        assert tobler > 1.0  # Slower than flat
+    
+    def test_downhill_edge(self):
+        """Downhill edge (u higher than v) should have positive downhill_gradient."""
+        uphill, downhill, tobler, raw = calculate_directional_gradients(
+            length=100.0,
+            elevation_u=60.0,
+            elevation_v=50.0
+        )
+        
+        assert uphill == 0.0
+        assert downhill == 0.1
+        assert raw == 0.1
+    
+    def test_flat_edge(self):
+        """Flat edge should have zero gradients and tobler cost of 1.0."""
+        uphill, downhill, tobler, raw = calculate_directional_gradients(
+            length=100.0,
+            elevation_u=50.0,
+            elevation_v=50.0
+        )
+        
+        assert uphill == 0.0
+        assert downhill == 0.0
+        assert raw == 0.0
+        assert abs(tobler - 1.0) < 0.05
+    
+    def test_missing_elevation_returns_defaults(self):
+        """Missing elevation data should return default values."""
+        uphill, downhill, tobler, raw = calculate_directional_gradients(
+            length=100.0,
+            elevation_u=None,
+            elevation_v=60.0
+        )
+        
+        assert uphill == 0.0
+        assert downhill == 0.0
+        assert tobler == 1.0
+        assert raw == 0.0
+    
+    def test_very_short_edge_returns_defaults(self):
+        """Very short edges should return default values."""
+        uphill, downhill, tobler, raw = calculate_directional_gradients(
+            length=0.5,  # Less than MIN_EDGE_LENGTH
+            elevation_u=50.0,
+            elevation_v=60.0
+        )
+        
+        assert uphill == 0.0
+        assert downhill == 0.0
+        assert tobler == 1.0
+        assert raw == 0.0
+    
+    def test_mild_downhill_has_cost_less_than_one(self):
+        """Mild downhill edge should have tobler cost less than 1.0."""
+        uphill, downhill, tobler, raw = calculate_directional_gradients(
+            length=100.0,
+            elevation_u=55.0,
+            elevation_v=50.0  # 5m drop = 5% downhill
+        )
+        
+        assert tobler < 1.0  # Faster than flat
+
+
+class TestProcessGraphElevationAttributes:
+    """Tests that process_graph_elevation sets all required attributes."""
+    
+    @pytest.fixture
+    def graph_with_elevation_nodes(self):
+        """Creates a graph with elevations already set on nodes."""
+        G = nx.MultiDiGraph()
+        
+        # Hill: node 1 is at bottom, node 2 at top
+        G.add_node(1, x=-2.58, y=51.45, elevation=10.0)
+        G.add_node(2, x=-2.59, y=51.46, elevation=30.0)
+        
+        # Add bidirectional edges (realistic for walking)
+        G.add_edge(1, 2, 0, highway='footway', length=200.0)
+        G.add_edge(2, 1, 0, highway='footway', length=200.0)
+        
+        return G
+    
+    @patch('app.services.processors.elevation.fetch_node_elevations')
+    def test_sets_all_gradient_attributes(self, mock_fetch, graph_with_elevation_nodes):
+        """Should set uphill, downhill, slope_time_cost, and raw_slope_cost."""
+        mock_fetch.return_value = graph_with_elevation_nodes
+        
+        result = process_graph_elevation(graph_with_elevation_nodes, mode='API')
+        
+        # Check uphill edge (1 -> 2)
+        edge_up = result[1][2][0]
+        assert 'uphill_gradient' in edge_up
+        assert 'downhill_gradient' in edge_up
+        assert 'slope_time_cost' in edge_up
+        assert 'raw_slope_cost' in edge_up
+        
+        assert edge_up['uphill_gradient'] == 0.1  # 20m over 200m
+        assert edge_up['downhill_gradient'] == 0.0
+    
+    @patch('app.services.processors.elevation.fetch_node_elevations')
+    def test_uphill_and_downhill_edges_have_different_costs(
+        self, mock_fetch, graph_with_elevation_nodes
+    ):
+        """Uphill and downhill edges between same nodes should have different Tobler costs."""
+        mock_fetch.return_value = graph_with_elevation_nodes
+        
+        result = process_graph_elevation(graph_with_elevation_nodes, mode='API')
+        
+        uphill_edge = result[1][2][0]
+        downhill_edge = result[2][1][0]
+        
+        # Uphill should be slower (higher cost)
+        assert uphill_edge['slope_time_cost'] > downhill_edge['slope_time_cost']
+        
+        # Downhill might even be faster than flat if grade is optimal
+        assert downhill_edge['downhill_gradient'] == 0.1
+        assert uphill_edge['uphill_gradient'] == 0.1

@@ -40,21 +40,106 @@ ELEVATION_MODE = 'LOCAL'  # Options: 'OFF', 'API', 'LOCAL'
 
 ---
 
-## Edge Attribute
+## Edge Attributes
 
-After processing, each edge has a `raw_slope_cost` attribute:
+After processing, each edge has the following slope-related attributes:
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `uphill_gradient` | float | Gradient when going uphill (0 if downhill/flat) |
+| `downhill_gradient` | float | Gradient when going downhill (0 if uphill/flat) |
+| `slope_time_cost` | float | Tobler cost multiplier (1.0 = flat terrain) |
+| `raw_slope_cost` | float | Absolute gradient (backwards compatibility) |
 
 ```python
 edge = G[node_u][node_v][0]
-edge['raw_slope_cost']  # 0.0 = flat, 0.1 = 10% grade
+edge['slope_time_cost']   # 1.0 = flat, 0.83 = mild downhill, 1.85 = 10% uphill
+edge['uphill_gradient']   # 0.1 = 10% uphill grade
+edge['downhill_gradient'] # 0.1 = 10% downhill grade
 ```
 
-**Formula:**
-```
-raw_slope_cost = |elevation_v - elevation_u| / length
+---
+
+## Tobler's Hiking Function
+
+The `slope_time_cost` attribute uses **Tobler's hiking function**, an empirically-validated model for walking speed on sloped terrain.
+
+### Why Tobler's Function?
+
+Evaluated three approaches:
+
+| Approach | Accuracy | Complexity | Pros & Cons |
+|----------|----------|------------|-------------|
+| **Signed Gradient** | Medium | Low | Simple but treats 20% downhill as "easy" |
+| **Tobler's Function** | High | Medium | Captures non-linear effort, well-documented |
+| **Metabolic Cost Model** | Highest | High | Requires J/kg/m units, too complex for consumer apps |
+
+**Tobler wins because:**
+1. **Scientifically grounded** Based on Swiss military walking data (Eduard Imhof, 1920s)
+2. **Captures reality** Mild downhill is *faster* than flat; steep downhill is *slower*
+3. **Widely used** Implemented in QGIS, ArcGIS, and terrain routing algorithms
+4. **Running-compatible** Same formula works for running with different parameters
+
+### The Formula
+
+```python
+speed = max_speed × exp(-decay_rate × |gradient - optimal_grade|)
+cost_multiplier = flat_speed / speed
 ```
 
-Uses absolute value because both uphill and downhill can be undesirable for walking routes.
+For walking:
+- `max_speed = 6.0 km/h` (on optimal downhill)
+- `flat_speed = 5.0 km/h`  
+- `decay_rate = 3.5`
+- `optimal_grade = -0.05` (5% downhill)
+
+### Cost Multiplier Values
+
+| Gradient | Description | Speed (km/h) | Cost Multiplier |
+|----------|-------------|--------------|-----------------|
+| -5% | Mild downhill (optimal) | **6.0** | **0.83** |
+| 0% | Flat terrain | 5.0 | 1.00 |
+| +5% | Gentle uphill | 3.7 | 1.35 |
+| +10% | Moderate uphill | 2.7 | 1.85 |
+| +20% | Steep uphill | 1.5 | 3.33 |
+| -20% | Steep downhill | 1.5 | 3.33 |
+
+> **Note**: The function is *not* symmetric. Mild downhill is actually easier than flat terrain because gravity assists forward momentum. But steep downhill becomes hard again due to braking forces on knees.
+
+---
+
+## User Preference Slider
+
+The slope preference slider controls how much the A* algorithm penalises terrain:
+
+```
+Slope Preference
+[Flat routes] ─────●───── [Any terrain]
+```
+
+- **Slider at left** → Strongly avoids hills in either direction
+- **Slider at right** → Ignores slope entirely
+
+The slider applies a weight to the Tobler cost:
+
+```python
+cost = length × (1 + slope_weight × (slope_time_cost - 1))
+```
+
+---
+
+## Running Mode (Future)
+
+The architecture supports different activity modes:
+
+```python
+ACTIVITY_PARAMS = {
+    'walking': {'max_speed': 6.0, 'decay_rate': 3.5, 'optimal_grade': -0.05},
+    'running': {'max_speed': 15.0, 'decay_rate': 2.5, 'optimal_grade': -0.10},
+}
+```
+
+Running has a different optimal downhill grade (~10%) because runners can handle steeper descents at speed.
 
 ---
 
@@ -67,13 +152,6 @@ Uses absolute value because both uphill and downhill can be undesirable for walk
 - Stored in `app/data/dem/` directory
 - Loaded into memory for fast batch lookups
 
-### First Run Behaviour
-
-On first request for a new region:
-1. Required tiles are identified from the graph bounding box
-2. Missing tiles are downloaded from OpenTopography
-3. Tiles are cached locally for subsequent requests
-
 ### Storage Requirements
 
 | Coverage | Approximate Storage |
@@ -81,30 +159,6 @@ On first request for a new region:
 | Single UK city | ~25MB (1 tile) |
 | UK-wide | ~500MB-1GB |
 | Global | Not recommended for bulk download |
-
----
-
-## API Mode Details
-
-| Property | Value |
-|----------|-------|
-| Endpoint | `https://api.opentopodata.org/v1/aster30m` |
-| Batch size | 100 locations per request |
-| Rate limits | 1 request/second (free tier) |
-| Authentication | None required |
-
----
-
-## Cache Behaviour
-
-The disk cache includes `elevation_mode` in the cache key:
-```
-cornwall_fast_local_v1.0.0.pickle
-         ^--- greenness_mode
-              ^--- elevation_mode
-```
-
-Changing `ELEVATION_MODE` will trigger reprocessing on the next request.
 
 ---
 
@@ -116,12 +170,12 @@ Changing `ELEVATION_MODE` will trigger reprocessing on the next request.
 | API | ~30-60s | ~30-60s |
 | LOCAL | ~10-15s (with download) | ~1-3s |
 
-LOCAL mode is **10-30× faster** for subsequent requests after tiles are downloaded.
+LOCAL mode is **10-30× faster** for cached regions.
 
 ---
 
-## Future Enhancements
+## Technical References
 
-- **Directional gradients**: Separate uphill/downhill costs for more realistic walking effort
-- **Route elevation profile**: Visualise elevation changes along the calculated route
-- **Alternative datasets**: Support for UK Environment Agency LiDAR (1m resolution)
+1. Tobler, W. (1993). "Three Presentations on Geographical Analysis and Modeling"
+2. Imhof, E. (1950). "Gelände und Karte" (Terrain and Map)
+3. Minetti, A.E. et al. (2002). "Energy cost of walking and running at extreme uphill and downhill slopes"

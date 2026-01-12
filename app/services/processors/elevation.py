@@ -6,15 +6,23 @@ Supports two modes:
 - API: Remote lookup via Open Topo Data API (slower, no storage needed)
 - LOCAL: Fast local lookup from downloaded Copernicus GLO-30 DEM tiles
 
-Edge attribute added: raw_slope_cost (absolute gradient as decimal, e.g. 0.1 = 10% grade)
+Edge attributes added:
+- raw_slope_cost: Absolute gradient (0.1 = 10% grade)
+- uphill_gradient: Positive gradient when going uphill (0 if downhill)
+- downhill_gradient: Positive gradient when going downhill (0 if uphill)
+- slope_time_cost: Tobler's hiking function cost multiplier (1.0 = flat terrain)
+
+The slope_time_cost uses Tobler's empirically-validated hiking function which
+accurately models that mild downhill (~5%) is faster than flat terrain, whilst
+steep gradients in either direction are slower.
 
 NOTE: This module pre-computes elevation attributes on graph edges.
-The actual cost weighting is NOT applied here - it will be integrated
-into the modified A* WSM (Weighted Sum Model) algorithm later.
+The actual cost weighting is applied in the A* WSM algorithm.
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 import time
+import math
 import networkx as nx
 
 try:
@@ -37,6 +45,23 @@ BATCH_SIZE = 100
 
 # Minimum edge length to process (metres) - skip very short edges
 MIN_EDGE_LENGTH = 1.0
+
+# Activity-specific parameters for Tobler's hiking function
+# Structure allows easy extension for running mode in future
+ACTIVITY_PARAMS = {
+    'walking': {
+        'max_speed': 6.0,      # Maximum speed in km/h (on optimal downhill)
+        'flat_speed': 5.0,     # Speed on flat terrain in km/h
+        'decay_rate': 3.5,     # Exponential decay rate
+        'optimal_grade': -0.05 # Gradient with maximum speed (5% downhill)
+    },
+    'running': {
+        'max_speed': 15.0,
+        'flat_speed': 12.0,
+        'decay_rate': 2.5,
+        'optimal_grade': -0.10
+    }
+}
 
 
 def configure_elevation_api() -> None:
@@ -174,13 +199,102 @@ def fetch_node_elevations_local(graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
     return graph
 
 
+def calculate_tobler_cost(gradient: float, activity: str = 'walking') -> float:
+    """
+    Calculate walking/running cost multiplier using Tobler's hiking function.
+    
+    Based on empirical data from Swiss military cartographer Eduard Imhof,
+    formalised by Waldo Tobler in 1993. The function models the observation
+    that maximum walking speed occurs on mild downhill slopes (~5%), not
+    on flat terrain.
+    
+    Formula: speed = max_speed * exp(-decay_rate * |gradient - optimal_grade|)
+    
+    The cost multiplier is the ratio of flat terrain speed to actual speed,
+    meaning values > 1 indicate slower travel (higher cost).
+    
+    Args:
+        gradient: Signed gradient as decimal (positive = uphill, negative = downhill).
+        activity: Activity mode - 'walking' or 'running'.
+    
+    Returns:
+        Cost multiplier where 1.0 = flat terrain speed.
+        Values < 1 indicate faster travel (mild downhill).
+        Values > 1 indicate slower travel (steep terrain).
+    
+    Example values for walking:
+        -5% grade: 0.83 (faster than flat)
+         0% grade: 1.00 (baseline)
+        +10% grade: 1.85 (nearly twice as slow)
+        +20% grade: 3.33 (over three times as slow)
+    """
+    params = ACTIVITY_PARAMS.get(activity, ACTIVITY_PARAMS['walking'])
+    
+    # Tobler's formula: speed = max_speed * exp(-decay * |gradient - optimal|)
+    speed = params['max_speed'] * math.exp(
+        -params['decay_rate'] * abs(gradient - params['optimal_grade'])
+    )
+    
+    # Avoid division by zero for extreme gradients
+    speed = max(speed, 0.1)
+    
+    # Cost is inverse of speed, normalised to flat terrain
+    return params['flat_speed'] / speed
+
+
+def calculate_directional_gradients(
+    length: float,
+    elevation_u: Optional[float],
+    elevation_v: Optional[float],
+    activity: str = 'walking'
+) -> Tuple[float, float, float, float]:
+    """
+    Calculate all gradient-related attributes for an edge.
+    
+    Computes four values:
+    - uphill_gradient: Gradient when travelling uphill (0 if downhill)
+    - downhill_gradient: Gradient when travelling downhill (0 if uphill)
+    - slope_time_cost: Tobler's cost multiplier for this edge direction
+    - raw_slope_cost: Absolute gradient (for backwards compatibility)
+    
+    Args:
+        length: Edge length in metres.
+        elevation_u: Elevation of source node in metres.
+        elevation_v: Elevation of target node in metres.
+        activity: Activity mode for Tobler calculation.
+    
+    Returns:
+        Tuple of (uphill_gradient, downhill_gradient, slope_time_cost, raw_slope_cost).
+        All values are 0.0 if elevation data is missing.
+    """
+    # Default values for missing data
+    if elevation_u is None or elevation_v is None or length < MIN_EDGE_LENGTH:
+        return (0.0, 0.0, 1.0, 0.0)
+    
+    # Calculate signed gradient (positive = uphill from u to v)
+    elevation_change = elevation_v - elevation_u
+    signed_gradient = elevation_change / length
+    
+    # Directional gradients
+    uphill_gradient = max(0.0, signed_gradient)
+    downhill_gradient = max(0.0, -signed_gradient)
+    
+    # Tobler's cost multiplier
+    slope_time_cost = calculate_tobler_cost(signed_gradient, activity)
+    
+    # Absolute gradient for backwards compatibility
+    raw_slope_cost = abs(signed_gradient)
+    
+    return (uphill_gradient, downhill_gradient, slope_time_cost, raw_slope_cost)
+
+
 def calculate_edge_gradient(length: float, elevation_u: Optional[float], 
                             elevation_v: Optional[float]) -> Optional[float]:
     """
     Calculate the absolute gradient (slope) for an edge.
     
-    Uses absolute value because both uphill and downhill can be undesirable
-    for walking routes.
+    DEPRECATED: Use calculate_directional_gradients() for new code.
+    Kept for backwards compatibility with existing tests.
     
     Formula: gradient = |elevation_change| / horizontal_distance
     
@@ -193,39 +307,40 @@ def calculate_edge_gradient(length: float, elevation_u: Optional[float],
         Absolute gradient as a decimal (0.0 = flat, 0.1 = 10% grade).
         Returns None if elevation data is missing or edge too short.
     """
-    # Handle missing elevation data
     if elevation_u is None or elevation_v is None:
         return None
     
-    # Skip very short edges to avoid division instability
     if length < MIN_EDGE_LENGTH:
         return 0.0
     
     elevation_change = abs(elevation_v - elevation_u)
-    gradient = elevation_change / length
-    
-    return gradient
+    return elevation_change / length
 
 
 def process_graph_elevation(graph: nx.MultiDiGraph, 
-                            mode: str = 'API') -> nx.MultiDiGraph:
+                            mode: str = 'API',
+                            activity: str = 'walking') -> nx.MultiDiGraph:
     """
     Process all edges to calculate and assign gradient attributes.
     
     Workflow:
     1. Fetch elevation data for all nodes (via API or LOCAL DEM tiles)
-    2. Calculate gradient for each edge using node elevations
-    3. Store raw_slope_cost attribute on each edge
+    2. Calculate directional gradients for each edge
+    3. Store gradient attributes on each edge
     
-    The raw_slope_cost can later be used in the WSM A* algorithm:
-        cost = w1 * length + w2 * raw_slope_cost * length
+    Edge attributes added:
+    - uphill_gradient: Gradient when going uphill (0 if downhill)
+    - downhill_gradient: Gradient when going downhill (0 if uphill)
+    - slope_time_cost: Tobler's cost multiplier (1.0 = flat terrain)
+    - raw_slope_cost: Absolute gradient (backwards compatibility)
     
     Args:
         graph: NetworkX MultiDiGraph with edge 'length' attributes.
         mode: Elevation fetch mode - 'API' or 'LOCAL'.
+        activity: Activity mode for Tobler calculation - 'walking' or 'running'.
     
     Returns:
-        The same graph with 'raw_slope_cost' added to edges.
+        The same graph with gradient attributes added to edges.
     """
     if graph is None:
         return graph
@@ -236,41 +351,42 @@ def process_graph_elevation(graph: nx.MultiDiGraph,
     if mode.upper() == 'LOCAL':
         graph = fetch_node_elevations_local(graph)
     else:
-        # Default to API mode
         graph = fetch_node_elevations(graph)
     
     fetch_time = time.perf_counter() - t0
     print(f"  [Timer] Elevation fetch ({mode}): {fetch_time:.2f}s")
     
-    # Step 2: Calculate gradients for each edge
+    # Step 2: Calculate directional gradients for each edge
+    t0 = time.perf_counter()
     edges_processed = 0
     edges_with_gradient = 0
     
     for u, v, key, data in graph.edges(keys=True, data=True):
         # Get node elevations
-        u_data = graph.nodes[u]
-        v_data = graph.nodes[v]
-        
-        elevation_u = u_data.get('elevation')
-        elevation_v = v_data.get('elevation')
+        elevation_u = graph.nodes[u].get('elevation')
+        elevation_v = graph.nodes[v].get('elevation')
         
         # Get edge length
         length = data.get('length', 0.0)
         
-        # Calculate gradient
-        gradient = calculate_edge_gradient(length, elevation_u, elevation_v)
+        # Calculate all gradient attributes
+        uphill, downhill, tobler_cost, raw_slope = calculate_directional_gradients(
+            length, elevation_u, elevation_v, activity
+        )
         
-        # Store on edge
-        if gradient is not None:
-            graph[u][v][key]['raw_slope_cost'] = gradient
-            edges_with_gradient += 1
-        else:
-            # Default to 0.0 if no elevation data available
-            graph[u][v][key]['raw_slope_cost'] = 0.0
+        # Store all attributes on edge
+        graph[u][v][key]['uphill_gradient'] = uphill
+        graph[u][v][key]['downhill_gradient'] = downhill
+        graph[u][v][key]['slope_time_cost'] = tobler_cost
+        graph[u][v][key]['raw_slope_cost'] = raw_slope
         
         edges_processed += 1
+        if elevation_u is not None and elevation_v is not None:
+            edges_with_gradient += 1
     
+    calc_time = time.perf_counter() - t0
     print(f"[ElevationProcessor] Processed {edges_processed} edges "
-          f"({edges_with_gradient} with gradient data)")
+          f"({edges_with_gradient} with gradient data) in {calc_time:.2f}s")
     
     return graph
+
