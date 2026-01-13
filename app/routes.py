@@ -50,17 +50,43 @@ def _extract_edge_features(graph, route, max_edges=None):
             # Get first edge key's data (for MultiDiGraph)
             if edge_data:
                 data = list(edge_data.values())[0]
-                edges.append({
+                
+                # Helper to round if value exists (including 0.0)
+                def safe_round(val, decimals=3):
+                    return round(val, decimals) if val is not None else None
+                
+                # Build feature dict with all available attributes
+                edge_info = {
                     'from_coord': [u_data['y'], u_data['x']],
                     'to_coord': [v_data['y'], v_data['x']],
                     'highway': data.get('highway', 'unknown'),
                     'length_m': round(data.get('length', 0), 1),
-                    'noise_factor': data.get('noise_factor', None),
-                    'green_cost': data.get('raw_green_cost', None),
-                    'water_cost': data.get('raw_water_cost', None),
-                    'social_cost': data.get('raw_social_cost', None),
-                    'slope_cost': data.get('raw_slope_cost', None)
-                })
+                    
+                    # Raw attributes
+                    'noise_factor': data.get('noise_factor'),
+                    'raw_green_cost': data.get('raw_green_cost'),
+                    'raw_water_cost': data.get('raw_water_cost'),
+                    'raw_social_cost': data.get('raw_social_cost'),
+                    'raw_slope_cost': data.get('raw_slope_cost'),
+                    
+                    # Normalised attributes (0-1 range)
+                    'norm_green': safe_round(data.get('norm_green')),
+                    'norm_water': safe_round(data.get('norm_water')),
+                    'norm_social': safe_round(data.get('norm_social')),
+                    'norm_quiet': safe_round(data.get('norm_quiet')),
+                    'norm_slope': safe_round(data.get('norm_slope')),
+                    
+                    # Elevation / slope data
+                    'slope_time_cost': safe_round(data.get('slope_time_cost')),
+                    'uphill_gradient': round(data.get('uphill_gradient', 0) * 100, 1),
+                    'downhill_gradient': round(data.get('downhill_gradient', 0) * 100, 1),
+                }
+                
+                # Add node elevations if available
+                edge_info['from_elevation'] = safe_round(u_data.get('elevation'), 1)
+                edge_info['to_elevation'] = safe_round(v_data.get('elevation'), 1)
+                
+                edges.append(edge_info)
         except KeyError:
             continue
     

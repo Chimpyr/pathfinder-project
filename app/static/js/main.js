@@ -137,22 +137,68 @@ function renderEdgePreview(edges) {
         return;
     }
     
-    let html = '<h5 class="font-semibold mb-2 text-gray-700 dark:text-gray-300">First 5 Edges:</h5>';
-    html += '<div class="space-y-2">';
+    let html = '<h5 class="font-semibold mb-2 text-gray-700 dark:text-gray-300">Edge Features (First 5):</h5>';
+    html += '<div class="space-y-3">';
     
     edges.forEach((edge, idx) => {
+        // Determine gradient direction indicator
+        let gradientIcon = '➡️';
+        if (edge.uphill_gradient > 1) gradientIcon = '⬆️';
+        else if (edge.downhill_gradient > 1) gradientIcon = '⬇️';
+        
+        // Format elevation change
+        const elevChange = edge.to_elevation && edge.from_elevation 
+            ? (edge.to_elevation - edge.from_elevation).toFixed(1)
+            : null;
+        const elevSign = elevChange > 0 ? '+' : '';
+        
         html += `
-            <div class="p-2 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
-                <div class="flex justify-between items-center mb-1">
-                    <span class="font-medium text-sm">${idx + 1}. ${edge.highway}</span>
-                    <span class="text-xs text-gray-500">${edge.length_m}m</span>
+            <div class="p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
+                <!-- Header: Edge number, highway type, length -->
+                <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-100 dark:border-gray-600">
+                    <span class="font-semibold text-sm text-gray-800 dark:text-gray-200">#${idx + 1} ${edge.highway}</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">${edge.length_m}m</span>
                 </div>
-                <div class="grid grid-cols-5 gap-1 text-xs">
-                    <span class="text-red-500" title="Noise Factor (1=quiet, 5=noisy)">🔊 ${edge.noise_factor ?? '-'}</span>
-                    <span class="text-green-500" title="Greenness (0=green, 1=no green)">🌿 ${edge.green_cost?.toFixed(2) ?? '-'}</span>
-                    <span class="text-blue-500" title="Water (0=near, 1=far)">💧 ${edge.water_cost?.toFixed(2) ?? '-'}</span>
-                    <span class="text-amber-500" title="Social POIs (0=near, 1=far)">🏛️ ${edge.social_cost?.toFixed(2) ?? '-'}</span>
-                    <span class="text-purple-500" title="Slope (gradient %)">⛰️ ${edge.slope_cost?.toFixed(3) ?? '-'}</span>
+                
+                <!-- Normalised Scores (0-1, lower = better) -->
+                <div class="mb-2">
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Normalised Scores (0=best, 1=worst):</div>
+                    <div class="grid grid-cols-5 gap-2 text-xs">
+                        <div class="text-center" title="Greenness (0=green)">
+                            <span class="text-green-600 dark:text-green-400">🌿</span>
+                            <div class="font-mono ${edge.norm_green !== null && edge.norm_green < 0.3 ? 'text-green-600 font-bold' : ''}">${edge.norm_green ?? '-'}</div>
+                        </div>
+                        <div class="text-center" title="Water proximity (0=near)">
+                            <span class="text-blue-600 dark:text-blue-400">💧</span>
+                            <div class="font-mono ${edge.norm_water !== null && edge.norm_water < 0.3 ? 'text-blue-600 font-bold' : ''}">${edge.norm_water ?? '-'}</div>
+                        </div>
+                        <div class="text-center" title="Social/POIs (0=near)">
+                            <span class="text-amber-600 dark:text-amber-400">🏛️</span>
+                            <div class="font-mono ${edge.norm_social !== null && edge.norm_social < 0.3 ? 'text-amber-600 font-bold' : ''}">${edge.norm_social ?? '-'}</div>
+                        </div>
+                        <div class="text-center" title="Quietness (0=quiet)">
+                            <span class="text-purple-600 dark:text-purple-400">🔇</span>
+                            <div class="font-mono ${edge.norm_quiet !== null && edge.norm_quiet < 0.3 ? 'text-purple-600 font-bold' : ''}">${edge.norm_quiet ?? '-'}</div>
+                        </div>
+                        <div class="text-center" title="Slope difficulty (0=easy)">
+                            <span class="text-red-600 dark:text-red-400">⛰️</span>
+                            <div class="font-mono ${edge.norm_slope !== null && edge.norm_slope < 0.3 ? 'text-red-600 font-bold' : ''}">${edge.norm_slope ?? '-'}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Elevation Data -->
+                <div class="pt-2 border-t border-gray-100 dark:border-gray-600">
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Elevation:</div>
+                    <div class="flex justify-between text-xs">
+                        <span title="From → To elevation">
+                            ${gradientIcon} ${edge.from_elevation ?? '?'}m → ${edge.to_elevation ?? '?'}m
+                            ${elevChange !== null ? `<span class="${elevChange > 0 ? 'text-red-500' : 'text-green-500'}">(${elevSign}${elevChange}m)</span>` : ''}
+                        </span>
+                        <span title="Tobler cost (1.0=flat, >1=slower)" class="font-mono ${edge.slope_time_cost > 1.2 ? 'text-red-500 font-bold' : edge.slope_time_cost < 0.95 ? 'text-green-500 font-bold' : ''}">
+                            ⏱️ ${edge.slope_time_cost ?? '1.0'}×
+                        </span>
+                    </div>
                 </div>
             </div>
         `;

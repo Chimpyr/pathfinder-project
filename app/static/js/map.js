@@ -296,11 +296,11 @@ class MapController {
         }
         
         edgeFeatures.forEach((edge, idx) => {
-            // Determine dominant feature (lowest cost = best)
+            // Determine dominant feature (lowest normalised cost = best)
             const features = {
-                green: edge.green_cost,
-                water: edge.water_cost,
-                social: edge.social_cost
+                green: edge.norm_green,
+                water: edge.norm_water,
+                social: edge.norm_social
             };
             
             // Find best feature (lowest non-null cost)
@@ -335,17 +335,28 @@ class MapController {
                 }
             ).addTo(this.map);
             
-            // Build tooltip content with all feature values
+            // Format elevation change
+            const elevChange = edge.to_elevation && edge.from_elevation 
+                ? (edge.to_elevation - edge.from_elevation).toFixed(1)
+                : null;
+            const elevSign = elevChange > 0 ? '+' : '';
+            
+            // Build tooltip content with normalised feature values
             const tooltipContent = `
                 <strong>Edge ${idx + 1}</strong><br>
                 Highway: ${edge.highway}<br>
                 Length: ${edge.length_m}m<br>
                 <hr style="margin: 4px 0; border-color: #ddd;">
-                🔊 Noise: ${edge.noise_factor ?? 'N/A'}<br>
-                🌿 Green: ${edge.green_cost?.toFixed(2) ?? 'N/A'}<br>
-                💧 Water: ${edge.water_cost?.toFixed(2) ?? 'N/A'}<br>
-                🏛️ Social: ${edge.social_cost?.toFixed(2) ?? 'N/A'}<br>
-                ⛰️ Slope: ${edge.slope_cost?.toFixed(3) ?? 'N/A'}
+                <strong>Normalised (0=best):</strong><br>
+                🌿 Green: ${edge.norm_green ?? 'N/A'}<br>
+                💧 Water: ${edge.norm_water ?? 'N/A'}<br>
+                🏛️ Social: ${edge.norm_social ?? 'N/A'}<br>
+                🔇 Quiet: ${edge.norm_quiet ?? 'N/A'}<br>
+                ⛰️ Slope: ${edge.norm_slope ?? 'N/A'}<br>
+                <hr style="margin: 4px 0; border-color: #ddd;">
+                <strong>Elevation:</strong><br>
+                📍 ${edge.from_elevation ?? '?'}m → ${edge.to_elevation ?? '?'}m ${elevChange !== null ? `(${elevSign}${elevChange}m)` : ''}<br>
+                ⏱️ Tobler: ${edge.slope_time_cost ?? '1.0'}×
             `;
             segment.bindTooltip(tooltipContent, { sticky: true });
             

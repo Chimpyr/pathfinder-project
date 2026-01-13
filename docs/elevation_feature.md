@@ -108,6 +108,56 @@ For walking:
 
 ---
 
+## Understanding the Debug Display
+
+When hovering over route segments, you'll see elevation data like:
+
+```
+📍 62.6m → 58.9m (-3.7m)
+⏱️ Tobler: 2.097×
+```
+
+### What This Means
+
+| Display | Interpretation |
+|---------|----------------|
+| `62.6m → 58.9m` | Start elevation → End elevation (metres above sea level) |
+| `(-3.7m)` | You're going **downhill** by 3.7 metres on this segment |
+| `Tobler: 2.097×` | This segment takes **2× longer** than flat terrain |
+
+### Why Might Downhill Be "Slow"?
+
+A Tobler cost > 1.0 on a downhill segment indicates a **steep descent**:
+
+```
+gradient = elevation_change / edge_length
+```
+
+**Example:** A 3.7m drop over a 20m edge = **18.5% downhill gradient**
+
+At 18.5% gradient, you'd walk at ~1.7 km/h (bracing against gravity, protecting knees), compared to 5 km/h on flat terrain. Hence **2× slower**.
+
+### Quick Reference
+
+| Tobler Value | What It Means | Gradient Range |
+|--------------|---------------|----------------|
+| **0.83-0.95** | Faster than flat (mild downhill) | -2% to -8% |
+| **1.0** | Flat terrain baseline | ~0% |
+| **1.2-1.5** | Gentle incline | 5-10% |
+| **1.5-2.5** | Noticeable climb or steep descent | 10-20% |
+| **2.5+** | Very steep (stairs, rocky paths) | 20%+ |
+
+### Real-World Examples
+
+| Scenario | Typical Tobler Cost |
+|----------|---------------------|
+| Flat pavement | 1.0× |
+| Gentle park path | 0.9-1.1× |
+| Hilly street | 1.3-1.8× |
+| Steep steps | 2.5-4.0× |
+
+---
+
 ## User Preference Slider
 
 The slope preference slider controls how much the A* algorithm penalises terrain:
