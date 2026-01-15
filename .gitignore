@@ -35,3 +35,4 @@ app/data
 cache
 # all files in cache directory
 cache/*
+.python-version
