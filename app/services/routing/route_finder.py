@@ -3,9 +3,13 @@ import osmnx as ox
 from flask import current_app
 from app.services.routing.astar.astar import OSMNetworkXAStar
 
+
 class RouteFinder:
     """
-    Service to calculate the shortest path between two points using WSM A* implementation.
+    Service to calculate paths between two points.
+    
+    Supports both standard A* (shortest path by distance) and WSM A*
+    (weighted scenic routing) depending on the use_wsm parameter.
     """
 
     def __init__(self, graph):
@@ -17,23 +21,30 @@ class RouteFinder:
         """
         self.graph = graph
 
-    def find_route(self, start_point, end_point):
+    def find_route(self, start_point, end_point, use_wsm=False, weights=None):
         """
-        Finds the shortest path between two locations (coordinates).
-
+        Finds a path between two locations (coordinates).
+        
+        Supports two routing modes:
+        - Standard A*: Uses physical distance only (use_wsm=False)
+        - WSM A*: Uses Weighted Sum Model combining distance with scenic features
+        
         Args:
             start_point (tuple): (lat, lon) start location.
             end_point (tuple): (lat, lon) end location.
+            use_wsm (bool): If True, use WSM cost function for scenic routing.
+            weights (dict): Feature weights for WSM mode. Uses defaults if None.
 
         Returns:
-            list: A list of node IDs representing the path.
-            tuple: (start_coords, end_coords) where coords are (lat, lon).
-            float: Total distance in meters.
-            float: Estimated time in seconds.
+            tuple: (route, start_point, end_point, distance, time_seconds)
+                   - route: List of node IDs representing the path.
+                   - distance: Total distance in metres.
+                   - time_seconds: Estimated walking time.
         """
         try:
             if current_app.config.get('VERBOSE_LOGGING'):
-                print(f"[VERBOSE] Finding route for coords: {start_point} -> {end_point}")
+                mode = 'WSM' if use_wsm else 'Standard'
+                print(f"[VERBOSE] Finding route ({mode}): {start_point} -> {end_point}")
 
             # Find the nearest nodes in the graph to these points
             start_node = ox.distance.nearest_nodes(self.graph, start_point[1], start_point[0])
@@ -43,20 +54,28 @@ class RouteFinder:
                 print(f"[VERBOSE] Start Node ID: {start_node}")
                 print(f"[VERBOSE] End Node ID: {end_node}")
 
-            # Calculate the shortest path using custom A* implementation
-            # weight='length' uses the distance in meters
-            # route = nx.shortest_path(self.graph, start_node, end_node, weight='length')
-            
-            # Initialise custom A* adapter
-            astar_solver = OSMNetworkXAStar(self.graph)
+            # Select A* solver based on mode
+            if use_wsm:
+                from app.services.routing.astar.wsm_astar import WSMNetworkXAStar
+                
+                # Use provided weights or fall back to config defaults
+                if weights is None:
+                    weights = current_app.config.get('WSM_DEFAULT_WEIGHTS')
+                
+                astar_solver = WSMNetworkXAStar(self.graph, weights)
+                
+                if current_app.config.get('VERBOSE_LOGGING'):
+                    print(f"[VERBOSE] WSM weights: {weights}")
+            else:
+                # Standard A* using distance only
+                astar_solver = OSMNetworkXAStar(self.graph)
             
             # Find path
-            # The library returns a generator or list, we need a list of node IDs
             route_generator = astar_solver.astar(start_node, end_node)
             
             if route_generator is None:
                 print(f"No route found between {start_node} and {end_node}")
-                return None, None, None
+                return None, None, None, 0, 0
                 
             route = list(route_generator)
 
@@ -73,6 +92,8 @@ class RouteFinder:
             return route, start_point, end_point, distance, time_seconds
         except Exception as e:
             print(f"Error finding route: {e}")
+            import traceback
+            traceback.print_exc()
             return None, None, None, 0, 0
 
     def _calculate_total_distance(self, route):

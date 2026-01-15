@@ -255,9 +255,30 @@ def calculate_route():
         # Get graph for this region
         graph = GraphManager.get_graph(bbox)
         
+        # Parse WSM settings from request
+        use_wsm = data.get('use_wsm', False)
+        weights = None
+        
+        if use_wsm:
+            ui_weights = data.get('weights', None)
+            if ui_weights:
+                # Convert UI slider values (0-100) to normalised weights
+                from app.services.routing.cost_calculator import normalise_ui_weights
+                weights = normalise_ui_weights(ui_weights)
+            else:
+                # Use config defaults
+                weights = current_app.config.get('WSM_DEFAULT_WEIGHTS')
+            
+            if current_app.config.get('VERBOSE_LOGGING'):
+                print(f"[API] WSM routing enabled with weights: {weights}")
+        
         # Find route
         finder = RouteFinder(graph)
-        route, _, _, distance, time_seconds = finder.find_route(start_point, end_point)
+        route, _, _, distance, time_seconds = finder.find_route(
+            start_point, end_point,
+            use_wsm=use_wsm,
+            weights=weights
+        )
         
         if not route:
             return jsonify({
@@ -275,7 +296,8 @@ def calculate_route():
             'stats': {
                 'distance_km': f"{distance / 1000:.2f}",
                 'time_min': int(time_seconds // 60),
-                'pace_kmh': current_app.config.get('WALKING_SPEED_KMH', 5.0)
+                'pace_kmh': current_app.config.get('WALKING_SPEED_KMH', 5.0),
+                'routing_mode': 'scenic' if use_wsm else 'shortest'
             }
         }
         

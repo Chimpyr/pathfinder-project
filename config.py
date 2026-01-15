@@ -44,4 +44,17 @@ class Config:
     # Maximum number of region graphs to keep in memory (LRU eviction)
     # Higher = more memory usage, fewer reloads for multi-region routing
     MAX_CACHED_REGIONS = 3
+    
+    # WSM (Weighted Sum Model) default feature weights
+    # Used when API request does not include custom weights
+    # Higher value = stronger preference for that scenic feature
+    # Distance weight controls balance between shortest path and scenic features
+    WSM_DEFAULT_WEIGHTS = {
+        'distance': 0.5,    # Physical distance component
+        'greenness': 0.15,  # Prefer greener routes
+        'water': 0.1,       # Prefer routes near water features
+        'quietness': 0.1,   # Prefer quieter routes (low traffic noise)
+        'social': 0.1,      # Prefer routes near tourist/social POIs
+        'slope': 0.05,      # Prefer gentler gradients
+    }
 

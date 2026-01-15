@@ -112,6 +112,86 @@
                         <i class="fas fa-undo"></i>
                     </button>
                 </div>
+
+                <!-- Scenic Routing Preferences -->
+                <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            <i class="fas fa-sliders-h mr-2 text-primary-500"></i>Scenic Preferences
+                        </h3>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="use-scenic-routing" class="sr-only peer">
+                            <div class="relative w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-primary-600"></div>
+                            <span class="ms-2 text-xs font-medium text-gray-600 dark:text-gray-400">Enabled</span>
+                        </label>
+                    </div>
+                    
+                    <div id="scenic-sliders" class="space-y-3 opacity-50 pointer-events-none transition-opacity">
+                        <!-- Quietness -->
+                        <div class="slider-group">
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="weight-quietness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                    <span class="mr-1">🔇</span> Quietness
+                                </label>
+                                <span id="weight-quietness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                            </div>
+                            <input type="range" id="weight-quietness" min="0" max="10" value="0"
+                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                        </div>
+                        
+                        <!-- Greenery -->
+                        <div class="slider-group">
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="weight-greenness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                    <span class="mr-1">🌿</span> Greenery
+                                </label>
+                                <span id="weight-greenness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                            </div>
+                            <input type="range" id="weight-greenness" min="0" max="10" value="0"
+                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-green-500">
+                        </div>
+                        
+                        <!-- Water -->
+                        <div class="slider-group">
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="weight-water" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                    <span class="mr-1">💧</span> Near Water
+                                </label>
+                                <span id="weight-water-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                            </div>
+                            <input type="range" id="weight-water" min="0" max="10" value="0"
+                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                        </div>
+                        
+                        <!-- Social/POIs -->
+                        <div class="slider-group">
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="weight-social" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                    <span class="mr-1">🏛️</span> Social/POIs
+                                </label>
+                                <span id="weight-social-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                            </div>
+                            <input type="range" id="weight-social" min="0" max="10" value="0"
+                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                        </div>
+                        
+                        <!-- Flatness (inverse of slope) -->
+                        <div class="slider-group">
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="weight-flatness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                    <span class="mr-1">🚶</span> Prefer Flat
+                                </label>
+                                <span id="weight-flatness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                            </div>
+                            <input type="range" id="weight-flatness" min="0" max="10" value="0"
+                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-red-500">
+                        </div>
+                    </div>
+                    
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-3 italic">
+                        0 = shortest path &nbsp;→&nbsp; 10 = prefer this feature
+                    </p>
+                </div>
             </form>
 
             <!-- Route Stats -->

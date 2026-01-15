@@ -48,6 +48,54 @@ const debugContent = document.getElementById('debug-content');
 const instructionBanner = document.getElementById('instruction-banner');
 const instructionText = document.getElementById('instruction-text');
 
+// Scenic routing preferences
+const useScenicToggle = document.getElementById('use-scenic-routing');
+const scenicSliders = document.getElementById('scenic-sliders');
+const weightQuietness = document.getElementById('weight-quietness');
+const weightGreenness = document.getElementById('weight-greenness');
+const weightWater = document.getElementById('weight-water');
+const weightSocial = document.getElementById('weight-social');
+const weightFlatness = document.getElementById('weight-flatness');
+
+// ============================================================================
+// Scenic Routing Toggle Handler
+// ============================================================================
+useScenicToggle.addEventListener('change', () => {
+    const enabled = useScenicToggle.checked;
+    if (enabled) {
+        scenicSliders.classList.remove('opacity-50', 'pointer-events-none');
+    } else {
+        scenicSliders.classList.add('opacity-50', 'pointer-events-none');
+    }
+});
+
+// Slider value display updates
+[weightQuietness, weightGreenness, weightWater, weightSocial, weightFlatness].forEach(slider => {
+    if (slider) {
+        slider.addEventListener('input', () => {
+            const valueSpan = document.getElementById(`${slider.id}-value`);
+            if (valueSpan) valueSpan.textContent = slider.value;
+        });
+    }
+});
+
+/**
+ * Get scenic weights from sliders (scaled 0-100 for API).
+ * Returns null if scenic routing is disabled.
+ */
+function getScenicWeights() {
+    if (!useScenicToggle.checked) return null;
+    
+    return {
+        distance: 50,  // Base distance weight (fixed)
+        quietness: parseInt(weightQuietness.value) * 10,
+        greenness: parseInt(weightGreenness.value) * 10,
+        water: parseInt(weightWater.value) * 10,
+        social: parseInt(weightSocial.value) * 10,
+        slope: parseInt(weightFlatness.value) * 10
+    };
+}
+
 // ============================================================================
 // State Management
 // ============================================================================
@@ -418,6 +466,14 @@ routeForm.addEventListener('submit', async (e) => {
         end_lat: endState.lat,
         end_lon: endState.lon
     };
+    
+    // Add scenic routing weights if enabled
+    const scenicWeights = getScenicWeights();
+    if (scenicWeights) {
+        payload.use_wsm = true;
+        payload.weights = scenicWeights;
+        console.log('[App] Scenic routing enabled with weights:', scenicWeights);
+    }
     
     // UI Loading State
     btnText.textContent = 'Calculating...';
