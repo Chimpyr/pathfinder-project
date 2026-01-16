@@ -13,7 +13,7 @@ from app.services.rendering.map_renderer import MapRenderer
 main = Blueprint('main', __name__)
 
 # Threshold for showing visual edge features on the map (metres)
-VISUAL_DEBUG_THRESHOLD_M = 750.0
+VISUAL_DEBUG_THRESHOLD_M = 5000
 
 
 def _extract_edge_features(graph, route, max_edges=None):
@@ -324,7 +324,7 @@ def calculate_route():
             else:
                 response_data['debug_info']['visual_debug_enabled'] = False
                 response_data['debug_info']['visual_debug_reason'] = (
-                    f"Route too long ({distance/1000:.2f}km > 0.75km threshold)"
+                    f"Route too long ({distance/1000:.2f}km > 5km threshold)"
                 )
         
         return jsonify(response_data)
