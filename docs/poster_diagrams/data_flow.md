@@ -39,7 +39,7 @@ database "OSM PBF\n<size:9>(.osm.pbf)</size>" as OSMPBF
 database "DEM Tiles\n<size:9>(.tif)</size>" as DEMTiles
 storage "Graph Cache\n<size:9>(.pickle)</size>" as GraphCache
 
-' Processes
+' Processes (bottom row, left to right)
 rectangle "1.0\nParse Request" as P1
 rectangle "2.0\nLoad Graph\n<size:9>+quietness</size>\n<size:9>(Pyrosm)</size>" as P2
 rectangle "3.0\nProcess Scenic\n<size:9>green/water/social</size>\n<size:9>(GeoPandas)</size>" as P3
