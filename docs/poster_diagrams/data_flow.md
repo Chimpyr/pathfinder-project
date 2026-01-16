@@ -21,62 +21,58 @@ skinparam storage {
     BorderColor #AD1457
 }
 
+skinparam cloud {
+    BackgroundColor #F3E5F5
+    BorderColor #7B1FA2
+}
+
 ' External entities
 actor "User" as User
 
-' Data stores
-database "OSM PBF\nFile" as OSMPBF
-database "Land Use\nShapefile" as LandUseSHP
-database "Water\nShapefile" as WaterSHP
-database "POI\nShapefile" as POISSHP
-database "DEM\nTiles" as DEMTiles
-storage "Graph\nCache" as GraphCache
+' External services (top)
+cloud "Geofabrik CDN\n<size:9>HTTPS</size>" as Geofabrik
+cloud "Copernicus AWS\n<size:9>HTTPS</size>" as Copernicus
+cloud "Nominatim API\n<size:9>HTTPS</size>" as Nominatim
+
+' Local data stores
+database "OSM PBF\n<size:9>(.osm.pbf)</size>" as OSMPBF
+database "DEM Tiles\n<size:9>(.tif)</size>" as DEMTiles
+storage "Graph Cache\n<size:9>(.pickle)</size>" as GraphCache
 
 ' Processes
 rectangle "1.0\nParse Request" as P1
-rectangle "2.0\nLoad Graph" as P2
-rectangle "3.0\nProcess\nScenic Data" as P3
-rectangle "4.0\nFind Route" as P4
-rectangle "5.0\nFormat\nResponse" as P5
+rectangle "2.0\nLoad Graph\n<size:9>+quietness</size>\n<size:9>(Pyrosm)</size>" as P2
+rectangle "3.0\nProcess Scenic\n<size:9>green/water/social</size>\n<size:9>(GeoPandas)</size>" as P3
+rectangle "4.0\nElevation &\nNormalise\n<size:9>(Rasterio)</size>" as P4
+rectangle "5.0\nFind Route\n<size:9>(A* + WSM)</size>\n<size:9>(NetworkX)</size>" as P5
+rectangle "6.0\nFormat Response" as P6
 
-' Data flows
-User -right-> P1 : start/end coords,\nweights, mode
+' Layout - processes in a row
+P1 -[hidden]right-> P2
+P2 -[hidden]right-> P3
+P3 -[hidden]right-> P4
+P4 -[hidden]right-> P5
+P5 -[hidden]right-> P6
+
+' External to local data (on-demand download)
+Geofabrik ..> OSMPBF : on-demand
+Copernicus ..> DEMTiles : on-demand
+Nominatim ..> P1 : geocode
+
+' Local data to processes
+OSMPBF -down-> P2 : network
+OSMPBF -down-> P3 : features
+GraphCache <-down-> P2
+DEMTiles -down-> P4
+
+' Process flow
+User -down-> P1 : request
 P1 -down-> P2 : bbox
-
-OSMPBF --> P2 : Raw OSM\nnetwork
-P2 --> GraphCache : Processed\ngraph
-
-GraphCache --> P2 : Cached\ngraph
-
-LandUseSHP --> P3 : Green\npolygons
-WaterSHP --> P3 : Water\nfeatures
-POISSHP --> P3 : POI\npoints
-DEMTiles --> P3 : Elevation\ndata
-
-P2 --> P3 : Base graph\nwith nodes/edges
-P3 --> P2 : Enriched graph\nwith scenic costs
-
-P2 -right-> P4 : Processed\ngraph
-P1 -right-> P4 : start/end,\nweights
-
-P4 -right-> P5 : Route\n(node list)
-P5 --> User : route_coords,\nstats, debug
-
-note bottom of P3
-  Adds attributes:
-  • raw_green_cost
-  • raw_water_cost
-  • raw_social_cost
-  • noise_factor
-  • slope_time_cost
-  • norm_* (normalised)
-end note
-
-note right of P4
-  A* search using:
-  • WSM cost function
-  • Haversine heuristic
-end note
+P2 -right-> P3 : base graph
+P3 -right-> P4 : +scenic costs
+P4 -right-> P5 : norm graph
+P5 -right-> P6 : route
+P6 -up-> User : response
 
 @enduml
 ```
