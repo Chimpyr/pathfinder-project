@@ -9,11 +9,12 @@ class Config:
     WALKING_SPEED_KMH = 5.0
     
     # Greenness visibility processing mode
-    # Options: 'OFF', 'FAST', 'NOVACK'
+    # Options: 'OFF', 'FAST', 'EDGE_SAMPLING', 'NOVACK'
     # - OFF: Skip greenness processing entirely (fastest startup)
-    # - FAST: Simple buffer intersection (quick, ~30 seconds)
+    # - FAST: Point buffer at edge midpoint (quick, ~30 seconds)
+    # - EDGE_SAMPLING: Multi-point sampling along edge (balanced, ~60 seconds)
     # - NOVACK: Full isovist ray-casting (accurate but slow, ~10+ minutes)
-    GREENNESS_MODE = 'FAST'
+    GREENNESS_MODE = 'EDGE_SAMPLING'
     
     # Elevation processing mode
     # Options: 'OFF', 'API', 'LOCAL'

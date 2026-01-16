@@ -125,6 +125,13 @@ class WSMNetworkXAStar(AStar):
                 weights=self.weights
             )
             
+            # Debug logging for first few edges (to see greenness variance)
+            if not hasattr(self, '_debug_count'):
+                self._debug_count = 0
+            if self._debug_count < 5:
+                print(f"[WSM Debug] Edge {n1}->{n2}: norm_green={norm_green}, norm_quiet={norm_quiet}, cost={cost:.4f}")
+                self._debug_count += 1
+            
             if cost < best_cost:
                 best_cost = cost
         

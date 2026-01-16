@@ -56,6 +56,7 @@ const weightGreenness = document.getElementById('weight-greenness');
 const weightWater = document.getElementById('weight-water');
 const weightSocial = document.getElementById('weight-social');
 const weightFlatness = document.getElementById('weight-flatness');
+const weightDistance = document.getElementById('weight-distance');
 
 // ============================================================================
 // Scenic Routing Toggle Handler
@@ -70,7 +71,7 @@ useScenicToggle.addEventListener('change', () => {
 });
 
 // Slider value display updates
-[weightQuietness, weightGreenness, weightWater, weightSocial, weightFlatness].forEach(slider => {
+[weightDistance, weightQuietness, weightGreenness, weightWater, weightSocial, weightFlatness].forEach(slider => {
     if (slider) {
         slider.addEventListener('input', () => {
             const valueSpan = document.getElementById(`${slider.id}-value`);
@@ -80,19 +81,22 @@ useScenicToggle.addEventListener('change', () => {
 });
 
 /**
- * Get scenic weights from sliders (scaled 0-100 for API).
+ * Get scenic weights from sliders.
+ * All values use the same 0-10 scale for proportional weighting.
  * Returns null if scenic routing is disabled.
  */
 function getScenicWeights() {
     if (!useScenicToggle.checked) return null;
     
+    // All sliders use 0-10 scale, weights are proportional
+    // Example: distance=5, greenery=10 → distance=33%, greenery=67%
     return {
-        distance: 50,  // Base distance weight (fixed)
-        quietness: parseInt(weightQuietness.value) * 10,
-        greenness: parseInt(weightGreenness.value) * 10,
-        water: parseInt(weightWater.value) * 10,
-        social: parseInt(weightSocial.value) * 10,
-        slope: parseInt(weightFlatness.value) * 10
+        distance: parseInt(weightDistance.value),
+        quietness: parseInt(weightQuietness.value),
+        greenness: parseInt(weightGreenness.value),
+        water: parseInt(weightWater.value),
+        social: parseInt(weightSocial.value),
+        slope: parseInt(weightFlatness.value)
     };
 }
 

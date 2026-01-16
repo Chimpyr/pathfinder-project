@@ -5,7 +5,7 @@ Coordinates the scenic processing pipeline based on configuration.
 Calls enabled processors in sequence and manages data extraction.
 
 Processor modes are read from Flask config:
-- GREENNESS_MODE: OFF | FAST | NOVACK
+- GREENNESS_MODE: OFF | FAST | EDGE_SAMPLING | NOVACK
 - WATER_MODE: OFF | FAST
 - SOCIAL_MODE: OFF | FAST
 """
@@ -14,10 +14,7 @@ import time
 from typing import Any, Optional, Dict
 import networkx as nx
 
-from app.services.processors.greenness import (
-    process_graph_greenness_fast,
-    process_graph_greenness_novack
-)
+from app.services.processors.greenness import get_processor as get_greenness_processor
 from app.services.processors.water import process_graph_water
 from app.services.processors.social import process_graph_social
 
@@ -37,7 +34,7 @@ def _get_config(key: str, default: Any) -> Any:
 
 def get_greenness_mode() -> str:
     """Get the configured greenness processing mode."""
-    return _get_config('GREENNESS_MODE', 'FAST').upper()
+    return _get_config('GREENNESS_MODE', 'EDGE_SAMPLING').upper()
 
 
 def get_water_mode() -> str:
@@ -85,33 +82,36 @@ def process_scenic_attributes(
     print(f"[ScenicOrchestrator] Modes: GREENNESS={greenness_mode}, "
           f"WATER={water_mode}, SOCIAL={social_mode}")
     
-    # Process greenness
-    if greenness_mode == 'FAST':
-        print("[ScenicOrchestrator] Processing greenness (FAST mode)...")
+    # Process greenness using strategy pattern
+    if greenness_mode != 'OFF':
+        print(f"[ScenicOrchestrator] Processing greenness ({greenness_mode} mode)...")
         t0 = time.perf_counter()
         
         green_gdf = loader.extract_green_areas()
         timings['Extract Green Areas'] = time.perf_counter() - t0
         
+        # Get buildings for NOVACK mode
+        buildings_gdf = None
+        if greenness_mode == 'NOVACK':
+            t0 = time.perf_counter()
+            buildings_gdf = loader.extract_buildings()
+            timings['Extract Buildings'] = time.perf_counter() - t0
+        
+        # Use factory to get the right processor
         t0 = time.perf_counter()
-        graph = process_graph_greenness_fast(graph, green_gdf)
-        timings['Greenness Processing (FAST)'] = time.perf_counter() - t0
-        
-    elif greenness_mode == 'NOVACK':
-        print("[ScenicOrchestrator] Processing greenness (NOVACK mode)...")
-        t0 = time.perf_counter()
-        
-        green_gdf = loader.extract_green_areas()
-        timings['Extract Green Areas'] = time.perf_counter() - t0
-        
-        t0 = time.perf_counter()
-        buildings_gdf = loader.extract_buildings()
-        timings['Extract Buildings'] = time.perf_counter() - t0
-        
-        t0 = time.perf_counter()
-        graph = process_graph_greenness_novack(graph, green_gdf, buildings_gdf)
-        timings['Greenness Processing (NOVACK)'] = time.perf_counter() - t0
-        
+        try:
+            processor = get_greenness_processor(greenness_mode)
+            
+            if greenness_mode == 'NOVACK':
+                graph = processor.process(graph, green_gdf, buildings_gdf=buildings_gdf)
+            else:
+                graph = processor.process(graph, green_gdf)
+            
+            timings[f'Greenness Processing ({greenness_mode})'] = time.perf_counter() - t0
+            
+        except ValueError as e:
+            print(f"[ScenicOrchestrator] Error: {e}")
+            print("[ScenicOrchestrator] Greenness processing skipped.")
     else:
         print("[ScenicOrchestrator] Greenness processing disabled.")
     

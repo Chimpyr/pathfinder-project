@@ -111,14 +111,23 @@ def normalise_ui_weights(ui_weights: Dict[str, float]) -> Dict[str, float]:
     Returns:
         Normalised weights dictionary (values sum to 1.0).
     """
-    # Ensure all required keys present with defaults
+    # All features use the same 0-10 scale for intuitive proportional weighting.
+    # When user sets Greenery=10 and distance uses default 5:
+    #   - Distance: 5/(5+10) = 33%
+    #   - Greenery: 10/(5+10) = 67%
+    #
+    # With multiple features (e.g., Greenery=5, Quietness=5, Distance=5):
+    #   - Each gets 5/15 = 33%
+    #
+    # Distance defaults to 5 (middle of range) so routes aren't absurdly long,
+    # but user can reduce it via the UI slider for more scenic freedom.
     defaults = {
-        'distance': 50.0,
-        'greenness': 50.0,
-        'water': 50.0,
-        'quietness': 50.0,
-        'social': 50.0,
-        'slope': 50.0,
+        'distance': 5.0,    # Middle of 0-10 range, user can adjust via slider
+        'greenness': 0.0,   # Only if user explicitly wants green routes
+        'water': 0.0,       # Only if user explicitly wants water proximity
+        'quietness': 0.0,   # Only if user explicitly wants quiet routes
+        'social': 0.0,      # Only if user explicitly wants social/POI routes
+        'slope': 0.0,       # Only if user explicitly wants flat routes
     }
     
     # Merge with defaults
@@ -132,7 +141,14 @@ def normalise_ui_weights(ui_weights: Dict[str, float]) -> Dict[str, float]:
         return {k: (1.0 if k == 'distance' else 0.0) for k in defaults}
     
     # Normalise to sum to 1.0
-    return {k: max(0.0, float(v)) / total for k, v in merged.items()}
+    result = {k: max(0.0, float(v)) / total for k, v in merged.items()}
+    
+    # Diagnostic logging
+    print(f"[WSM Weights] Input: {ui_weights}")
+    print(f"[WSM Weights] Merged: {merged}")
+    print(f"[WSM Weights] Normalised: {result}")
+    
+    return result
 
 
 def find_length_range(graph) -> tuple[float, float]:
