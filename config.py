@@ -38,7 +38,7 @@ class Config:
     # Options: 'STATIC', 'DYNAMIC'
     # - STATIC: Uses raw values directly (0-1 attrs kept as-is, only slope normalised)
     # - DYNAMIC: Rescales all attributes per-map (best edge = 0, worst = 1)
-    NORMALISATION_MODE = 'STATIC'
+    NORMALISATION_MODE = 'DYNAMIC'
     
     # Graph caching configuration
     # Maximum number of region graphs to keep in memory (LRU eviction)

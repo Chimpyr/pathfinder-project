@@ -13,7 +13,7 @@ from app.services.rendering.map_renderer import MapRenderer
 main = Blueprint('main', __name__)
 
 # Threshold for showing visual edge features on the map (metres)
-VISUAL_DEBUG_THRESHOLD_M = 750.0
+VISUAL_DEBUG_THRESHOLD_M = 5000
 
 
 def _extract_edge_features(graph, route, max_edges=None):

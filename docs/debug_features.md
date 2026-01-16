@@ -33,7 +33,7 @@ The debug info panel always shows the **first 5 edges** of any calculated route 
 
 ### Visual Edge Overlays (Short Routes Only)
 
-For routes **under 750 metres**, coloured polyline segments overlay the route on the map:
+For routes **under 5km**, coloured polyline segments overlay the route on the map:
 
 | Colour | Dominant Feature | Meaning |
 |--------|-----------------|---------|
@@ -52,7 +52,6 @@ When visual overlays are displayed, **hover over any edge segment** to see a too
 - Length in metres
 - All 5 feature values (noise, green, water, social, slope)
 
-### Why 750m Threshold?
 
 Visual overlays are limited to short routes to:
 1. Avoid performance issues with many polyline segments
@@ -90,6 +89,6 @@ When `DEBUG` or `VERBOSE_LOGGING` is enabled, the `/api/route` endpoint includes
         "edge_preview": [...],               // First 5 edges
         "visual_debug_enabled": true
     },
-    "edge_features": [...]  // All edges (only if route < 750m)
+    "edge_features": [...]  // All edges (only if route < 5km currently)
 }
 ```
