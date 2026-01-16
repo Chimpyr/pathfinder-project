@@ -15,6 +15,8 @@ env/
 .vscode/
 .idea/
 POSTER FILES/
+docs/poster_diagrams/*.jar
+docs/poster_diagrams/*.png
 
 # OS
 .DS_Store
