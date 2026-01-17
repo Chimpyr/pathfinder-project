@@ -148,3 +148,38 @@ The WSM cost function adds minimal overhead:
 - **Memory**: One extra `(min_length, max_length)` tuple per solver instance
 
 A* complexity remains O(E log V) where E=edges, V=nodes.
+
+---
+
+## Heuristic Function
+
+The WSM A* uses a **dual-bound admissible heuristic** that provides search direction while guaranteeing optimality:
+
+```
+h(n) = w_d × (haversine_distance / max_edge_length)
+```
+
+### Why not use a simple distance heuristic?
+
+Standard A* uses straight-line distance as a heuristic. For WSM routing, this doesn't work because:
+- We cannot predict scenic quality of unvisited edges
+- A greener path might be longer but have lower total cost
+
+### The dual-bound approach
+
+The heuristic assumes:
+1. **Distance component**: Use straight-line distance (always underestimates actual path)
+2. **Scenic components**: Assume all are 0 (best case - optimistic bound)
+
+This is **admissible** because:
+- Haversine distance ≤ actual path distance
+- Actual scenic costs ≥ 0 (we assume 0, reality can only be worse)
+
+### Benefits
+
+| Aspect | h(n) = 0 | Dual-bound heuristic |
+|--------|----------|---------------------|
+| Optimality | ✅ Guaranteed | ✅ Guaranteed |
+| Search direction | ❌ None (Dijkstra) | ✅ Guided toward goal |
+| Node expansions | More | Fewer |
+

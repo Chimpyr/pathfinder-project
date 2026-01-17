@@ -139,15 +139,18 @@ class WSMNetworkXAStar(AStar):
 
     def heuristic_cost_estimate(self, current, goal) -> float:
         """
-        Compute the estimated cost to the goal using Haversine distance.
+        Compute the estimated cost to the goal using dual-bound heuristic.
         
         The heuristic must be admissible (never overestimate) to guarantee
-        optimal paths. We use the minimum possible edge cost as a conservative
-        lower bound, which is zero (a maximally scenic edge with zero length
-        contribution has zero cost).
+        optimal paths. We use:
+        - Distance component: straight-line distance normalised by max edge length
+        - Scenic components: assumed to be 0 (best case - optimistic bound)
         
-        Note: For WSM with scenic features, we cannot accurately estimate
-        the scenic quality of remaining path, so we use a conservative heuristic.
+        This is admissible because:
+        1. Haversine distance ≤ actual path distance (straight line is shortest)
+        2. Actual scenic costs ≥ 0 (we assume 0, reality can only be worse)
+        
+        Formula: h(n) = w_d × (haversine / max_edge_length) + 0
         
         Args:
             current: Current node ID.
@@ -156,10 +159,30 @@ class WSMNetworkXAStar(AStar):
         Returns:
             Estimated cost to reach goal from current node.
         """
-        # Use zero heuristic to guarantee admissibility
-        # This degrades to Dijkstra's algorithm but ensures optimality
-        # A more sophisticated heuristic could be developed later
-        return 0.0
+        # Get coordinates from graph nodes
+        current_data = self.graph.nodes[current]
+        goal_data = self.graph.nodes[goal]
+        
+        current_lat = current_data.get('y', current_data.get('lat', 0))
+        current_lon = current_data.get('x', current_data.get('lon', 0))
+        goal_lat = goal_data.get('y', goal_data.get('lat', 0))
+        goal_lon = goal_data.get('x', goal_data.get('lon', 0))
+        
+        # Calculate straight-line distance in metres
+        straight_line_distance = self._haversine(current_lat, current_lon, goal_lat, goal_lon)
+        
+        # Normalise by max edge length (same scale as edge costs)
+        # Note: can exceed 1.0 if distance > max_edge, which is valid
+        if self.max_length > 0:
+            normalised_distance = straight_line_distance / self.max_length
+        else:
+            normalised_distance = 0.0
+        
+        # Apply distance weight only; assume scenic costs = 0 (optimistic bound)
+        # This guarantees admissibility: h(n) ≤ actual remaining cost
+        h = self.weights.get('distance', 0.5) * normalised_distance
+        
+        return h
 
     def _haversine(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """
