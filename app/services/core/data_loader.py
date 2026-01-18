@@ -357,12 +357,18 @@ class OSMDataLoader:
         Tags extracted:
         - natural: water, wetland
         - landuse: reservoir, basin
-        - waterway: river, canal, riverbank
+        - waterway: river, canal, riverbank, stream
+        
+        LineString geometries (rivers, canals) are buffered to create proximity
+        areas, as OSM maps rivers as lines rather than polygons.
         
         Returns:
             GeoDataFrame of water polygons projected to EPSG:32630 (metres).
         """
         import geopandas as gpd
+        
+        # Buffer width for river/canal LineStrings (in metres after projection)
+        RIVER_BUFFER_METRES = 10
         
         if not self.file_path or not os.path.exists(self.file_path):
             self.log("[OSMDataLoader] Cannot extract water - PBF not loaded.")
@@ -376,7 +382,7 @@ class OSMDataLoader:
             custom_filter = {
                 'natural': ['water', 'wetland'],
                 'landuse': ['reservoir', 'basin'],
-                'waterway': ['river', 'canal', 'riverbank']
+                'waterway': ['river', 'canal', 'riverbank', 'stream']
             }
             
             gdf = osm.get_data_by_custom_criteria(custom_filter=custom_filter)
@@ -385,16 +391,28 @@ class OSMDataLoader:
                 self.log("  [Warn] No water features found.")
                 return gpd.GeoDataFrame()
             
-            # Filter for polygons only (exclude lines)
+            # Keep all geometries (not just polygons)
             gdf = gdf[gdf.geometry.notna()]
-            gdf = gdf[gdf.geometry.geom_type.isin(['Polygon', 'MultiPolygon'])]
             
-            # Project to metres
+            # Project to metres before buffering
             if gdf.crs is None:
                 gdf = gdf.set_crs('EPSG:4326')
             gdf = gdf.to_crs('EPSG:32630')
             
-            self.log(f"  > Extracted {len(gdf)} water feature polygons.")
+            # Buffer LineString geometries to create proximity areas
+            # Rivers in OSM are mapped as lines, not polygons, so we need to
+            # convert them to buffered polygons for spatial intersection
+            line_types = ['LineString', 'MultiLineString']
+            line_mask = gdf.geometry.geom_type.isin(line_types)
+            line_count = line_mask.sum()
+            
+            if line_count > 0:
+                gdf.loc[line_mask, 'geometry'] = gdf.loc[line_mask, 'geometry'].buffer(RIVER_BUFFER_METRES)
+                self.log(f"  > Buffered {line_count} river/canal lines by {RIVER_BUFFER_METRES}m")
+            
+            # Count polygon features
+            polygon_count = len(gdf) - line_count
+            self.log(f"  > Extracted {len(gdf)} water features ({polygon_count} polygons, {line_count} buffered lines).")
             return gdf
             
         except Exception as e:

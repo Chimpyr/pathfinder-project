@@ -4,6 +4,9 @@
 @startuml DataFlowDiagram
 skinparam shadowing false
 skinparam defaultTextAlignment center
+skinparam backgroundColor transparent
+!define RESOLUTION 300
+skinparam dpi 300
 
 ' Define styles
 skinparam rectangle {

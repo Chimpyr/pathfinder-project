@@ -1,7 +1,7 @@
 """
 Test suite for the Water Processor module.
 
-Tests buffer intersection scoring for water features.
+Tests minimum distance scoring for water features.
 Uses mocked NetworkX graphs to verify correctness without loading real PBF data.
 """
 
@@ -10,42 +10,56 @@ import networkx as nx
 import geopandas as gpd
 from shapely.geometry import Point, box
 from app.services.processors.water import (
-    _calculate_water_score_fast,
+    _calculate_water_score_distance,
     _build_spatial_index,
     process_graph_water,
 )
 
 
-class TestCalculateWaterScoreFast:
-    """Tests for the _calculate_water_score_fast function."""
+class TestCalculateWaterScoreDistance:
+    """Tests for the _calculate_water_score_distance function."""
     
-    def test_no_water_returns_zero(self):
-        """No water features should return score of 0."""
+    def test_no_water_returns_one(self):
+        """No water features should return score of 1.0 (max cost)."""
         midpoint = Point(0, 0)
-        result = _calculate_water_score_fast(midpoint, None, [])
-        assert result == 0.0
+        result = _calculate_water_score_distance(midpoint, None, [])
+        assert result == 1.0
     
-    def test_full_water_coverage(self):
-        """Water covering entire buffer should approach 1.0."""
+    def test_on_water_returns_near_zero(self):
+        """Edge directly on water should return score near 0.0."""
         midpoint = Point(0, 0)
         
+        # Large water polygon containing the midpoint
         water_poly = box(-100, -100, 100, 100)
         water_gdf = gpd.GeoDataFrame(geometry=[water_poly], crs="EPSG:32630")
         water_sindex, water_geoms = _build_spatial_index(water_gdf)
         
-        result = _calculate_water_score_fast(midpoint, water_sindex, water_geoms)
-        assert result >= 0.95
+        result = _calculate_water_score_distance(midpoint, water_sindex, water_geoms)
+        assert result <= 0.05  # Should be very close to 0
     
-    def test_distant_water_returns_zero(self):
-        """Water outside buffer should return 0."""
+    def test_distant_water_returns_one(self):
+        """Water outside max distance should return 1.0."""
         midpoint = Point(0, 0)
         
+        # Water polygon far from midpoint (>50m away)
         water_poly = box(500, 500, 600, 600)
         water_gdf = gpd.GeoDataFrame(geometry=[water_poly], crs="EPSG:32630")
         water_sindex, water_geoms = _build_spatial_index(water_gdf)
         
-        result = _calculate_water_score_fast(midpoint, water_sindex, water_geoms)
-        assert result == 0.0
+        result = _calculate_water_score_distance(midpoint, water_sindex, water_geoms)
+        assert result == 1.0
+    
+    def test_partial_distance_returns_proportional_score(self):
+        """Water at half max distance should return ~0.5."""
+        midpoint = Point(0, 0)
+        
+        # Water polygon exactly 25m away (half of 50m max)
+        water_poly = box(25, -10, 50, 10)
+        water_gdf = gpd.GeoDataFrame(geometry=[water_poly], crs="EPSG:32630")
+        water_sindex, water_geoms = _build_spatial_index(water_gdf)
+        
+        result = _calculate_water_score_distance(midpoint, water_sindex, water_geoms)
+        assert 0.4 < result < 0.6  # Should be approximately 0.5
 
 
 class TestProcessGraphWater:

@@ -17,7 +17,7 @@ from pyproj import Transformer
 
 
 # Configuration constants
-FAST_BUFFER_RADIUS: float = 30.0  # metres - buffer for FAST mode
+MAX_WATER_DISTANCE: float = 250  # metres - edges beyond this get score 1.0
 
 # Coordinate transformer: WGS84 (lat/lon) to UTM zone 30N (metres)
 _transformer: Optional[Transformer] = None
@@ -56,51 +56,73 @@ def _build_spatial_index(gdf: Optional[gpd.GeoDataFrame]) -> Tuple[Optional[STRt
     return sindex, geoms
 
 
-def _calculate_water_score_fast(
+def _calculate_water_score_distance(
     midpoint: Point,
     water_sindex: Optional[STRtree],
     water_geoms: List,
-    buffer_radius: float = FAST_BUFFER_RADIUS
+    max_distance: float = MAX_WATER_DISTANCE,
+    debug: bool = False
 ) -> float:
     """
-    Calculate water proximity score using buffer intersection (FAST mode).
+    Calculate water proximity score using minimum distance (lower = closer to water).
+    
+    Uses distance to nearest water feature normalised to 0-1 range.
+    This approach correctly scores edges ON rivers as near 0.0,
+    unlike area coverage which gave ~0.5 for edges on narrow rivers.
     
     Args:
         midpoint: Edge midpoint (projected coordinates).
         water_sindex: Spatial index for water features.
         water_geoms: List of water feature geometries.
-        buffer_radius: Search radius in metres.
+        max_distance: Maximum distance in metres beyond which score is 1.0.
+        debug: If True, print debug information.
     
     Returns:
-        Float between 0.0 and 1.0 representing water coverage proportion.
+        Float between 0.0 (on water) and 1.0 (no water nearby).
     """
     if water_sindex is None or len(water_geoms) == 0:
-        return 0.0
+        return 1.0  # No water = max cost
     
-    buffer = midpoint.buffer(buffer_radius)
-    buffer_area = buffer.area
+    # Create search area
+    search_buffer = midpoint.buffer(max_distance)
     
-    if buffer_area <= 0:
-        return 0.0
+    # Find candidate water features within search radius
+    candidate_indices = water_sindex.query(search_buffer)
     
-    candidate_indices = water_sindex.query(buffer)
-    if len(candidate_indices) == 0:
-        return 0.0
+    # Handle numpy array vs list
+    num_candidates = len(candidate_indices) if hasattr(candidate_indices, '__len__') else 0
     
-    water_area = 0.0
+    if debug:
+        print(f"[WaterProcessor DEBUG] Midpoint: {midpoint.x:.0f}, {midpoint.y:.0f}")
+        print(f"[WaterProcessor DEBUG] Candidates found: {num_candidates}")
+    
+    if num_candidates == 0:
+        return 1.0  # No water within max distance
+    
+    # Find minimum distance to any water feature
+    min_distance = max_distance
+    errors = 0
     for idx in candidate_indices:
-        geom = water_geoms[idx]
         try:
+            geom = water_geoms[idx]
             if not geom.is_valid:
                 geom = geom.buffer(0)
-            if buffer.intersects(geom):
-                intersection = buffer.intersection(geom)
-                if not intersection.is_empty:
-                    water_area += intersection.area
-        except Exception:
+            dist = midpoint.distance(geom)
+            if dist < min_distance:
+                min_distance = dist
+        except Exception as e:
+            errors += 1
+            if debug:
+                print(f"[WaterProcessor DEBUG] Error processing idx {idx}: {type(e).__name__}: {e}")
             continue
     
-    return min(1.0, water_area / buffer_area)
+    if debug and errors > 0:
+        print(f"[WaterProcessor DEBUG] Errors: {errors}/{num_candidates}")
+        print(f"[WaterProcessor DEBUG] Min distance: {min_distance:.1f}m")
+    
+    # Normalise: 0m = 0.0, max_distance = 1.0
+    return min(1.0, min_distance / max_distance)
+
 
 
 def process_graph_water(
@@ -110,15 +132,15 @@ def process_graph_water(
     """
     Process all edges to assign water proximity scores.
     
-    Uses 30m buffer around edge midpoints to calculate proximity
-    to water features (rivers, lakes, canals).
+    Uses minimum distance from edge midpoint to nearest water feature,
+    normalised to 0-1 range. Edges directly on water score near 0.0.
     
     Args:
         graph: NetworkX MultiDiGraph with node coordinates.
         water_gdf: GeoDataFrame of water feature polygons (projected).
     
     Returns:
-        Graph with raw_water_cost added to edges (0.0 = water, 1.0 = no water).
+        Graph with raw_water_cost added to edges (0.0 = on water, 1.0 = far from water).
     """
     if graph is None:
         return graph
@@ -128,6 +150,11 @@ def process_graph_water(
         return graph
     
     print("[WaterProcessor] Building spatial index...")
+    
+    # Debug: Print water GeoDataFrame info
+    print(f"[WaterProcessor DEBUG] Water CRS: {water_gdf.crs}")
+    bounds = water_gdf.total_bounds
+    print(f"[WaterProcessor DEBUG] Water bounds: minx={bounds[0]:.0f}, miny={bounds[1]:.0f}, maxx={bounds[2]:.0f}, maxy={bounds[3]:.0f}")
     water_sindex, water_geoms = _build_spatial_index(water_gdf)
     
     edges_processed = 0
@@ -151,10 +178,17 @@ def process_graph_water(
             mid_y = (start_y + end_y) / 2
             midpoint = Point(mid_x, mid_y)
             
-            water_score = _calculate_water_score_fast(midpoint, water_sindex, water_geoms)
+            # Debug: Print first edge midpoint coordinates
+            is_first_edge = edges_processed == 0
+            if is_first_edge:
+                print(f"[WaterProcessor DEBUG] First edge midpoint: x={mid_x:.0f}, y={mid_y:.0f}")
             
-            # Convert to cost (lower = better)
-            graph[u][v][key]['raw_water_cost'] = 1.0 - water_score
+            water_score = _calculate_water_score_distance(
+                midpoint, water_sindex, water_geoms, debug=is_first_edge
+            )
+            
+            # Score is already in cost format (0 = near water, 1 = far from water)
+            graph[u][v][key]['raw_water_cost'] = water_score
             
         except Exception:
             graph[u][v][key]['raw_water_cost'] = 1.0

@@ -88,6 +88,12 @@ class RouteFinder:
 
             # Calculate time
             time_seconds = self._calculate_estimated_time(distance)
+            
+            # Log total WSM cost if in verbose mode
+            if use_wsm and current_app.config.get('VERBOSE_LOGGING'):
+                total_wsm_cost = self._calculate_total_wsm_cost(route, weights)
+                print(f"[VERBOSE] Total WSM cost: {total_wsm_cost:.2f}")
+                print(f"[VERBOSE] Total distance: {distance:.0f}m in {len(route)} edges")
 
             return route, start_point, end_point, distance, time_seconds
         except Exception as e:
@@ -118,3 +124,51 @@ class RouteFinder:
         speed_kmh = current_app.config.get('WALKING_SPEED_KMH', 5.0)
         speed_ms = speed_kmh * 1000 / 3600
         return distance / speed_ms if speed_ms > 0 else 0
+    
+    def _calculate_total_wsm_cost(self, route, weights):
+        """
+        Calculate total WSM cost for a route to verify A* optimality.
+        
+        Args:
+            route: List of node IDs.
+            weights: WSM weight dictionary.
+        
+        Returns:
+            Total WSM cost of the route.
+        """
+        from app.services.routing.cost_calculator import compute_wsm_cost, normalise_length, find_length_range
+        
+        min_len, max_len = find_length_range(self.graph)
+        
+        total_cost = 0.0
+        water_sum = 0.0
+        length_sum = 0.0
+        
+        for u, v in zip(route[:-1], route[1:]):
+            edge_data = self.graph.get_edge_data(u, v)
+            if edge_data:
+                # Use first edge data
+                data = list(edge_data.values())[0]
+                
+                length = data.get('length', 0)
+                norm_length = normalise_length(length, min_len, max_len)
+                
+                norm_water = data.get('norm_water', 0.5)
+                norm_green = data.get('norm_green', 0.5)
+                norm_social = data.get('norm_social', 0.5)
+                norm_quiet = data.get('norm_quiet', 0.5)
+                norm_slope = data.get('norm_slope', 0.5)
+                
+                cost = compute_wsm_cost(
+                    norm_length, norm_green, norm_water,
+                    norm_social, norm_quiet, norm_slope, weights
+                )
+                total_cost += cost
+                water_sum += norm_water
+                length_sum += length
+        
+        avg_water = water_sum / max(1, len(route) - 1)
+        print(f"[VERBOSE] Avg norm_water on route: {avg_water:.3f}")
+        print(f"[VERBOSE] Total length: {length_sum:.0f}m")
+        
+        return total_cost

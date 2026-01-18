@@ -16,7 +16,7 @@ import networkx as nx
 
 
 # Cache version - increment when graph processing logic changes significantly
-CACHE_VERSION = "1.0.0"
+CACHE_VERSION = "1.5.0"  # Bumped for 250m water radius
 
 
 class CacheManager:

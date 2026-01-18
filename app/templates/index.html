@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PathFinder - Scenic Route Planner</title>
+    <title>ScenicRoute - Path Finder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -44,7 +44,7 @@
         <!-- Header -->
         <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-bold text-primary-600 dark:text-primary-400">PathFinder</h1>
+                <h1 class="text-2xl font-bold text-primary-600 dark:text-primary-400">ScenicRoute</h1>
                 <p class="text-sm text-gray-500 dark:text-gray-400">Type an address or click the map</p>
             </div>
             <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300">
@@ -135,7 +135,7 @@
                                 </label>
                                 <span id="weight-distance-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">5</span>
                             </div>
-                            <input type="range" id="weight-distance" min="1" max="10" value="5"
+                            <input type="range" id="weight-distance" min="0" max="10" value="5"
                                 class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-gray-500">
                         </div>
                         

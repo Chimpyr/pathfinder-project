@@ -60,7 +60,7 @@ def compute_wsm_cost(
     the normalisation processor, so NO inversion is performed here.
     
     Formula:
-        Cost = (w_d × l̂) + (w_g × ĝ) + (w_w × ŵ) + (w_s × ŝ) + (w_q × q̂) + (w_e × ê)
+        Cost = (w_d × l̂) + (w_g × ĝ) + (w_w × ŵ) + (w_s × ŝ) + (w_q × q̂) + (w_e × ê) + Penalty
     
     Where:
         - l̂ = normalised length (0=short, 1=long)
@@ -132,6 +132,11 @@ def normalise_ui_weights(ui_weights: Dict[str, float]) -> Dict[str, float]:
     
     # Merge with defaults
     merged = {**defaults, **ui_weights}
+    
+    # Apply minimum distance floor to ensure A* heuristic remains effective
+    # Without this, distance=0 would cause weak heuristic and slow exploration
+    MIN_DISTANCE_WEIGHT = 0.1  # Ensures ~1% distance influence at minimum
+    merged['distance'] = max(MIN_DISTANCE_WEIGHT, merged['distance'])
     
     # Sum all values for normalisation
     total = sum(max(0.0, float(v)) for v in merged.values())
