@@ -12,6 +12,7 @@ from app.services.routing.cost_calculator import (
     find_length_range,
     normalise_length,
     validate_weights,
+    get_active_cost_function,
 )
 from math import radians, cos, sin, asin, sqrt
 from typing import Dict, Optional
@@ -58,6 +59,10 @@ class WSMNetworkXAStar(AStar):
                 'slope': 0.1,
             }
         self.weights = validate_weights(weights)
+        
+        # Log which cost function algorithm is being used (once per route)
+        cost_func = get_active_cost_function()
+        print(f"[WSM A*] Using cost function: {cost_func.value}")
         
         # Get or compute length range for normalisation
         if length_range is not None:

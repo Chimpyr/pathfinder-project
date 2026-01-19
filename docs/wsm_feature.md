@@ -21,16 +21,33 @@ All normalised values use **cost semantics** (0 = good, 1 = bad) so the WSM form
 
 ---
 
-## Formula
+## Formula (OR Semantics)
+
+The WSM uses **MIN-based OR semantics** for scenic criteria: an edge is rewarded if it's good at ANY active criterion.
 
 ```
-Cost = (w_d × l̂) + (w_g × ĝ) + (w_w × ŵ) + (w_s × ŝ) + (w_q × q̂) + (w_e × ê)
+scenic_cost = (w_g + w_w + w_s + w_q + w_e) × min(active_scenic_values)
+Cost = (w_d × l̂) + scenic_cost
 ```
 
 Where:
 - `l̂` = normalised edge length (0 = short, 1 = long)
-- `ĝ, ŵ, ŝ, q̂, ê` = normalised costs (all use 0 = good, 1 = bad semantics)
+- `active_scenic_values` = only normalised costs for criteria with weight > 0
 - `w_*` = user-configurable weights (must sum to 1.0)
+
+### Why OR Semantics?
+
+With multiple criteria enabled, an edge good at **ANY** criterion scores well:
+
+| Edge Type | norm_green | norm_water | With AND (old) | With OR (new) |
+|-----------|------------|------------|----------------|---------------|
+| Park path | 0.1 | 0.9 | Penalised for water | Uses 0.1 ✓ |
+| River bank | 0.9 | 0.1 | Penalised for green | Uses 0.1 ✓ |
+| Urban street | 0.9 | 0.9 | High cost | Uses 0.9 ✗ |
+
+This prevents multi-criteria requests from collapsing to shortest path.
+
+See [ADR-001](decisions/ADR-001-wsm-or-semantics.md) for detailed decision rationale.
 
 Lower cost = better path.
 

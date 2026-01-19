@@ -1,18 +1,29 @@
 """
 Cost Calculator Module
 
-Provides the Weighted Sum Model (WSM) cost calculation for scenic routing.
+Provides pluggable cost functions for scenic routing with A*.
 All scenic feature values must be normalised to 0.0-1.0 range before use.
 
-The WSM formula produces a single cost value combining distance and scenic
-preferences, suitable for use in A* pathfinding algorithms.
+Available cost functions (configure via config.py COST_FUNCTION):
+    - WSM_ADDITIVE:       Pure Weighted Sum Model (AND semantics)
+    - HYBRID_DISJUNCTIVE: Weighted-MIN (OR semantics) [default]
+
+Usage:
+    # Use the config-defined cost function (recommended)
+    cost = compute_wsm_cost(norm_length, norm_green, ..., weights)
+    
+    # Or explicitly override for testing
+    from cost_calculator import CostFunction, compute_cost
+    cost = compute_cost(..., method=CostFunction.WSM_ADDITIVE)
+
+See ADR-001 and ADR-003 for design rationale.
 """
 
 from typing import Dict, Optional
 
 
 # All normalised scenic values are stored as costs (0=good, 1=bad)
-# This simplifies the WSM formula - all features use direct weighting
+# This simplifies formulas - all features use direct weighting
 
 
 def validate_weights(weights: Dict[str, float]) -> Dict[str, float]:
@@ -43,6 +54,184 @@ def validate_weights(weights: Dict[str, float]) -> Dict[str, float]:
     return validated
 
 
+# =============================================================================
+# Cost Function Implementations
+# =============================================================================
+# Each function takes the same parameters for plug-and-play testing.
+# All return a float cost value (lower is better).
+# Configure which algorithm to use via config.py COST_FUNCTION setting.
+# =============================================================================
+
+from enum import Enum
+
+
+class CostFunction(Enum):
+    """Available cost function algorithms for scenic routing."""
+    WSM_ADDITIVE = "WSM_ADDITIVE"           # Pure Weighted Sum Model (AND semantics)
+    HYBRID_DISJUNCTIVE = "HYBRID_DISJUNCTIVE"  # Weighted-MIN (OR semantics)
+
+
+def get_active_cost_function() -> CostFunction:
+    """
+    Get the currently configured cost function from config.
+    
+    Returns:
+        CostFunction enum value based on config.py COST_FUNCTION setting.
+    """
+    try:
+        from config import Config
+        config_value = getattr(Config, 'COST_FUNCTION', 'HYBRID_DISJUNCTIVE')
+        return CostFunction(config_value)
+    except (ImportError, ValueError) as e:
+        print(f"[Cost Calculator] Warning: Could not load config, using default: {e}")
+        return CostFunction.HYBRID_DISJUNCTIVE
+
+
+def cost_wsm_additive(
+    norm_length: float,
+    norm_green: float,
+    norm_water: float,
+    norm_social: float,
+    norm_quiet: float,
+    norm_slope: float,
+    weights: Dict[str, float]
+) -> float:
+    """
+    Pure Weighted Sum Model (AND semantics).
+    
+    Formula:
+        Cost = w_d×l̂ + w_g×ĝ + w_w×ŵ + w_s×ŝ + w_q×q̂ + w_e×ê
+    
+    All criteria are summed. Being bad at ANY criterion adds penalty.
+    
+    Pros:
+        - Simple, well-understood in MCDA literature
+        - All criteria influence the result proportionally
+    
+    Cons:
+        - Multi-criteria collapse: edges must be good at ALL criteria
+        - An edge green but not near water gets penalised for water
+    
+    Args:
+        norm_*: Normalised cost values (0=good, 1=bad)
+        weights: Dictionary of feature weights (sum to 1.0)
+    
+    Returns:
+        Combined cost value (lower is better).
+    """
+    cost = weights['distance'] * norm_length
+    cost += weights['greenness'] * norm_green
+    cost += weights['water'] * norm_water
+    cost += weights['social'] * norm_social
+    cost += weights['quietness'] * norm_quiet
+    cost += weights['slope'] * norm_slope
+    
+    return cost
+
+
+def cost_hybrid_disjunctive(
+    norm_length: float,
+    norm_green: float,
+    norm_water: float,
+    norm_social: float,
+    norm_quiet: float,
+    norm_slope: float,
+    weights: Dict[str, float]
+) -> float:
+    """
+    Hybrid Additive-Disjunctive with Weighted-MIN (OR semantics).
+    
+    Formula:
+        adjusted_i = norm_i / (1 + weight_i)    # Higher weight = advantage
+        best = min(adjusted values)              # Only best contributes
+        Cost = w_d×l̂ + total_scenic × best × normalization
+    
+    Distance is additive; scenic criteria use disjunctive (OR) aggregation.
+    Being good at ANY scenic criterion is rewarded; others are ignored.
+    
+    Pros:
+        - No multi-criteria collapse
+        - Weights determine priority in MIN competition
+        - Slider increments have meaningful effect
+    
+    Cons:
+        - Not pure WSM (academically different)
+        - Over-rewards single-attribute edges
+    
+    Args:
+        norm_*: Normalised cost values (0=good, 1=bad)
+        weights: Dictionary of feature weights (sum to 1.0)
+    
+    Returns:
+        Combined cost value (lower is better).
+    """
+    # Distance component always additive
+    cost = weights['distance'] * norm_length
+    
+    # Collect active scenic criteria
+    scenic_data = [
+        (norm_green, weights['greenness']),
+        (norm_water, weights['water']),
+        (norm_social, weights['social']),
+        (norm_quiet, weights['quietness']),
+        (norm_slope, weights['slope']),
+    ]
+    
+    active = [(val, w) for val, w in scenic_data if w > 0]
+    
+    if active:
+        # Weighted-MIN: divide by (1 + weight) so higher weights win
+        adjusted_values = [(val / (1 + w), w) for val, w in active]
+        best_adjusted = min(adj for adj, w in adjusted_values)
+        
+        total_scenic_weight = sum(w for val, w in active)
+        avg_weight = total_scenic_weight / len(active)
+        normalization_factor = 1 + avg_weight
+        
+        cost += total_scenic_weight * best_adjusted * normalization_factor
+    
+    return cost
+
+
+def compute_cost(
+    norm_length: float,
+    norm_green: float,
+    norm_water: float,
+    norm_social: float,
+    norm_quiet: float,
+    norm_slope: float,
+    weights: Dict[str, float],
+    method: CostFunction = None
+) -> float:
+    """
+    Dispatcher function - routes to the active cost function.
+    
+    Args:
+        norm_*: Normalised cost values (0=good, 1=bad)
+        weights: Dictionary of feature weights
+        method: Optional override for cost function (uses config.COST_FUNCTION if None)
+    
+    Returns:
+        Combined cost value (lower is better).
+    """
+    if method is None:
+        method = get_active_cost_function()
+    
+    if method == CostFunction.WSM_ADDITIVE:
+        return cost_wsm_additive(
+            norm_length, norm_green, norm_water, 
+            norm_social, norm_quiet, norm_slope, weights
+        )
+    elif method == CostFunction.HYBRID_DISJUNCTIVE:
+        return cost_hybrid_disjunctive(
+            norm_length, norm_green, norm_water,
+            norm_social, norm_quiet, norm_slope, weights
+        )
+    else:
+        raise ValueError(f"Unknown cost function: {method}")
+
+
+# Backward compatibility alias
 def compute_wsm_cost(
     norm_length: float,
     norm_green: float,
@@ -53,76 +242,42 @@ def compute_wsm_cost(
     weights: Dict[str, float]
 ) -> float:
     """
-    Compute the Weighted Sum Model cost for an edge.
+    Backward-compatible wrapper. Uses the currently active cost function.
     
-    Combines normalised distance with scenic feature costs using weighted sum.
-    All normalised values are already in cost format (0=good, 1=bad) from
-    the normalisation processor, so NO inversion is performed here.
-    
-    Formula:
-        Cost = (w_d × l̂) + (w_g × ĝ) + (w_w × ŵ) + (w_s × ŝ) + (w_q × q̂) + (w_e × ê) + Penalty
-    
-    Where:
-        - l̂ = normalised length (0=short, 1=long)
-        - ĝ = normalised green cost (0=green, 1=no green)
-        - ŵ = normalised water cost (0=water, 1=no water)
-        - ŝ = normalised social cost (0=POIs, 1=no POIs)
-        - q̂ = normalised quietness cost (0=quiet, 1=noisy)
-        - ê = normalised slope cost (0=flat, 1=steep)
-        - w_* = corresponding weights
-    
-    Args:
-        norm_length: Normalised edge length (0.0-1.0).
-        norm_green: Normalised green cost (0=green, 1=no green).
-        norm_water: Normalised water cost (0=water, 1=no water).
-        norm_social: Normalised social cost (0=POIs, 1=no POIs).
-        norm_quiet: Normalised quietness cost (0=quiet, 1=noisy).
-        norm_slope: Normalised slope cost (0=flat, 1=steep).
-        weights: Dictionary of feature weights.
-    
-    Returns:
-        Combined WSM cost value (lower is better).
+    See compute_cost(), cost_wsm_additive(), cost_hybrid_disjunctive() 
+    for the actual implementations.
     """
-    # Distance component (longer is worse)
-    cost = weights['distance'] * norm_length
-    
-    # All normalised values are already costs (0=good, 1=bad)
-    # No inversion needed - higher weight means we penalise lack of feature more
-    cost += weights['greenness'] * norm_green
-    cost += weights['water'] * norm_water
-    cost += weights['social'] * norm_social
-    cost += weights['quietness'] * norm_quiet
-    cost += weights['slope'] * norm_slope
-    
-    return cost
+    return compute_cost(
+        norm_length, norm_green, norm_water,
+        norm_social, norm_quiet, norm_slope, weights
+    )
 
 
 def normalise_ui_weights(ui_weights: Dict[str, float]) -> Dict[str, float]:
     """
-    Convert UI slider values (0-100) to normalised weights.
+    Convert UI slider values (0-5) to normalised weights.
     
     UI sliders use intuitive semantics where higher = more preference.
     This function converts to weights that sum to 1.0 for consistent
     cost scaling in the WSM formula.
     
     Args:
-        ui_weights: Dictionary of feature names to slider values (0-100).
+        ui_weights: Dictionary of feature names to slider values (0-5).
     
     Returns:
         Normalised weights dictionary (values sum to 1.0).
     """
-    # All features use the same 0-10 scale for intuitive proportional weighting.
-    # When user sets Greenery=10 and distance uses default 5:
-    #   - Distance: 5/(5+10) = 33%
-    #   - Greenery: 10/(5+10) = 67%
+    # All features use 0-5 scale for intuitive proportional weighting.
+    # When user sets Greenery=5 and distance uses default 3:
+    #   - Distance: 3/(3+5) = 37.5%
+    #   - Greenery: 5/(3+5) = 62.5%
     #
-    # With multiple features (e.g., Greenery=5, Quietness=5, Distance=5):
-    #   - Each gets 5/15 = 33%
+    # See ADR-003 for rationale on 0-5 scale choice.
     #
-    # Distance defaults to 5 (middle of range) so routes aren't absurdly long,
+    # Distance defaults to 3 (middle of 0-5 range) so routes aren't absurdly long,
     # but user can reduce it via the UI slider for more scenic freedom.
     defaults = {
-        'distance': 5.0,    # Middle of 0-10 range, user can adjust via slider
+        'distance': 3.0,    # Middle of 0-5 range, user can adjust via slider
         'greenness': 0.0,   # Only if user explicitly wants green routes
         'water': 0.0,       # Only if user explicitly wants water proximity
         'quietness': 0.0,   # Only if user explicitly wants quiet routes

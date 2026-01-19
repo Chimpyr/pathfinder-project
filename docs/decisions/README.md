@@ -23,6 +23,7 @@ Each ADR follows this structure:
 |----|-------|--------|------|
 | [ADR-001](ADR-001-wsm-or-semantics.md) | WSM OR-Semantics for Multi-Criteria Routing | Accepted | 2026-01-19 |
 | [ADR-002](ADR-002-greenness-detection-method.md) | Greenness Detection Method Selection | Accepted | 2025-11 |
+| [ADR-003](ADR-003-weighted-min-and-slider-scale.md) | Weighted-MIN Algorithm and 0-5 Slider Scale | Accepted | 2026-01-19 |
 
 ## Related Documentation
 

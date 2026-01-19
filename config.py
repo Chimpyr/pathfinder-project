@@ -41,6 +41,17 @@ class Config:
     # - DYNAMIC: Rescales all attributes per-map (best edge = 0, worst = 1)
     NORMALISATION_MODE = 'DYNAMIC'
     
+    # Cost function algorithm for scenic routing
+    # Options: 'WSM_ADDITIVE', 'HYBRID_DISJUNCTIVE'
+    # - WSM_ADDITIVE: Pure Weighted Sum Model (AND semantics)
+    #       All criteria are summed. Being bad at ANY criterion adds penalty.
+    #       Simple but causes multi-criteria collapse (must be good at ALL).
+    # - HYBRID_DISJUNCTIVE: Weighted-MIN (OR semantics)
+    #       Only best scenic criterion contributes. Good at ANY = rewarded.
+    #       Prevents multi-criteria collapse, respects weight priority.
+    # See ADR-001, ADR-003 for detailed rationale.
+    COST_FUNCTION = 'HYBRID_DISJUNCTIVE'
+    
     # Graph caching configuration
     # Maximum number of region graphs to keep in memory (LRU eviction)
     # Higher = more memory usage, fewer reloads for multi-region routing
