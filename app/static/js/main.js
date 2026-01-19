@@ -126,20 +126,25 @@ function updateInstructions() {
     const hasEnd = endState.lat !== null;
     
     if (startState.isGeocoding || endState.isGeocoding) {
+        instructionBanner.classList.remove('hidden');
         instructionText.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Looking up address...';
         instructionBanner.className = 'mx-6 mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg';
     } else if (!hasStart && !hasEnd) {
+        instructionBanner.classList.remove('hidden');
         instructionText.innerHTML = 'Type addresses below or click the map to set points';
         instructionBanner.className = 'mx-6 mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg';
     } else if (hasStart && !hasEnd) {
+        instructionBanner.classList.remove('hidden');
         instructionText.innerHTML = 'Now set your <strong>end point</strong> (type or click)';
         instructionBanner.className = 'mx-6 mt-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg';
     } else if (!hasStart && hasEnd) {
+        instructionBanner.classList.remove('hidden');
         instructionText.innerHTML = 'Now set your <strong>start point</strong> (type or click)';
         instructionBanner.className = 'mx-6 mt-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg';
     } else {
-        instructionText.innerHTML = '<i class="fas fa-check-circle mr-1"></i> Ready! Click <strong>Find Route</strong>';
-        instructionBanner.className = 'mx-6 mt-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg';
+        // Both points set - hide banner as it's no longer needed
+        instructionBanner.classList.add('hidden');
+        return;
     }
 }
 
