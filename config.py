@@ -69,4 +69,3 @@ class Config:
         'social': 0.1,      # Prefer routes near tourist/social POIs
         'slope': 0.05,      # Prefer gentler gradients
     }
-

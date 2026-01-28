@@ -59,7 +59,7 @@ ScenicPathFinder/
 User enters start/end locations (addresses or postcodes).
 
 ```
-POST / 
+POST /
   start: "Clifton Suspension Bridge"
   end: "Bristol Temple Meads"
 ```
@@ -110,7 +110,7 @@ region_name = "bristol"  # From Geofabrik index
 
 ### 6. Route Calculation
 
-`RouteFinder` uses A* algorithm to find optimal path:
+`RouteFinder` uses A\* algorithm to find optimal path:
 
 ```python
 route = finder.find_route(start_point, end_point)
@@ -134,6 +134,7 @@ map_html = MapRenderer.render_map(graph, route, start, end)
 Downloads and parses OpenStreetMap data.
 
 **Key methods:**
+
 - `load_graph(bbox)` - Parse PBF to NetworkX graph
 - `extract_green_areas()` - Parks, forests (→ GeoDataFrame)
 - `extract_buildings()` - Building polygons for occlusion
@@ -141,6 +142,8 @@ Downloads and parses OpenStreetMap data.
 - `extract_pois()` - Tourist/social POIs for social scoring
 
 **Data source:** Geofabrik regional extracts (e.g., `bristol.osm.pbf`)
+Originally used Overpass api (https://wiki.openstreetmap.org/wiki/Overpass_API).
+I found this was much slower, having to request large chunks via the api.
 
 ---
 
@@ -149,10 +152,12 @@ Downloads and parses OpenStreetMap data.
 Orchestrates graph loading with two-tier caching.
 
 **Cache hierarchy:**
+
 1. **Memory cache** - LRU with configurable capacity
 2. **Disk cache** - Pickle files in `app/data/cache/`
 
 **Key methods:**
+
 - `get_graph(bbox)` - Main entry point
 - `clear_cache()` - Invalidate memory cache
 - `get_cache_info()` - Cache statistics
@@ -164,6 +169,7 @@ Orchestrates graph loading with two-tier caching.
 Handles disk serialisation and cache invalidation.
 
 **Invalidation triggers:**
+
 - `CACHE_VERSION` changes (code update)
 - PBF file modified
 - Processing mode changes (GREENNESS_MODE, ELEVATION_MODE, etc.)
@@ -177,6 +183,7 @@ Handles disk serialisation and cache invalidation.
 Coordinates the scenic processing pipeline based on configuration.
 
 **Responsibilities:**
+
 - Read config modes (GREENNESS_MODE, WATER_MODE, SOCIAL_MODE)
 - Call enabled processors in sequence
 - Pass timing information to graph_manager
@@ -185,75 +192,87 @@ Coordinates the scenic processing pipeline based on configuration.
 
 ### QuietnessProcessor (`processors/quietness.py`)
 
-Classifies highway types by expected noise level.
+Classifies highway types by expected noise level based on Wang et al. (2021) research.
 
-**Edge attribute:** `noise_factor` (1.0 = quiet, 5.0 = noisy)
+**Edge attributes:**
 
-| Highway Type | Noise Factor |
-|--------------|--------------|
-| footway, path | 1.0 |
-| residential | 2.0 |
-| primary, trunk | 5.0 |
+- `noise_factor`: Classification (1.0 = noisy, 2.0 = quiet, 1.5 = neutral)
+- `raw_quiet_cost`: Inverted for WSM (lower = quieter = better)
+
+| Highway Type               | Noise Factor  |
+| -------------------------- | ------------- |
+| primary, trunk, motorway   | 1.0 (noisy)   |
+| tertiary, unclassified     | 1.5 (neutral) |
+| footway, path, residential | 2.0 (quiet)   |
 
 ---
 
-### GreennessProcessor (`processors/greenness.py`)
+### GreennessProcessor (`processors/greenness/`)
 
-Calculates green space proximity/visibility scores.
+Calculates green space proximity/visibility scores using pluggable strategies.
 
 **Edge attribute:** `raw_green_cost` (0.0 = very green, 1.0 = no green)
 
-| Mode | Algorithm | Speed |
-|------|-----------|-------|
-| OFF | Skip | Instant |
-| FAST | 30m buffer intersection | ~45s |
-| NOVACK | Isovist ray-casting | ~10min |
+| Mode          | Algorithm                            | Speed   |
+| ------------- | ------------------------------------ | ------- |
+| OFF           | Skip                                 | Instant |
+| FAST          | Point buffer at midpoint (30m)       | ~30s    |
+| EDGE_SAMPLING | Multi-point sampling (20m intervals) | ~60s    |
+| NOVACK        | Isovist ray-casting with occlusion   | ~10min  |
 
 ---
 
 ### WaterProcessor (`processors/water.py`)
 
-Calculates proximity to water features.
+Calculates proximity to water features using minimum distance scoring.
 
-**Edge attribute:** `raw_water_cost` (0.0 = near water, 1.0 = no water)
+**Edge attribute:** `raw_water_cost` (0.0 = on water, 1.0 = no water within 250m)
 
-| Mode | Algorithm | Speed |
-|------|-----------|-------|
-| OFF | Skip | Instant |
-| FAST | 30m buffer intersection | ~26s |
+**Water sources:** `natural=water/wetland`, `waterway=river/canal/stream`, `landuse=reservoir`
+
+| Mode | Algorithm                    | Speed   |
+| ---- | ---------------------------- | ------- |
+| OFF  | Skip                         | Instant |
+| FAST | Min distance to water (250m) | ~30s    |
 
 ---
 
 ### SocialProcessor (`processors/social.py`)
 
-Calculates proximity to tourist and social POIs.
+Calculates proximity to tourist and social POIs with distance-weighted scoring.
 
 **Edge attribute:** `raw_social_cost` (0.0 = near POIs, 1.0 = no POIs)
 
 **POI categories:**
-- `tourism`: attraction, viewpoint, museum, artwork, gallery
-- `historic`: castle, monument, memorial, ruins
-- `amenity`: cafe, restaurant, pub, theatre, cinema
 
-| Mode | Algorithm | Speed |
-|------|-----------|-------|
-| OFF | Skip | Instant |
-| FAST | 50m buffer intersection | ~13s |
+- `tourism`: attraction, viewpoint, museum, artwork, gallery, picnic_site, zoo
+- `historic`: castle, monument, memorial, ruins, archaeological_site, church
+- `amenity`: cafe, restaurant, pub, bar, theatre, cinema, library
+
+| Mode | Algorithm                                | Speed   |
+| ---- | ---------------------------------------- | ------- |
+| OFF  | Skip                                     | Instant |
+| FAST | Distance-weighted POI count (50m buffer) | ~13s    |
 
 ---
 
 ### ElevationProcessor (`processors/elevation.py`)
 
-Fetches elevation data and calculates edge gradients.
+Fetches elevation data and calculates edge gradients with Tobler's hiking function.
 
-**Edge attribute:** `raw_slope_cost` (absolute gradient, e.g. 0.05 = 5% grade)
+**Edge attributes:**
 
-| Mode | Algorithm | Speed |
-|------|-----------|-------|
-| OFF | Skip | Instant |
-| FAST | Open Topo Data API (ASTER30m) | ~25min* |
+- `raw_slope_cost`: Absolute gradient (e.g. 0.05 = 5% grade)
+- `uphill_gradient`, `downhill_gradient`: Directional slopes
+- `tobler_cost`: Walking speed multiplier
 
-*Rate-limited by free API tier (1 req/sec)
+| Mode  | Algorithm                         | Speed    |
+| ----- | --------------------------------- | -------- |
+| OFF   | Skip                              | Instant  |
+| API   | Open Topo Data API (ASTER 30m)    | ~25min\* |
+| LOCAL | Copernicus GLO-30 DEM tiles (30m) | ~3s      |
+
+\*API rate-limited (1 req/sec); LOCAL downloads tiles once then caches
 
 **Formula:** `raw_slope_cost = |elevation_v - elevation_u| / length`
 
@@ -261,11 +280,17 @@ Fetches elevation data and calculates edge gradients.
 
 ### RouteFinder (`routing/route_finder.py`)
 
-A* pathfinding using edge weights.
+A\* pathfinding with pluggable cost functions.
 
-**Current:** Uses `length` attribute for shortest path.
+**Modes:**
 
-**Future (WSM A*):** Will combine multiple criteria with user-configurable weights.
+- `use_wsm=False`: Standard A\* using `length` attribute for shortest path
+- `use_wsm=True`: WSM A\* using normalised scenic features with configurable weights
+
+**Key Classes:**
+
+- `OSMNetworkXAStar`: Distance-only pathfinding
+- `WSMNetworkXAStar`: Weighted Sum Model pathfinding
 
 ---
 
@@ -276,19 +301,25 @@ class Config:
     DEFAULT_CITY = "Bristol, UK"
     WALKING_SPEED_KMH = 5.0
     VERBOSE_LOGGING = True
-    
+
     # Greenness processing mode
-    GREENNESS_MODE = 'FAST'  # OFF | FAST | NOVACK
-    
+    GREENNESS_MODE = 'EDGE_SAMPLING'  # OFF | FAST | EDGE_SAMPLING | NOVACK
+
     # Water processing mode
-    WATER_MODE = 'FAST'      # OFF | FAST
-    
+    WATER_MODE = 'FAST'               # OFF | FAST
+
     # Social POI processing mode
-    SOCIAL_MODE = 'FAST'     # OFF | FAST
-    
+    SOCIAL_MODE = 'FAST'              # OFF | FAST
+
     # Elevation processing mode
-    ELEVATION_MODE = 'OFF'   # OFF | FAST
-    
+    ELEVATION_MODE = 'LOCAL'          # OFF | API | LOCAL
+
+    # Normalisation mode for scenic cost attributes
+    NORMALISATION_MODE = 'DYNAMIC'    # STATIC | DYNAMIC
+
+    # Cost function algorithm for scenic routing
+    COST_FUNCTION = 'HYBRID_DISJUNCTIVE'  # WSM_ADDITIVE | HYBRID_DISJUNCTIVE
+
     # Cache capacity
     MAX_CACHED_REGIONS = 3
 ```
@@ -368,19 +399,19 @@ edge = G[node_u][node_v][0]
     'highway': 'residential',
     'surface': 'asphalt',
     'lit': 'yes',
-    
+
     # From QuietnessProcessor
     'noise_factor': 2.0,      # 1.0-5.0 (higher = noisier)
-    
+
     # From GreennessProcessor (FAST mode)
     'raw_green_cost': 0.35,   # 0.0-1.0 (0 = green, 1 = no green)
-    
+
     # From WaterProcessor (FAST mode)
     'raw_water_cost': 0.90,   # 0.0-1.0 (0 = water, 1 = no water)
-    
+
     # From SocialProcessor (FAST mode)
     'raw_social_cost': 0.75,  # 0.0-1.0 (0 = POIs, 1 = no POIs)
-    
+
     # From ElevationProcessor (FAST mode)
     'raw_slope_cost': 0.05,   # 0.0+ (0.05 = 5% grade)
 }
@@ -390,40 +421,74 @@ edge = G[node_u][node_v][0]
 
 ## Performance Benchmarks (Bristol, 325K edges)
 
-| Operation | Typical Time |
-|-----------|--------------|
-| Memory cache hit | <1ms |
-| Disk cache hit | ~2-5s |
-| Graph Loading | ~16s |
-| Quietness Processing | ~0.4s |
-| Greenness Processing (FAST) | ~45s |
-| Water Processing (FAST) | ~26s |
-| Social Processing (FAST) | ~13s |
-| **Total (first load)** | **~110s** |
-| A* route calculation | <100ms |
+| Operation                   | Typical Time |
+| --------------------------- | ------------ |
+| Memory cache hit            | <1ms         |
+| Disk cache hit              | ~2-5s        |
+| Graph Loading               | ~16s         |
+| Quietness Processing        | ~0.4s        |
+| Greenness Processing (FAST) | ~45s         |
+| Water Processing (FAST)     | ~26s         |
+| Social Processing (FAST)    | ~13s         |
+| **Total (first load)**      | **~110s**    |
+| A\* route calculation       | <100ms       |
 
 ---
 
-## Future: WSM A* Integration
+## WSM A\* Implementation
 
-The edge attributes (`noise_factor`, `raw_*_cost`) are designed for use in a **Weighted Sum Model** A* implementation:
+The Weighted Sum Model A\* extends standard pathfinding to incorporate user preferences for scenic features.
+
+### Cost Function Algorithms
+
+Two algorithms are available, configured via `COST_FUNCTION`:
+
+| Algorithm            | Semantics | Formula                           | Use Case                     |
+| -------------------- | --------- | --------------------------------- | ---------------------------- |
+| `WSM_ADDITIVE`       | AND       | `Σ(wᵢ × normᵢ)`                   | Must be good at ALL criteria |
+| `HYBRID_DISJUNCTIVE` | OR        | `w_d×l̂ + Σw_scenic × min(active)` | Good at ANY criterion        |
+
+**Recommendation:** Use `HYBRID_DISJUNCTIVE` (default) to avoid multi-criteria collapse.
+
+### Edge Cost Calculation
 
 ```python
-# User sets weights via UI sliders
-weights = {
-    'distance': 0.4,
-    'quietness': 0.2,
-    'greenness': 0.2,
-    'water': 0.1,
-    'social': 0.1
-}
+# WSM A* distance_between() pseudocode
+norm_length = (length - min_length) / (max_length - min_length)
 
-# Edge cost calculation (lower cost = preferred)
-cost = (weights['distance'] * edge['length'] +
-        weights['quietness'] * edge['length'] / edge['noise_factor'] +
-        weights['greenness'] * edge['length'] * edge['raw_green_cost'] +
-        weights['water'] * edge['length'] * edge['raw_water_cost'] +
-        weights['social'] * edge['length'] * edge['raw_social_cost'])
+# With HYBRID_DISJUNCTIVE (OR semantics):
+active_scenic = [norm_green, norm_water, ...]  # Only where weight > 0
+best_scenic = min(active_scenic)
+cost = w_distance × norm_length + sum(w_scenic) × best_scenic
 ```
 
-This enables personalised routing: "shortest but avoiding main roads with preference for parks and waterfront".
+### Admissible Heuristic
+
+The heuristic guarantees optimal paths:
+
+```
+h(n) = w_d × (haversine_distance / max_edge_length)
+```
+
+- **Distance bound:** Straight-line ≤ actual path (always underestimates)
+- **Scenic bound:** Assumed 0 (best case, optimistic)
+
+### Weight Normalisation
+
+UI sliders (0–5) are converted to weights summing to 1.0:
+
+```python
+# Distance always has base weight 50 to prevent absurd detours
+normalised = {
+    'distance': (50 + ui_distance) / total,
+    'greenness': ui_greenness / total,
+    'water': ui_water / total,
+    # ...
+}
+```
+
+### Related Documentation
+
+- [WSM Feature Specification](wsm_feature.md)
+- [ADR-001: WSM OR-Semantics](decisions/ADR-001-wsm-or-semantics.md)
+- [ADR-003: Weighted-MIN and Slider Scale](decisions/ADR-003-weighted-min-and-slider-scale.md)

@@ -70,7 +70,7 @@ DEMTiles -down-> P4
 
 ' Process flow
 User -down-> P1 : request
-P1 -down-> P2 : bbox
+P1 -down-> P2 : request data
 P2 -right-> P3 : base graph
 P3 -right-> P4 : +scenic costs
 P4 -right-> P5 : norm graph

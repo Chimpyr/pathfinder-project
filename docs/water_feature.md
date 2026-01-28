@@ -11,6 +11,7 @@ The water proximity feature allows routes to prefer paths near water features su
 ### Data Extraction
 
 Water features are extracted from OpenStreetMap data using these tags:
+
 - `natural`: water, wetland
 - `landuse`: reservoir, basin
 - `waterway`: river, canal, riverbank, stream
@@ -27,11 +28,12 @@ For each graph edge, we calculate water proximity using **minimum distance** to 
 4. Normalise to 0-1 range: `score = distance / 50m`
 
 This produces a **cost** value where:
+
 - **0.0** = Edge is on/touching water (best for water preference)
 - **0.5** = Edge is 25m from water
 - **1.0** = No water within 50m (worst for water preference)
 
-## Bug Fixes (January 2026)
+## -
 
 ### Fix 1: Rivers Not Detected
 
@@ -48,7 +50,7 @@ gdf.loc[line_mask, 'geometry'] = gdf.loc[line_mask, 'geometry'].buffer(RIVER_BUF
 
 ### Fix 2: Area Coverage Scoring Gave Wrong Values
 
-**Problem**: Original scoring calculated what percentage of a 50m circular buffer was covered by water. A 20m-wide river could only cover ~50% of the buffer area, so edges *on* a river scored ~0.5 instead of 0.0.
+**Problem**: Original scoring calculated what percentage of a 50m circular buffer was covered by water. A 20m-wide river could only cover ~50% of the buffer area, so edges _on_ a river scored ~0.5 instead of 0.0.
 
 **Solution**: Changed to **minimum distance** scoring. If an edge is directly on water, distance = 0, so score = 0.0.
 
@@ -62,14 +64,14 @@ min_distance / max_distance  # On river → distance 0 → score 0.0
 
 ## Configuration
 
-| Constant | Value | Location | Purpose |
-|----------|-------|----------|---------|
-| `RIVER_BUFFER_METRES` | 10m | `data_loader.py` | Width to buffer river LineStrings |
-| `MAX_WATER_DISTANCE` | 50m | `water.py` | Distance beyond which water has no effect |
+| Constant              | Value | Location         | Purpose                                   |
+| --------------------- | ----- | ---------------- | ----------------------------------------- |
+| `RIVER_BUFFER_METRES` | 10m   | `data_loader.py` | Width to buffer river LineStrings         |
+| `MAX_WATER_DISTANCE`  | 50m   | `water.py`       | Distance beyond which water has no effect |
 
 ## Related Components
 
 - **Data Loader** (`app/services/core/data_loader.py`): Extracts and buffers water features
 - **Water Processor** (`app/services/processors/water.py`): Scores edges by distance to water
 - **Normalisation** (`app/services/processors/normalisation.py`): Copies `raw_water_cost` to `norm_water`
-- **WSM A*** (`app/services/routing/astar/wsm_astar.py`): Uses `norm_water` in cost calculation
+- **WSM A\*** (`app/services/routing/astar/wsm_astar.py`): Uses `norm_water` in cost calculation

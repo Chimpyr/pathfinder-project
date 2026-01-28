@@ -14,26 +14,26 @@ graph TD
     subgraph Configuration
         CFG[config.py<br/>GREENNESS_MODE]
     end
-    
+
     subgraph Orchestrator
         ORC[orchestrator.py] --> GF[get_processor]
     end
-    
+
     subgraph "Greenness Package"
         GF --> BASE[GreennessProcessor<br/>Abstract Base]
         BASE --> FAST[FastBufferProcessor]
         BASE --> EDGE[EdgeSamplingProcessor]
         BASE --> NOV[NovackIsovistProcessor]
     end
-    
+
     subgraph "Shared Utilities"
         UTIL[utils.py<br/>Spatial helpers]
     end
-    
+
     FAST --> UTIL
     EDGE --> UTIL
     NOV --> UTIL
-    
+
     CFG --> ORC
 ```
 
@@ -45,12 +45,12 @@ Set the mode in `config.py`:
 GREENNESS_MODE = 'EDGE_SAMPLING'  # Options: OFF, FAST, EDGE_SAMPLING, NOVACK
 ```
 
-| Mode | Speed | Accuracy | Description |
-|------|-------|----------|-------------|
-| **OFF** | ⚡ Instant | N/A | Skip greenness processing |
-| **FAST** | ⚡⚡ ~30s | ⭐⭐ | Point buffer at edge midpoint |
-| **EDGE_SAMPLING** | ⚡ ~60s | ⭐⭐⭐ | Multi-point sampling along edge |
-| **NOVACK** | 🐢 ~10min | ⭐⭐⭐⭐ | Full isovist ray-casting |
+| Mode              | Speed   | Accuracy | Description                     |
+| ----------------- | ------- | -------- | ------------------------------- |
+| **OFF**           | Instant | N/A      | Skip greenness processing       |
+| **FAST**          | ~30s    | ⭐⭐     | Point buffer at edge midpoint   |
+| **EDGE_SAMPLING** | ~60s    | ⭐⭐⭐   | Multi-point sampling along edge |
+| **NOVACK**        | ~10min  | ⭐⭐⭐⭐ | Full isovist ray-casting        |
 
 ## Package Structure
 
@@ -118,7 +118,7 @@ class MyMethodProcessor(GreennessProcessor):
     @property
     def name(self) -> str:
         return "My Method"
-    
+
     def process(self, graph, green_gdf, **kwargs):
         self.validate_graph(graph)
         # Add raw_green_cost to each edge
@@ -138,8 +138,8 @@ _PROCESSOR_REGISTRY['MY_METHOD'] = MyMethodProcessor
 
 All processors add the same attribute to graph edges:
 
-| Attribute | Type | Range | Meaning |
-|-----------|------|-------|---------|
+| Attribute        | Type  | Range     | Meaning                          |
+| ---------------- | ----- | --------- | -------------------------------- |
 | `raw_green_cost` | float | 0.0 - 1.0 | 0.0 = very green, 1.0 = no green |
 
 This value is later normalised to `norm_green` by the normalisation processor,

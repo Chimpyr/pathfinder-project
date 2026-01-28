@@ -153,7 +153,7 @@ class NovackIsovistProcessor(GreennessProcessor):
         
         candidates = [buildings_geoms[i] for i in candidate_indices]
         
-        # Cast rays
+        # 2. Cast 72 rays (every 5°) from the observation point
         ray_endpoints = []
         angle_step = 2 * math.pi / self._ray_count
         px, py = point.x, point.y
@@ -164,6 +164,7 @@ class NovackIsovistProcessor(GreennessProcessor):
             ry = py + radius * math.sin(angle)
             ray_line = LineString([(px, py), (rx, ry)])
             
+            # 3. Trim rays at building facades (occlusion)
             min_dist = radius
             for building in candidates:
                 if ray_line.intersects(building):
@@ -194,7 +195,7 @@ class NovackIsovistProcessor(GreennessProcessor):
             endpoint_y = py + min_dist * math.sin(angle)
             ray_endpoints.append((endpoint_x, endpoint_y))
         
-        # Construct isovist polygon
+        # 4. Construct isovist polygon (visible area)
         if ray_endpoints:
             ray_endpoints.append(ray_endpoints[0])  # Close the polygon
             try:
@@ -233,6 +234,7 @@ class NovackIsovistProcessor(GreennessProcessor):
         if isovist is None or isovist.is_empty:
             return 0.0
         
+        # 5. Intersect with green spaces
         candidate_indices = green_sindex.query(isovist)
         if len(candidate_indices) == 0:
             return 0.0
@@ -248,6 +250,7 @@ class NovackIsovistProcessor(GreennessProcessor):
             except Exception:
                 continue
         
+        # 6. Score = visible green area / (π × 100²)
         score = visible_green_area / MAX_VISIBLE_AREA
         return min(1.0, max(0.0, score))
     
@@ -318,7 +321,7 @@ class NovackIsovistProcessor(GreennessProcessor):
                     edges_processed += 1
                     continue
                 
-                # Sample points along edge
+                # 1. Discretise each edge into sample points (every 50m)
                 sample_points = self._discretise_edge(start_point, end_point, length)
                 
                 # Calculate green score at each sample point

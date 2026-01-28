@@ -18,7 +18,7 @@ title <size:14><b>WSM + A* Multi-Criteria Scenic Routing</b></size>
 
 ' ===== INPUT STAGE (Left) =====
 together {
-  rectangle "**User Input**\n\nCoordinates\nWeights (0-10)" as INPUT #E3F2FD
+  rectangle "**User Input**\n\nCoordinates\nWeights (0-5)" as INPUT #E3F2FD
 
   rectangle "**Graph**\n//pre-processed//\n\nEdge attributes:\nnorm_green [0-1]\nnorm_water [0-1]\nnorm_social [0-1]\nnorm_quiet [0-1]\nnorm_slope [0-1]" as GRAPH #E0E0E0
 }
