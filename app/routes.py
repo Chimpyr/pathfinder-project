@@ -252,12 +252,23 @@ def calculate_route():
             print(f"[API] Route request: {start_point} -> {end_point}")
         
         # Calculate bounding box with buffer
-        buffer_deg = 0.02  # ~2.2km buffer
+        buffer_deg = 0.02  # ~2.2km buffer for basic bbox
         min_lat = min(start_point[0], end_point[0]) - buffer_deg
         max_lat = max(start_point[0], end_point[0]) + buffer_deg
         min_lon = min(start_point[1], end_point[1]) - buffer_deg
         max_lon = max(start_point[1], end_point[1]) + buffer_deg
         bbox = (min_lat, min_lon, max_lat, max_lon)
+        
+        # Calculate buffered bbox for clipping (5km buffer, matching GraphBuilder)
+        # This larger buffer allows scenic detours without hitting graph boundary
+        clip_buffer_km = 5
+        clip_buffer_deg = clip_buffer_km / 111.0  # ~0.045 degrees per km
+        clip_bbox = (
+            min(start_point[0], end_point[0]) - clip_buffer_deg,
+            min(start_point[1], end_point[1]) - clip_buffer_deg,
+            max(start_point[0], end_point[0]) + clip_buffer_deg,
+            max(start_point[1], end_point[1]) + clip_buffer_deg
+        )
         
         # =====================================================================
         # ASYNC MODE: Check cache and enqueue task if necessary
@@ -276,13 +287,14 @@ def calculate_route():
             elevation_mode = current_app.config.get('ELEVATION_MODE', 'OFF')
             normalisation_mode = current_app.config.get('NORMALISATION_MODE', 'STATIC')
             
-            # Check cache validity
+            # Check cache validity (using clip_bbox for per-route caching)
             cache_mgr = get_cache_manager()
             loader = OSMDataLoader()
             loader.ensure_data_for_bbox(bbox)
             
             cache_hit = cache_mgr.is_cache_valid(
-                region_name, greenness_mode, elevation_mode, loader.file_path
+                region_name, greenness_mode, elevation_mode, loader.file_path,
+                bbox=clip_bbox  # Use clip_bbox for per-route cache keys
             )
             
             if not cache_hit:

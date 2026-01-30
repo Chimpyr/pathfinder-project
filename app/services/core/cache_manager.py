@@ -67,9 +67,24 @@ class CacheManager:
             print(f"[CacheManager] Warning: Could not save manifest: {e}")
     
     def _get_cache_key(self, region_name: str, greenness_mode: str, 
-                        elevation_mode: str = 'OFF') -> str:
-        """Generate a unique cache key for a region + mode combination."""
-        return f"{region_name}_{greenness_mode.lower()}_{elevation_mode.lower()}"
+                        elevation_mode: str = 'OFF',
+                        bbox: Optional[tuple] = None) -> str:
+        """
+        Generate a unique cache key for a region + mode combination.
+        
+        If bbox is provided, includes a hash of the rounded bbox to enable
+        per-route caching with bbox clipping. The bbox is rounded to 0.01
+        degree (~1km) to allow cache reuse for nearby starting points.
+        """
+        base_key = f"{region_name}_{greenness_mode.lower()}_{elevation_mode.lower()}"
+        
+        if bbox is not None:
+            # Round bbox to 0.01 degree (~1km) for cache reuse on nearby routes
+            rounded = tuple(round(x, 2) for x in bbox)
+            bbox_hash = hashlib.md5(str(rounded).encode()).hexdigest()[:8]
+            return f"{base_key}_bbox_{bbox_hash}"
+        
+        return base_key
     
     def _get_cache_path(self, cache_key: str) -> str:
         """Get the file path for a cache entry."""
@@ -77,7 +92,8 @@ class CacheManager:
     
     def is_cache_valid(self, region_name: str, greenness_mode: str,
                        elevation_mode: str = 'OFF',
-                       pbf_path: Optional[str] = None) -> bool:
+                       pbf_path: Optional[str] = None,
+                       bbox: Optional[tuple] = None) -> bool:
         """
         Check if a valid cache exists for the given region and mode.
         
@@ -89,6 +105,7 @@ class CacheManager:
             greenness_mode: Processing mode ('OFF', 'FAST', 'NOVACK').
             elevation_mode: Elevation mode ('OFF', 'FAST').
             pbf_path: Path to the PBF file (for mtime validation).
+            bbox: Optional bounding box for per-route caching.
         
         Returns:
             True if valid cache exists, False otherwise.
@@ -96,7 +113,7 @@ class CacheManager:
         # Reload manifest from disk to pick up changes from other processes
         self._manifest = self._load_manifest()
         
-        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode)
+        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode, bbox=bbox)
         cache_path = self._get_cache_path(cache_key)
         
         # Check file exists
@@ -137,7 +154,8 @@ class CacheManager:
         return True
     
     def load_graph(self, region_name: str, greenness_mode: str,
-                   elevation_mode: str = 'OFF') -> Optional[nx.MultiDiGraph]:
+                   elevation_mode: str = 'OFF',
+                   bbox: Optional[tuple] = None) -> Optional[nx.MultiDiGraph]:
         """
         Load a cached graph from disk.
         
@@ -145,11 +163,12 @@ class CacheManager:
             region_name: Name of the region.
             greenness_mode: Processing mode.
             elevation_mode: Elevation mode.
+            bbox: Optional bounding box for per-route caching.
         
         Returns:
             The cached graph, or None if not found/invalid.
         """
-        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode)
+        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode, bbox=bbox)
         cache_path = self._get_cache_path(cache_key)
         
         if not os.path.exists(cache_path):
@@ -175,7 +194,8 @@ class CacheManager:
     
     def save_graph(self, graph: nx.MultiDiGraph, region_name: str, 
                    greenness_mode: str, elevation_mode: str = 'OFF',
-                   pbf_path: Optional[str] = None):
+                   pbf_path: Optional[str] = None,
+                   bbox: Optional[tuple] = None):
         """
         Save a processed graph to disk cache.
         
@@ -185,8 +205,9 @@ class CacheManager:
             greenness_mode: Processing mode used.
             elevation_mode: Elevation mode used.
             pbf_path: Path to source PBF (for invalidation tracking).
+            bbox: Optional bounding box for per-route caching.
         """
-        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode)
+        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode, bbox=bbox)
         cache_path = self._get_cache_path(cache_key)
         
         try:

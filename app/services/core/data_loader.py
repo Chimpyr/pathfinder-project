@@ -100,9 +100,15 @@ class OSMDataLoader:
         else:
              self.log(f"[OSMDataLoader] Using existing valid PBF: {self.file_path}")
 
-    def load_graph(self, bbox=None):
+    def load_graph(self, bbox=None, clip_bbox=None):
         """
         Parses the PBF and returns a NetworkX graph with specific walking attributes.
+        
+        Args:
+            bbox: Bounding box for data lookup (determines which PBF file to use)
+            clip_bbox: Optional bounding box to clip the graph to (min_lat, min_lon, max_lat, max_lon).
+                       If provided, only nodes/edges within this bbox are loaded, dramatically
+                       reducing memory usage (e.g., 1.1M nodes -> ~50K for a typical route).
         """
         if not self.file_path:
             # If ensure_data_for_bbox wasn't called manually, try to infer or error
@@ -115,9 +121,14 @@ class OSMDataLoader:
         self.log(f"[OSMDataLoader] Parsing PBF data: {self.file_path} (This uses pyrosm for speed)")
         
         try:
-            # Initialise Pyrosm
-            # We don't filter by bbox during load to ensure full connectivity
-            osm = OSM(self.file_path)
+            # Initialise Pyrosm - optionally clip to bbox for memory efficiency
+            if clip_bbox:
+                # Convert from (min_lat, min_lon, max_lat, max_lon) to pyrosm format [min_lon, min_lat, max_lon, max_lat]
+                bounding_box = [clip_bbox[1], clip_bbox[0], clip_bbox[3], clip_bbox[2]]
+                self.log(f"[OSMDataLoader] Clipping to bbox: {clip_bbox}")
+                osm = OSM(self.file_path, bounding_box=bounding_box)
+            else:
+                osm = OSM(self.file_path)
             
             # Custom filter for Weighted Sum Model
             extra_attributes = [

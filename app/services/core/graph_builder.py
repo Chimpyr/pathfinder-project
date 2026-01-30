@@ -85,7 +85,8 @@ def build_graph(
     greenness_mode: str = 'FAST',
     elevation_mode: str = 'OFF',
     normalisation_mode: str = 'STATIC',
-    save_to_cache: bool = True
+    save_to_cache: bool = True,
+    clip_to_bbox: bool = True
 ) -> GraphBuildResult:
     """
     Build and process a graph for the specified region.
@@ -101,6 +102,8 @@ def build_graph(
         elevation_mode: Elevation processing mode ('OFF', 'API', 'LOCAL').
         normalisation_mode: Normalisation mode ('STATIC', 'DYNAMIC').
         save_to_cache: Whether to save the processed graph to disk cache.
+        clip_to_bbox: Whether to clip the graph to a buffered bbox for memory efficiency.
+                      Default True. Set False for full-region loading.
     
     Returns:
         GraphBuildResult containing the processed graph and metadata.
@@ -118,13 +121,27 @@ def build_graph(
     print(f"[GraphBuilder] Building graph for region: {region_name}")
     print(f"[GraphBuilder] Modes - Greenness: {greenness_mode}, Elevation: {elevation_mode}")
     
+    # Calculate buffered bbox for clipping (if enabled)
+    # 5km buffer allows for scenic detours without hitting graph boundary
+    clip_bbox = None
+    if clip_to_bbox and bbox is not None:
+        buffer_km = 5
+        buffer_deg = buffer_km / 111.0  # ~0.045 degrees per km at mid-latitudes
+        clip_bbox = (
+            bbox[0] - buffer_deg,  # min_lat
+            bbox[1] - buffer_deg,  # min_lon
+            bbox[2] + buffer_deg,  # max_lat
+            bbox[3] + buffer_deg   # max_lon
+        )
+        print(f"[GraphBuilder] Clipping enabled with {buffer_km}km buffer")
+    
     # Initialise data loader
     loader = OSMDataLoader()
     
-    # Load the base graph from PBF
+    # Load the base graph from PBF (optionally clipped)
     t0 = time.perf_counter()
     try:
-        graph = loader.load_graph(bbox)
+        graph = loader.load_graph(bbox, clip_bbox=clip_bbox)
     except Exception as e:
         raise RuntimeError(f"Failed to load graph for region '{region_name}': {e}") from e
     
@@ -191,7 +208,8 @@ def build_graph(
             region_name,
             greenness_mode,
             elevation_mode,
-            loader.file_path
+            loader.file_path,
+            bbox=bbox  # Pass bbox for per-route caching
         )
         print(f"[GraphBuilder] Graph saved to disk cache for region: {region_name}")
     
