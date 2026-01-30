@@ -260,14 +260,14 @@ def calculate_route():
         bbox = (min_lat, min_lon, max_lat, max_lon)
         
         # Calculate buffered bbox for clipping (5km buffer, matching GraphBuilder)
-        # This larger buffer allows scenic detours without hitting graph boundary
+        # IMPORTANT: Must calculate from bbox (not raw coords) to match graph_builder.py
         clip_buffer_km = 5
         clip_buffer_deg = clip_buffer_km / 111.0  # ~0.045 degrees per km
         clip_bbox = (
-            min(start_point[0], end_point[0]) - clip_buffer_deg,
-            min(start_point[1], end_point[1]) - clip_buffer_deg,
-            max(start_point[0], end_point[0]) + clip_buffer_deg,
-            max(start_point[1], end_point[1]) + clip_buffer_deg
+            bbox[0] - clip_buffer_deg,  # min_lat
+            bbox[1] - clip_buffer_deg,  # min_lon
+            bbox[2] + clip_buffer_deg,  # max_lat
+            bbox[3] + clip_buffer_deg   # max_lon
         )
         
         # =====================================================================

@@ -57,7 +57,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    command: celery -A celery_app worker --loglevel=info --concurrency=1
+    command: celery -A celery_app worker --loglevel=info --concurrency=4
 
   # Optional: Flower monitoring UI
   flower:

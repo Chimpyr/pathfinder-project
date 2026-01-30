@@ -209,7 +209,7 @@ def build_graph(
             greenness_mode,
             elevation_mode,
             loader.file_path,
-            bbox=bbox  # Pass bbox for per-route caching
+            bbox=clip_bbox  # Use clip_bbox for cache key (must match routes.py lookup)
         )
         print(f"[GraphBuilder] Graph saved to disk cache for region: {region_name}")
     
