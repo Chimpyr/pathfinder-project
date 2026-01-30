@@ -24,6 +24,8 @@ Each ADR follows this structure:
 | [ADR-001](ADR-001-wsm-or-semantics.md) | WSM OR-Semantics for Multi-Criteria Routing | Accepted | 2026-01-19 |
 | [ADR-002](ADR-002-greenness-detection-method.md) | Greenness Detection Method Selection | Accepted | 2025-11 |
 | [ADR-003](ADR-003-weighted-min-and-slider-scale.md) | Weighted-MIN Algorithm and 0-5 Slider Scale | Accepted | 2026-01-19 |
+| [ADR-004](ADR-004-bbox-clipping.md) | Bounding Box Clipping for Graph Loading | Accepted | 2026-01-30 |
+| [ADR-005](ADR-005-async-task-cache-reliability.md) | Async Task Lock Management and Cache Reliability | Accepted | 2026-01-30 |
 
 ## Related Documentation
 

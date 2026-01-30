@@ -38,19 +38,19 @@ class CacheManager:
             cache_dir: Directory for cache files (relative to project root).
         """
         # Navigate from app/services/core/ up to project root (4 levels)
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        self.cache_dir = os.path.join(base_dir, cache_dir)
-        self.manifest_path = os.path.join(self.cache_dir, "manifest.json")
+        base_path = Path(__file__).resolve().parent.parent.parent.parent
+        self.cache_dir = base_path / cache_dir
+        self.manifest_path = self.cache_dir / "manifest.json"
         
         # Ensure cache directory exists
-        os.makedirs(self.cache_dir, exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
         
         # Load or create manifest
         self._manifest = self._load_manifest()
     
     def _load_manifest(self) -> Dict[str, Any]:
         """Load the cache manifest from disk."""
-        if os.path.exists(self.manifest_path):
+        if self.manifest_path.exists():
             try:
                 with open(self.manifest_path, 'r') as f:
                     return json.load(f)
@@ -74,21 +74,22 @@ class CacheManager:
         
         If bbox is provided, includes a hash of the rounded bbox to enable
         per-route caching with bbox clipping. The bbox is rounded to 0.01
-        degree (~1km) to allow cache reuse for nearby starting points.
+        degree (~1km) using explicit string formatting to ensure stability.
         """
         base_key = f"{region_name}_{greenness_mode.lower()}_{elevation_mode.lower()}"
         
         if bbox is not None:
-            # Round bbox to 0.01 degree (~1km) for cache reuse on nearby routes
-            rounded = tuple(round(x, 2) for x in bbox)
-            bbox_hash = hashlib.md5(str(rounded).encode()).hexdigest()[:8]
+            # Format bbox to 2 decimal places (~1km) for stability
+            # Using string formatting avoids floating point precision issues in hash
+            bbox_str = "_".join(f"{x:.2f}" for x in bbox)
+            bbox_hash = hashlib.md5(bbox_str.encode()).hexdigest()[:8]
             return f"{base_key}_bbox_{bbox_hash}"
         
         return base_key
     
-    def _get_cache_path(self, cache_key: str) -> str:
+    def _get_cache_path(self, cache_key: str) -> Path:
         """Get the file path for a cache entry."""
-        return os.path.join(self.cache_dir, f"{cache_key}_v{CACHE_VERSION}.pickle")
+        return self.cache_dir / f"{cache_key}_v{CACHE_VERSION}.pickle"
     
     def is_cache_valid(self, region_name: str, greenness_mode: str,
                        elevation_mode: str = 'OFF',
@@ -117,7 +118,8 @@ class CacheManager:
         cache_path = self._get_cache_path(cache_key)
         
         # Check file exists
-        if not os.path.exists(cache_path):
+        if not cache_path.exists():
+            # print(f"[CacheManager] Cache miss (file not found): {cache_key}")
             return False
         
         # Check manifest entry
@@ -125,12 +127,14 @@ class CacheManager:
             # File exists but no manifest entry - might be from another process
             # Accept if file exists and is recent (created in last hour)
             try:
-                file_mtime = os.path.getmtime(cache_path)
+                # Use Path.stat().st_mtime
+                file_mtime = cache_path.stat().st_mtime
                 if time.time() - file_mtime < 3600:  # Created in last hour
                     print(f"[CacheManager] Cache file exists without manifest entry, accepting: {cache_key}")
                     return True
             except OSError:
                 pass
+            print(f"[CacheManager] Cache miss (no manifest entry): {cache_key}")
             return False
         
         entry = self._manifest["entries"][cache_key]
@@ -149,6 +153,7 @@ class CacheManager:
         
         # Check greenness mode
         if entry.get("greenness_mode") != greenness_mode:
+            print(f"[CacheManager] Greenness mode mismatch for {cache_key}")
             return False
         
         return True

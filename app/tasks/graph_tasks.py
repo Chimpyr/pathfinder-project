@@ -78,6 +78,9 @@ def build_graph_task(
         }
     )
     
+    # Lazy import to avoid circular dependency
+    from app.services.core.task_manager import get_task_manager
+    
     try:
         # Build the graph using the stateless builder
         result = build_graph(
@@ -117,6 +120,16 @@ def build_graph_task(
             'region_name': region_name,
             'error': str(e)
         }
+    
+    finally:
+        # Critical: Always clear the lock so subsequent requests can trigger new builds
+        # if the cache is missing or deleted.
+        try:
+            tm = get_task_manager()
+            tm.clear_lock(region_name, greenness_mode, elevation_mode)
+            logger.info(f"[Task {task_id}] Cleared lock for {region_name}")
+        except Exception as e:
+            logger.error(f"[Task {task_id}] Failed to clear lock: {e}")
 
 
 @celery.task(name='tasks.check_cache')

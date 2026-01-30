@@ -2,23 +2,23 @@
 Admin Blueprint
 
 Provides administrative endpoints for monitoring the async pipeline,
-viewing cache status, and inspecting worker health.
-
-These endpoints are intended for development and debugging purposes.
-In production, consider adding authentication.
+viewing cache status, managing caches, and running test scenarios.
 
 Endpoints:
-    GET /admin/ - Dashboard overview (HTML)
-    GET /admin/tasks/active - Active Celery tasks (JSON)
-    GET /admin/cache - Cache statistics (JSON)
-    GET /admin/workers - Worker health (JSON)
-    GET /admin/config - Current configuration (JSON)
+    GET  /admin/                - Dashboard overview (HTML)
+    GET  /admin/tasks/active    - Active Celery tasks (JSON)
+    GET  /admin/cache           - Cache statistics (JSON)
+    DELETE /admin/cache/<key>   - Delete specific cache file
+    DELETE /admin/cache/all     - Delete all cache files
+    GET  /admin/workers         - Worker health (JSON)
+    GET  /admin/config          - Current configuration (JSON)
 
 Author: ScenicPathFinder
 """
 
-from flask import Blueprint, jsonify, render_template_string, current_app
-from typing import Dict, Any
+from flask import Blueprint, jsonify, render_template, current_app
+from typing import Dict, Any, List
+import os
 
 try:
     from celery_app import celery
@@ -34,90 +34,45 @@ from app.services.core.graph_manager import GraphManager
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
-# Simple HTML dashboard template
-DASHBOARD_TEMPLATE = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>ScenicPathFinder Admin</title>
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; padding: 2rem; background: #f5f5f5; }
-        h1 { color: #2d3748; }
-        .card { background: white; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .card h2 { margin-top: 0; color: #4a5568; font-size: 1.25rem; }
-        .status-ok { color: #38a169; }
-        .status-warning { color: #d69e2e; }
-        .status-error { color: #e53e3e; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
-        th { color: #718096; font-weight: 600; font-size: 0.875rem; }
-        pre { background: #2d3748; color: #e2e8f0; padding: 1rem; border-radius: 4px; overflow-x: auto; }
-        .btn { display: inline-block; padding: 0.5rem 1rem; background: #4299e1; color: white; text-decoration: none; border-radius: 4px; margin-right: 0.5rem; }
-        .btn:hover { background: #3182ce; }
-    </style>
-</head>
-<body>
-    <h1>🗺️ ScenicPathFinder Admin</h1>
-    
-    <div class="card">
-        <h2>🔧 Configuration</h2>
-        <table>
-            <tr><th>Setting</th><th>Value</th></tr>
-            <tr><td>Async Mode</td><td class="{{ 'status-ok' if config.async_mode else 'status-warning' }}">{{ 'Enabled' if config.async_mode else 'Disabled' }}</td></tr>
-            <tr><td>Greenness Mode</td><td>{{ config.greenness_mode }}</td></tr>
-            <tr><td>Elevation Mode</td><td>{{ config.elevation_mode }}</td></tr>
-            <tr><td>Water Mode</td><td>{{ config.water_mode }}</td></tr>
-            <tr><td>Cost Function</td><td>{{ config.cost_function }}</td></tr>
-        </table>
-    </div>
-    
-    <div class="card">
-        <h2>📦 Cache Status</h2>
-        <table>
-            <tr><th>Metric</th><th>Value</th></tr>
-            <tr><td>Cached Regions (Memory)</td><td>{{ cache_info.cache_size }}</td></tr>
-            <tr><td>Max Regions</td><td>{{ cache_info.max_regions }}</td></tr>
-            <tr><td>Current Region</td><td>{{ cache_info.current_region or 'None' }}</td></tr>
-        </table>
-        {% if cache_info.cached_regions %}
-        <h3>Cached Regions:</h3>
-        <ul>
-            {% for region in cache_info.cached_regions %}
-            <li>{{ region }}</li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-    </div>
-    
-    <div class="card">
-        <h2>⚡ Workers</h2>
-        {% if workers_available %}
-            <p class="status-ok">✓ Celery workers connected</p>
-            <pre>{{ workers | tojson(indent=2) }}</pre>
-        {% else %}
-            <p class="status-error">✗ No workers available (Celery not connected)</p>
-        {% endif %}
-    </div>
-    
-    <div class="card">
-        <h2>📋 Active Tasks</h2>
-        {% if active_tasks %}
-            <pre>{{ active_tasks | tojson(indent=2) }}</pre>
-        {% else %}
-            <p>No active tasks</p>
-        {% endif %}
-    </div>
-    
-    <div class="card">
-        <h2>🔗 API Endpoints</h2>
-        <p><a class="btn" href="/admin/tasks/active">Tasks JSON</a>
-           <a class="btn" href="/admin/cache">Cache JSON</a>
-           <a class="btn" href="/admin/workers">Workers JSON</a>
-           <a class="btn" href="/admin/config">Config JSON</a></p>
-    </div>
-</body>
-</html>
-'''
+# Test scenarios for one-click testing
+TEST_SCENARIOS: List[Dict[str, Any]] = [
+    {
+        'id': 'uwe-fishponds',
+        'name': 'UWE → Fishponds',
+        'description': 'Bristol local route through Stoke Park',
+        'start_lat': 51.500,
+        'start_lon': -2.549,
+        'end_lat': 51.476,
+        'end_lon': -2.524
+    },
+    {
+        'id': 'bath-city',
+        'name': 'Bath City Centre',
+        'description': 'Short urban route in Bath',
+        'start_lat': 51.381,
+        'start_lon': -2.359,
+        'end_lat': 51.389,
+        'end_lon': -2.341
+    },
+    {
+        'id': 'oxford',
+        'name': 'Oxford Route',
+        'description': 'Different region test (Oxfordshire)',
+        'start_lat': 51.818,
+        'start_lon': -1.286,
+        'end_lat': 51.804,
+        'end_lon': -1.275
+    },
+    {
+        'id': 'bristol-harbour',
+        'name': 'Bristol Harbour',
+        'description': 'Water feature test route',
+        'start_lat': 51.449,
+        'start_lon': -2.600,
+        'end_lat': 51.454,
+        'end_lon': -2.587
+    }
+]
 
 
 @admin_bp.route('/')
@@ -126,7 +81,7 @@ def dashboard():
     Admin dashboard with overview of system status.
     
     Returns:
-        HTML page with system overview.
+        HTML page with system overview, test scenarios, and cache management.
     """
     # Get configuration
     config = {
@@ -139,6 +94,21 @@ def dashboard():
     
     # Get cache info
     cache_info = GraphManager.get_cache_info()
+    
+    # Get cache files
+    cache_mgr = get_cache_manager()
+    cache_files = []
+    try:
+        if cache_mgr.cache_dir.exists():
+            for cache_file in cache_mgr.cache_dir.glob('*.pickle'):
+                stat = cache_file.stat()
+                cache_files.append({
+                    'filename': cache_file.name,
+                    'size_mb': round(stat.st_size / (1024 * 1024), 2),
+                    'modified': stat.st_mtime
+                })
+    except Exception as e:
+        current_app.logger.warning(f"Failed to list cache files: {e}")
     
     # Get worker info
     workers_available = False
@@ -156,13 +126,15 @@ def dashboard():
         except Exception as e:
             current_app.logger.warning(f"Failed to inspect Celery workers: {e}")
     
-    return render_template_string(
-        DASHBOARD_TEMPLATE,
+    return render_template(
+        'admin/admin.html',
         config=config,
         cache_info=cache_info,
+        cache_files=cache_files,
         workers_available=workers_available,
         workers=workers,
-        active_tasks=active_tasks
+        active_tasks=active_tasks,
+        test_scenarios=TEST_SCENARIOS
     )
 
 
@@ -234,6 +206,90 @@ def cache_status() -> tuple:
     })
 
 
+@admin_bp.route('/cache/<filename>', methods=['DELETE'])
+def delete_cache_file(filename: str) -> tuple:
+    """
+    Delete a specific cache file.
+    
+    Args:
+        filename: Name of the cache file to delete.
+    
+    Returns:
+        JSON response indicating success or failure.
+    """
+    cache_mgr = get_cache_manager()
+    cache_path = cache_mgr.cache_dir / filename
+    
+    # Security check - prevent path traversal
+    try:
+        cache_path = cache_path.resolve()
+        if not str(cache_path).startswith(str(cache_mgr.cache_dir.resolve())):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid path'
+            }), 400
+    except Exception:
+        return jsonify({
+            'success': False,
+            'error': 'Invalid filename'
+        }), 400
+    
+    if not cache_path.exists():
+        return jsonify({
+            'success': False,
+            'error': 'File not found'
+        }), 404
+    
+    try:
+        cache_path.unlink()
+        current_app.logger.info(f"Deleted cache file: {filename}")
+        return jsonify({
+            'success': True,
+            'deleted': filename
+        })
+    except Exception as e:
+        current_app.logger.exception(f"Failed to delete cache file: {filename}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@admin_bp.route('/cache/all', methods=['DELETE'])
+def delete_all_cache() -> tuple:
+    """
+    Delete all cache files.
+    
+    Returns:
+        JSON response with count of deleted files.
+    """
+    cache_mgr = get_cache_manager()
+    deleted_count = 0
+    errors = []
+    
+    try:
+        if cache_mgr.cache_dir.exists():
+            for cache_file in cache_mgr.cache_dir.glob('*.pickle'):
+                try:
+                    cache_file.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    errors.append(f"{cache_file.name}: {str(e)}")
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    
+    current_app.logger.info(f"Deleted {deleted_count} cache files")
+    
+    return jsonify({
+        'success': True,
+        'deleted_count': deleted_count,
+        'errors': errors if errors else None
+    })
+
+
 @admin_bp.route('/workers')
 def worker_status() -> tuple:
     """
@@ -286,4 +342,17 @@ def config_info() -> tuple:
         'max_cached_regions': current_app.config.get('MAX_CACHED_REGIONS', 3),
         'task_lock_timeout': current_app.config.get('TASK_LOCK_TIMEOUT', 900),
         'celery_broker_url': current_app.config.get('CELERY_BROKER_URL', 'redis://localhost:6379/0'),
+    })
+
+
+@admin_bp.route('/scenarios')
+def get_scenarios() -> tuple:
+    """
+    Get available test scenarios.
+    
+    Returns:
+        JSON response with test scenario definitions.
+    """
+    return jsonify({
+        'scenarios': TEST_SCENARIOS
     })

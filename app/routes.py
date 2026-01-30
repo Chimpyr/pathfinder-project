@@ -366,6 +366,7 @@ def calculate_route():
         
         # Build response with resolved coordinates
         response_data = {
+            'success': True,  # Required by admin.html JavaScript
             'route_coords': route_coords,
             'start_point': list(start_point),  # Return resolved coords
             'end_point': list(end_point),      # Return resolved coords

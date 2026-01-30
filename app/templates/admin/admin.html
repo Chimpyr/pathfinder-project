@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScenicPathFinder Admin</title>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #22c55e;
+            --warning: #eab308;
+            --danger: #ef4444;
+            --border: #475569;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        header a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        header a:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+        
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-primary);
+        }
+        
+        .card-full { grid-column: 1 / -1; }
+        
+        /* Status indicators */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .status-ok { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+        .status-warning { background: rgba(234, 179, 8, 0.2); color: var(--warning); }
+        .status-error { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        
+        /* Config table */
+        .config-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .config-table td {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .config-table td:first-child {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        
+        .config-table td:last-child {
+            text-align: right;
+            font-family: 'SF Mono', monospace;
+            font-size: 0.875rem;
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .btn-primary:hover { background: var(--accent-hover); }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn-danger:hover { background: #dc2626; }
+        
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover { background: var(--border); }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Test scenarios */
+        .scenario-grid {
+            display: grid;
+            gap: 0.75rem;
+        }
+        
+        .scenario {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        
+        .scenario-info h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .scenario-info p {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .scenario-status {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 100px;
+            text-align: center;
+        }
+        
+        .scenario-status.running { color: var(--warning); }
+        .scenario-status.success { color: var(--success); }
+        .scenario-status.error { color: var(--danger); }
+        
+        /* Cache files */
+        .cache-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .cache-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: var(--bg-card);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            font-size: 0.8rem;
+        }
+        
+        .cache-item-name {
+            font-family: 'SF Mono', monospace;
+            word-break: break-all;
+            flex: 1;
+            margin-right: 1rem;
+        }
+        
+        .cache-item-size {
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        
+        /* Workers panel */
+        .worker-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .worker-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: var(--bg-card);
+            border-radius: 6px;
+        }
+        
+        /* Log output */
+        .log-output {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'SF Mono', Consolas, monospace;
+            font-size: 0.8rem;
+            max-height: 200px;
+            overflow-y: auto;
+            color: var(--text-secondary);
+        }
+        
+        .log-output .success { color: var(--success); }
+        .log-output .error { color: var(--danger); }
+        .log-output .info { color: var(--accent); }
+        
+        /* Actions bar */
+        .actions-bar {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Spinner */
+        .spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🗺️ ScenicPathFinder Admin</h1>
+        <a href="/">← Back to Map</a>
+    </header>
+    
+    <div class="grid">
+        <!-- Configuration Card -->
+        <div class="card">
+            <h2>⚙️ Configuration</h2>
+            <table class="config-table">
+                <tr>
+                    <td>Async Mode</td>
+                    <td>
+                        {% if config.async_mode %}
+                        <span class="status-badge status-ok">Enabled</span>
+                        {% else %}
+                        <span class="status-badge status-warning">Disabled</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td>Greenness Mode</td>
+                    <td>{{ config.greenness_mode }}</td>
+                </tr>
+                <tr>
+                    <td>Elevation Mode</td>
+                    <td>{{ config.elevation_mode }}</td>
+                </tr>
+                <tr>
+                    <td>Water Mode</td>
+                    <td>{{ config.water_mode }}</td>
+                </tr>
+                <tr>
+                    <td>Cost Function</td>
+                    <td>{{ config.cost_function }}</td>
+                </tr>
+            </table>
+        </div>
+        
+        <!-- Workers Card -->
+        <div class="card">
+            <h2>⚡ Workers</h2>
+            {% if workers_available %}
+            <div class="worker-list">
+                {% for worker_name, status in workers.items() %}
+                <div class="worker-item">
+                    <span>{{ worker_name }}</span>
+                    <span class="status-badge status-ok">Online</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <span class="status-badge status-error">No Workers Connected</span>
+                <p style="margin-top: 0.5rem; font-size: 0.8rem;">Celery workers are not available</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Test Scenarios Card -->
+        <div class="card card-full">
+            <h2>🧪 Test Scenarios</h2>
+            <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 1rem;">
+                Click to fire test route requests. Results appear in the log below.
+            </p>
+            <div class="scenario-grid">
+                {% for scenario in test_scenarios %}
+                <div class="scenario" data-scenario-id="{{ scenario.id }}">
+                    <div class="scenario-info">
+                        <h3>{{ scenario.name }}</h3>
+                        <p>{{ scenario.description }}</p>
+                    </div>
+                    <div class="scenario-status" id="status-{{ scenario.id }}">Ready</div>
+                    <button class="btn btn-primary" onclick="runScenario('{{ scenario.id }}')">
+                        Run Test
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <h3 style="margin-top: 1.5rem; margin-bottom: 0.75rem; font-size: 0.9rem;">Test Log</h3>
+            <div class="log-output" id="test-log">
+                <div class="info">Ready to run tests...</div>
+            </div>
+        </div>
+        
+        <!-- Cache Management Card -->
+        <div class="card card-full">
+            <h2>📦 Cache Management</h2>
+            <div class="actions-bar">
+                <button class="btn btn-secondary" onclick="refreshCache()">
+                    🔄 Refresh
+                </button>
+                <button class="btn btn-danger" onclick="clearAllCache()" id="clear-all-btn">
+                    🗑️ Clear All Caches
+                </button>
+            </div>
+            
+            <div class="cache-list" id="cache-list">
+                {% if cache_files %}
+                    {% for file in cache_files %}
+                    <div class="cache-item">
+                        <span class="cache-item-name">{{ file.filename }}</span>
+                        <span class="cache-item-size">{{ file.size_mb }} MB</span>
+                        <button class="btn btn-secondary" onclick="deleteCache('{{ file.filename }}')" style="margin-left: 0.5rem; padding: 0.25rem 0.5rem;">
+                            🗑️
+                        </button>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">No cache files found</div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Active Tasks Card -->
+        <div class="card">
+            <h2>📋 Active Tasks</h2>
+            <div id="active-tasks">
+                {% if active_tasks %}
+                    {% for worker, tasks in active_tasks.items() %}
+                        {% for task in tasks %}
+                        <div class="cache-item">
+                            <span>{{ task.name }}</span>
+                            <span class="status-badge status-warning">Running</span>
+                        </div>
+                        {% endfor %}
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">No active tasks</div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Quick Links Card -->
+        <div class="card">
+            <h2>🔗 API Endpoints</h2>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                <a href="/admin/tasks/active" class="btn btn-secondary">Tasks JSON</a>
+                <a href="/admin/cache" class="btn btn-secondary">Cache JSON</a>
+                <a href="/admin/workers" class="btn btn-secondary">Workers JSON</a>
+                <a href="/admin/config" class="btn btn-secondary">Config JSON</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const TEST_SCENARIOS = {{ test_scenarios | tojson }};
+        
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('test-log');
+            const time = new Date().toLocaleTimeString();
+            logEl.innerHTML += `<div class="${type}">[${time}] ${message}</div>`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        async function runScenario(id) {
+            const scenario = TEST_SCENARIOS.find(s => s.id === id);
+            if (!scenario) return;
+            
+            const statusEl = document.getElementById(`status-${id}`);
+            statusEl.textContent = 'Running...';
+            statusEl.className = 'scenario-status running';
+            
+            log(`Starting test: ${scenario.name}`, 'info');
+            
+            try {
+                const response = await fetch('/api/route', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        start_lat: scenario.start_lat,
+                        start_lon: scenario.start_lon,
+                        end_lat: scenario.end_lat,
+                        end_lon: scenario.end_lon
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.status === 202) {
+                    // Async task started
+                    log(`Task queued: ${data.task_id}`, 'info');
+                    statusEl.textContent = 'Building...';
+                    pollTask(data.task_id, id);
+                } else if (response.ok && data.success) {
+                    const distKm = data.stats?.distance_km || 'N/A';
+                    const nodeCount = data.route_coords?.length || 0;
+                    log(`✓ ${scenario.name}: ${distKm}km, ${nodeCount} nodes`, 'success');
+                    statusEl.textContent = `${distKm}km`;
+                    statusEl.className = 'scenario-status success';
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+            } catch (err) {
+                log(`✗ ${scenario.name}: ${err.message}`, 'error');
+                statusEl.textContent = 'Failed';
+                statusEl.className = 'scenario-status error';
+            }
+        }
+        
+        async function pollTask(taskId, scenarioId) {
+            const statusEl = document.getElementById(`status-${scenarioId}`);
+            
+            try {
+                const response = await fetch(`/api/task/${taskId}`);
+                const data = await response.json();
+                
+                if (data.status === 'complete') {
+                    log(`✓ Build complete: ${data.result.node_count} nodes in ${data.result.total_time?.toFixed(1)}s`, 'success');
+                    statusEl.textContent = 'Complete';
+                    statusEl.className = 'scenario-status success';
+                    // Retry the route now that cache is built
+                    runScenario(scenarioId);
+                } else if (data.status === 'failed') {
+                    log(`✗ Build failed: ${data.error}`, 'error');
+                    statusEl.textContent = 'Failed';
+                    statusEl.className = 'scenario-status error';
+                } else {
+                    // Still building, poll again
+                    setTimeout(() => pollTask(taskId, scenarioId), 2000);
+                }
+            } catch (err) {
+                log(`✗ Poll error: ${err.message}`, 'error');
+            }
+        }
+        
+        async function refreshCache() {
+            try {
+                const response = await fetch('/admin/cache');
+                const data = await response.json();
+                updateCacheList(data.disk_cache.cache_files);
+                log('Cache list refreshed', 'info');
+            } catch (err) {
+                log(`Failed to refresh cache: ${err.message}`, 'error');
+            }
+        }
+        
+        function updateCacheList(files) {
+            const listEl = document.getElementById('cache-list');
+            if (!files || files.length === 0) {
+                listEl.innerHTML = '<div class="empty-state">No cache files found</div>';
+                return;
+            }
+            
+            listEl.innerHTML = files.map(f => `
+                <div class="cache-item">
+                    <span class="cache-item-name">${f.filename}</span>
+                    <span class="cache-item-size">${f.size_mb} MB</span>
+                    <button class="btn btn-secondary" onclick="deleteCache('${f.filename}')" style="margin-left: 0.5rem; padding: 0.25rem 0.5rem;">
+                        🗑️
+                    </button>
+                </div>
+            `).join('');
+        }
+        
+        async function deleteCache(filename) {
+            if (!confirm(`Delete cache file: ${filename}?`)) return;
+            
+            try {
+                const response = await fetch(`/admin/cache/${encodeURIComponent(filename)}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    log(`Deleted: ${filename}`, 'success');
+                    refreshCache();
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (err) {
+                log(`Failed to delete: ${err.message}`, 'error');
+            }
+        }
+        
+        async function clearAllCache() {
+            if (!confirm('Delete ALL cache files? This cannot be undone.')) return;
+            
+            try {
+                const response = await fetch('/admin/cache/all', {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    log(`Cleared ${data.deleted_count} cache files`, 'success');
+                    refreshCache();
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (err) {
+                log(`Failed to clear cache: ${err.message}`, 'error');
+            }
+        }
+        
+        // Auto-refresh active tasks every 5 seconds
+        setInterval(async () => {
+            try {
+                const response = await fetch('/admin/tasks/active');
+                const data = await response.json();
+                // Could update UI here if needed
+            } catch (err) {
+                // Silent fail
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

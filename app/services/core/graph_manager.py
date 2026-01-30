@@ -189,14 +189,27 @@ class GraphManager:
             cls._current_region = region_name
             return cached.graph
         
+        # Calculate clip_bbox for cache key (must match GraphBuilder's calculation)
+        # 5km buffer to allow for scenic detours
+        clip_bbox = None
+        if bbox is not None:
+            buffer_km = 5
+            buffer_deg = buffer_km / 111.0  # ~0.045 degrees per km
+            clip_bbox = (
+                bbox[0] - buffer_deg,  # min_lat
+                bbox[1] - buffer_deg,  # min_lon
+                bbox[2] + buffer_deg,  # max_lat
+                bbox[3] + buffer_deg   # max_lon
+            )
+        
         # Check disk cache
         cache_mgr = get_cache_manager()
         loader = OSMDataLoader()
         loader.ensure_data_for_bbox(bbox)  # Ensure PBF exists for mtime check
         
-        if cache_mgr.is_cache_valid(region_name, greenness_mode, elevation_mode, loader.file_path):
+        if cache_mgr.is_cache_valid(region_name, greenness_mode, elevation_mode, loader.file_path, bbox=clip_bbox):
             print(f"[GraphManager] Disk cache HIT for region: {region_name}")
-            graph = cache_mgr.load_graph(region_name, greenness_mode, elevation_mode)
+            graph = cache_mgr.load_graph(region_name, greenness_mode, elevation_mode, bbox=clip_bbox)
             if graph is not None:
                 # Store in memory cache too
                 cached = CachedGraph(graph, region_name, bbox, loader, {})

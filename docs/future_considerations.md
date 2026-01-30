@@ -95,67 +95,70 @@ Potential enhancements for the ScenicPathFinder application, organised by catego
 
 ## Architecture & Scalability
 
-### Asynchronous Graph Build Pipeline
+### Asynchronous Graph Build Pipeline ✅
 
-- **Proposed**: Distributed pipeline using Celery and Redis
+- **Status**: ✅ Implemented (2026-01-30)
 - **Architecture**:
-  - **Graph Worker**: Offline graph construction, normalisation, caching
-  - **Routing API**: Lightweight client request handling
-  - **Queue**: Celery + Redis for task distribution
-- **Benefits**: Decouples graph processing from routing; horizontal scaling; pre-computation
-- **Deployment**: Docker containers
-- **Complexity**: High
+  - **Graph Worker**: Celery worker with 4 concurrent processes
+  - **Routing API**: Flask API with async polling
+  - **Queue**: Redis for task distribution and result backend
+- **Benefits**: Decouples graph processing; 4 concurrent builds; non-blocking UI
+- **Deployment**: Docker Compose (api, worker, redis containers)
+- **Documentation**: [Celery Redis Architecture](celery_redis_architecture.md)
 
-### Multithreaded Graph Building
+### Bounding Box Clipping at Load Time ✅
 
-- **Proposed**: Parallelise graph construction pipeline to utilise available compute
-- **Relation to Async Pipeline**: Complements Celery/Redis architecture — workers themselves become multi-threaded
-- **Parallelisation Opportunities**:
-  - **PBF Parsing**: Chunk-based processing of OSM data
-  - **Feature Scoring**: Independent per-edge greenness, water, social scoring
-  - **Normalisation**: Per-attribute min-max scaling can run concurrently
-  - **Spatial Indexing**: R-tree construction for area lookups
-- **Implementation Considerations**:
-  - Use `concurrent.futures.ThreadPoolExecutor` or `multiprocessing.Pool`
-  - Ensure thread-safe graph mutations (or use immutable intermediate structures)
-  - Profile bottlenecks before optimising (I/O vs CPU bound)
-- **Refactoring Required**:
-  - Clear separation of concerns in Flask app/API layer
-  - Modular pipeline stages for independent execution
-  - Stateless processing functions for safe parallelism
-- **Complexity**: High
-
-### Bounding Box Clipping at Load Time
-
-- **Proposed**: Clip PBF data to route bounding box before graph construction
-- **Problem Solved**: Currently loads entire region PBF (e.g., Somerset = 1.1M nodes) even for small routes, consuming 10–14GB RAM
+- **Status**: ✅ Implemented (2026-01-30)
+- **Result**: 95% reduction in nodes loaded (1.1M → 62K)
 - **Implementation**:
-  - Pass bbox to pyrosm: `OSM(filepath, bounding_box=[min_lon, min_lat, max_lon, max_lat])`
-  - Add buffer (e.g., 2–5km) around route endpoints to allow scenic detours
-  - Cache clipped graphs per bbox hash, not per region
-- **Benefits**:
-  - 90%+ RAM reduction for typical routes
-  - Faster graph construction (fewer nodes to process)
-  - Enables processing larger regions on modest hardware
-- **Trade-offs**:
-  - Cache hit rate may decrease (bbox-specific caches)
-  - Very long routes may require larger clips
-- **Complexity**: Medium
+  - 5km buffer around route bbox
+  - Bbox hash in cache key for per-route caching
+  - 73s build time (was 15 min), ~1GB RAM (was 12GB)
+- **Documentation**: [ADR-004](decisions/ADR-004-bbox-clipping.md), [Performance Strategy](performance_strategy.md)
+
+### Within-Task Parallelism (Deferred)
+
+- **Status**: 🔶 Deferred — Low ROI after bbox clipping
+- **Proposed**: Parallelise edge scoring (green/water/quiet) across 4 processes
+- **Expected Gain**: ~20-25 seconds per cold build (73s → ~50s)
+- **Why Deferred**:
+  - Bbox clipping reduced graphs to ~60K nodes — scoring is now fast enough
+  - Cache hits are 2 seconds — most users don't wait for builds
+  - Complexity cost (~100 lines, subprocess management) outweighs benefit
+  - 4 concurrent workers already handle throughput well
+- **Reconsider If**:
+  - Routes regularly exceed 20km (larger graphs)
+  - Build time exceeds 2 minutes
+  - Worker concurrency must be reduced for memory
+- **Parallelisation Opportunities** (if implemented):
+  - **Feature Scoring**: Independent per-edge greenness, water, social scoring
+  - **Spatial Queries**: Can batch edge lookups to STRtree
+- **Implementation Sketch**:
+  ```python
+  from concurrent.futures import ProcessPoolExecutor
+  
+  def score_batch(edges_batch, green_index):
+      return {(u,v): calc_greenness(data) for u,v,data in edges_batch}
+  
+  with ProcessPoolExecutor(max_workers=4) as executor:
+      results = executor.map(score_batch, edge_batches)
+  ```
+- **Complexity**: High
 
 ---
 
 ## Priority Matrix
 
-| Feature                       | Impact | Complexity | Priority | Status      |
-| ----------------------------- | ------ | ---------- | -------- | ----------- |
-| GPX Export                    | Medium | Low        | 3        | Pending     |
-| Running Mode                  | Medium | Medium     | 3        | Pending     |
-| Multi-Route Visualisation     | High   | Medium     | 2        | Pending     |
-| Turn Minimisation             | Medium | Medium     | 2        | Pending     |
-| Circular/Loop Routes          | Medium | High       | 2        | Pending     |
-| Bbox Clipping                 | High   | Medium     | 1        | Pending     |
-| Multithreaded Graph Build     | High   | High       | 1        | Pending     |
+| Feature                       | Impact | Complexity | Priority | Status         |
+| ----------------------------- | ------ | ---------- | -------- | -------------- |
 | Async Pipeline (Celery/Redis) | High   | High       | 1        | ✅ Implemented |
+| Bbox Clipping                 | High   | Medium     | 1        | ✅ Implemented |
+| Within-Task Parallelism       | Low    | High       | —        | 🔶 Deferred    |
+| Multi-Route Visualisation     | High   | Medium     | 2        | Pending        |
+| Turn Minimisation             | Medium | Medium     | 2        | Pending        |
+| Circular/Loop Routes          | Medium | High       | 2        | Pending        |
+| GPX Export                    | Medium | Low        | 3        | Pending        |
+| Running Mode                  | Medium | Medium     | 3        | Pending        |
 
 ---
 

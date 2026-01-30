@@ -11,7 +11,14 @@ Author: ScenicPathFinder
 """
 
 import os
+import warnings
 from celery import Celery
+
+# Suppress noisy pandas warnings from pyrosm library
+# These are internal to pyrosm and don't affect our functionality
+warnings.filterwarnings('ignore', category=FutureWarning, module='pyrosm')
+warnings.filterwarnings('ignore', message='.*ChainedAssignment.*')
+warnings.filterwarnings('ignore', message='.*copy of a DataFrame.*')
 
 
 def make_celery() -> Celery:

@@ -121,7 +121,22 @@ class TaskManager:
         try:
             existing_task_id = self.redis_client.get(lock_key)
             if existing_task_id:
-                return existing_task_id.decode('utf-8')
+                task_id = existing_task_id.decode('utf-8')
+                
+                # Check actual task state
+                # If the task is finished but lock remains (stale), we should clear it
+                from celery.result import AsyncResult
+                # Import celery_app to ensure backend is configured
+                from celery_app import celery
+                
+                result = AsyncResult(task_id, app=celery)
+                if result.state in ['SUCCESS', 'FAILURE', 'REVOKED']:
+                    logger.info(f"[TaskManager] Found stale lock for {region_name} (Task {task_id} is {result.state}). Clearing.")
+                    self.redis_client.delete(lock_key)
+                    return None
+                
+                return task_id
+                
         except Exception as e:
             logger.exception(f"Error checking existing task: {e}")
         
