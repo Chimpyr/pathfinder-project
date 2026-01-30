@@ -1,0 +1,79 @@
+services:
+  # Redis message broker and result backend
+  redis:
+    image: redis:7-alpine
+    container_name: scenic-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Flask API server
+  api:
+    build: .
+    container_name: scenic-api
+    ports:
+      - "5000:5000"
+    volumes:
+      # Shared cache volume for processed graphs
+      - ./app/data:/app/app/data
+      # Mount code for development (optional - remove in production)
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=development
+      - FLASK_HOST=0.0.0.0
+      - ASYNC_MODE=true
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - GREENNESS_MODE=EDGE_SAMPLING
+      - ELEVATION_MODE=LOCAL
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: python run.py
+
+  # Celery worker for graph building
+  worker:
+    build: .
+    container_name: scenic-worker
+    volumes:
+      # Shared cache volume - MUST match api container
+      - ./app/data:/app/app/data
+      # Mount code for development (optional)
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - GREENNESS_MODE=EDGE_SAMPLING
+      - ELEVATION_MODE=LOCAL
+      - C_FORCE_ROOT=true
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A celery_app worker --loglevel=info --concurrency=1
+
+  # Optional: Flower monitoring UI
+  flower:
+    build: .
+    container_name: scenic-flower
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A celery_app flower --port=5555
+    profiles:
+      - monitoring  # Only starts with `docker-compose --profile monitoring up`
+
+volumes:
+  redis_data:

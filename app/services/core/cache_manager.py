@@ -81,6 +81,9 @@ class CacheManager:
         """
         Check if a valid cache exists for the given region and mode.
         
+        Note: Reloads manifest from disk to pick up changes from other processes
+        (e.g., Celery workers running in separate containers).
+        
         Args:
             region_name: Name of the region (e.g., 'cornwall').
             greenness_mode: Processing mode ('OFF', 'FAST', 'NOVACK').
@@ -90,6 +93,9 @@ class CacheManager:
         Returns:
             True if valid cache exists, False otherwise.
         """
+        # Reload manifest from disk to pick up changes from other processes
+        self._manifest = self._load_manifest()
+        
         cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode)
         cache_path = self._get_cache_path(cache_key)
         
@@ -99,6 +105,15 @@ class CacheManager:
         
         # Check manifest entry
         if cache_key not in self._manifest.get("entries", {}):
+            # File exists but no manifest entry - might be from another process
+            # Accept if file exists and is recent (created in last hour)
+            try:
+                file_mtime = os.path.getmtime(cache_path)
+                if time.time() - file_mtime < 3600:  # Created in last hour
+                    print(f"[CacheManager] Cache file exists without manifest entry, accepting: {cache_key}")
+                    return True
+            except OSError:
+                pass
             return False
         
         entry = self._manifest["entries"][cache_key]

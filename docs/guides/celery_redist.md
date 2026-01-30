@@ -1,0 +1,1 @@
+# How the celery redis setup works

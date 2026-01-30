@@ -925,15 +925,271 @@ The existing synchronous code path remains intact, activated when `ASYNC_MODE=Fa
 
 ---
 
-## 11. Open Questions
+## 11. Critical Concerns & Mitigations
+
+### 11.1 Scope Consideration: Is This Necessary?
+
+> [!IMPORTANT]
+> Before implementing, honestly assess whether this complexity is justified for your use case.
+
+| If your goal is... | Then... |
+|--------------------|---------|
+| **Production-ready SaaS** | Yes, Celery/Redis is the correct solution |
+| **Dissertation demo** | Potentially overkill — pre-cache key regions and accept 110s first-load |
+| **Learning distributed systems** | Great project, but acknowledge scope creep |
+
+**Alternative (simpler):** A basic `threading.Thread` with status polling achieves 80% of the benefit with 20% of the complexity:
+
+```python
+# Simpler alternative (no Celery/Redis infrastructure)
+import threading
+import uuid
+
+building_tasks = {}  # In-memory task tracking
+
+@app.route('/calculate_route', methods=['POST'])
+def calculate_route():
+    if not cache_hit:
+        task_id = str(uuid.uuid4())
+        thread = threading.Thread(target=build_graph_async, args=(task_id, bbox))
+        thread.start()
+        building_tasks[task_id] = {'status': 'building', 'region': region_name}
+        return jsonify({'status': 'processing', 'task_id': task_id})
+```
+
+**Verdict:** Celery is the *production-grade* answer, but evaluate if the infrastructure overhead is worth it for your timeline.
+
+---
+
+### 11.2 Race Condition: Duplicate Tasks
+
+**Problem:** If two users request routes for the same uncached region simultaneously:
+1. User A: cache miss → enqueue task for "bristol"
+2. User B: cache miss → enqueue task for "bristol" (again!)
+
+Both workers now build the same graph, wasting resources.
+
+**Mitigation:** Use a Redis lock or "building" flag before enqueueing:
+
+```python
+# In routes.py or graph_manager.py
+import redis
+
+redis_client = redis.Redis()
+
+def enqueue_graph_build(region_name: str, bbox: tuple, ...):
+    """Enqueue graph build, preventing duplicate tasks."""
+    lock_key = f"building:{region_name}"
+    
+    # Check if already building
+    existing_task_id = redis_client.get(lock_key)
+    if existing_task_id:
+        return existing_task_id.decode()  # Return existing task
+    
+    # Enqueue new task and set lock
+    task = build_graph_task.delay(region_name, bbox, ...)
+    redis_client.setex(lock_key, 900, task.id)  # 15 minute TTL
+    
+    return task.id
+```
+
+**Alternative:** Use Celery's `task_acks_late=True` with a unique task ID per region.
+
+---
+
+### 11.3 Pickle Serialisation Risks
+
+**Issue:** The plan uses `task_serializer='pickle'` which is:
+- **Fragile:** NetworkX version mismatches break deserialisation
+- **Security risk:** Pickle allows arbitrary code execution if Redis is exposed
+
+**Current design is safe** — the graph is saved to disk cache, not returned via Celery. But ensure:
+
+```python
+# Task should return only primitives, NOT the graph
+return {
+    'status': 'complete',
+    'region': region_name,
+    'node_count': graph.number_of_nodes(),  # Primitive
+    'edge_count': graph.number_of_edges(),  # Primitive
+    'timings': timings                       # Dict of primitives
+}
+# API loads graph from disk cache, not from Celery result
+```
+
+---
+
+### 11.4 Graceful Fallback When Infrastructure Fails
+
+**Problem:** What if Redis dies or the worker is down? The user sees `{"status": "processing"}` forever.
+
+**Mitigation:** Add timeout logic with synchronous fallback:
+
+```python
+@main.route('/api/task/<task_id>', methods=['GET'])
+def get_task_status(task_id: str):
+    result = AsyncResult(task_id)
+    task_age = time.time() - task_start_times.get(task_id, time.time())
+    
+    if result.state == 'PENDING' and task_age > 300:
+        # After 5 minutes, offer synchronous fallback
+        return jsonify({
+            'status': 'timeout',
+            'message': 'Task taking too long. Retry with synchronous mode?',
+            'fallback_url': '/calculate_route?sync=true'
+        })
+    
+    # ... normal status checking
+```
+
+---
+
+### 11.5 Frontend User Experience Gap
+
+**Missing from plan:** What does the user see during the 110-second build?
+
+**Required frontend changes:**
+
+1. **Loading state:** Show spinner/progress indicator
+2. **Polling logic:** JavaScript to poll `/api/task/{id}` every 2-3 seconds
+3. **Cancel option:** Allow user to abort and try different route
+4. **Persistence:** If user navigates away, can they return to see result?
+
+**Minimal JavaScript polling:**
+
+```javascript
+async function pollForResult(taskId) {
+    const poll = async () => {
+        const response = await fetch(`/api/task/${taskId}`);
+        const data = await response.json();
+        
+        if (data.status === 'complete') {
+            displayRoute(data.result);
+        } else if (data.status === 'failed') {
+            showError(data.error);
+        } else {
+            // Still processing, poll again
+            setTimeout(poll, 2000);
+        }
+    };
+    
+    poll();
+}
+```
+
+---
+
+### 11.6 Docker Development Friction
+
+**Issue:** Windows + Docker + OneDrive volume mounts can be problematic.
+
+**Recommendations:**
+1. Ensure local non-Docker development works first (Terminal 1/2/3 approach)
+2. Docker should be optional, not mandatory for development
+3. Test volume mount paths carefully — OneDrive paths with spaces may cause issues
+
+---
+
+## 12. Recommended Implementation Order
+
+Based on risk mitigation and incremental validation, follow this order:
+
+### Phase 0: Pre-Work (No Code Changes)
+
+```
+[ ] Pre-cache key regions locally (Bristol, Cornwall, etc.)
+[ ] Document current sync performance as baseline
+[ ] Ensure ASYNC_MODE=False fallback works
+```
+
+**Rationale:** This buys time and provides immediate improvement without infrastructure changes.
+
+---
+
+### Phase 1: Basic Infrastructure (Local, No Docker)
+
+```
+[ ] Install Redis locally (or via Docker single container)
+[ ] Create celery_app.py with minimal config
+[ ] Create app/tasks/graph_tasks.py with build_graph_task
+[ ] Test task execution manually: celery -A celery_app worker
+```
+
+**Validate:** Can you enqueue a task and see it complete in worker logs?
+
+---
+
+### Phase 2: API Integration + Race Condition Prevention
+
+```
+[ ] Add /api/task/<id> polling endpoint
+[ ] Add enqueue logic to calculate_route (with Redis lock for duplicates)
+[ ] Modify calculate_route to return task_id on cache miss
+```
+
+**Validate:** Two simultaneous requests for same region create only one task.
+
+---
+
+### Phase 3: Admin Visibility (Minimal)
+
+```
+[ ] Create app/blueprints/admin.py
+[ ] Implement /admin/tasks/active endpoint only
+[ ] Implement /admin/cache endpoint
+```
+
+**Validate:** Can you see active tasks and cached regions via admin API?
+
+---
+
+### Phase 4: Frontend Polling
+
+```
+[ ] Add JavaScript polling in index.html
+[ ] Add loading spinner/progress UI
+[ ] Add timeout handling (5 min) with fallback option
+```
+
+**Validate:** Full user flow works: request → poll → result displayed.
+
+---
+
+### Phase 5: Docker Containerisation (Last)
+
+```
+[ ] Create Dockerfile
+[ ] Create docker-compose.yml
+[ ] Test volume mounts for cache sharing
+[ ] Verify full stack works in containers
+```
+
+**Validate:** `docker-compose up` starts everything, route calculation works.
+
+---
+
+### Phase 6: Polish & Production Hardening
+
+```
+[ ] Add Flower for monitoring (optional)
+[ ] Add graceful fallback on infrastructure failure
+[ ] Document deployment process
+[ ] Full admin dashboard UI
+```
+
+---
+
+## 13. Open Questions
 
 1. **Task priority**: Should we support priority queues for different regions?
 2. **Pre-warming**: Should we pre-build graphs for common regions on startup?
 3. **TTL for cached graphs**: Should graphs expire after N days?
 4. **Multi-region requests**: If a route spans two regions, how do we handle dual-task orchestration?
+5. **Simpler alternative**: Is the threading approach sufficient for dissertation scope?
 
 ---
 
 ## Appendix A: Mermaid Diagram Source
 
 All diagrams in this document use Mermaid syntax and can be rendered in VS Code with the Mermaid extension or in GitHub markdown.
+

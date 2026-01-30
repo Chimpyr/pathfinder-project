@@ -485,11 +485,7 @@ routeForm.addEventListener('submit', async (e) => {
     }
     
     // UI Loading State
-    btnText.textContent = 'Calculating...';
-    btnSpinner.classList.remove('hidden');
-    findRouteBtn.disabled = true;
-    errorMsg.classList.add('hidden');
-    routeStats.classList.add('hidden');
+    setLoadingState('Calculating...');
     
     try {
         const response = await fetch('/api/route', {
@@ -503,43 +499,16 @@ routeForm.addEventListener('submit', async (e) => {
         
         const data = await response.json();
         
+        // Handle async processing (202 Accepted)
+        if (response.status === 202 && data.status === 'processing') {
+            console.log('[App] Graph building in progress, starting polling...');
+            await pollForTaskCompletion(data.task_id, payload);
+            return;
+        }
+        
+        // Handle sync success (200 OK)
         if (response.ok) {
-            // Display route on map
-            if (data.route_coords && data.route_coords.length > 0) {
-                mapController.displayRoute(data.route_coords);
-            }
-            
-            // Update Stats
-            if (data.stats) {
-                statDistance.textContent = data.stats.distance_km;
-                statTime.textContent = data.stats.time_min;
-                statPace.textContent = data.stats.pace_kmh;
-                routeStats.classList.remove('hidden');
-            }
-            
-            // Display edge features on map (only for short routes)
-            if (data.edge_features && data.edge_features.length > 0) {
-                mapController.displayEdgeFeatures(data.edge_features);
-            } else {
-                mapController.clearDebugLayers();
-            }
-            
-            // Update Debug Info panel
-            if (data.debug_info) {
-                // Render edge preview prominently
-                if (data.debug_info.edge_preview) {
-                    renderEdgePreview(data.debug_info.edge_preview);
-                }
-                
-                // Show raw debug data in collapsible section
-                debugContent.textContent = JSON.stringify(data.debug_info, null, 2);
-                debugInfo.classList.remove('hidden');
-            } else {
-                debugInfo.classList.add('hidden');
-                const edgePreviewContainer = document.getElementById('edge-preview-container');
-                if (edgePreviewContainer) edgePreviewContainer.classList.add('hidden');
-            }
-            
+            handleRouteSuccess(data);
         } else {
             errorMsg.textContent = data.error || 'An error occurred.';
             errorMsg.classList.remove('hidden');
@@ -549,11 +518,195 @@ routeForm.addEventListener('submit', async (e) => {
         errorMsg.textContent = 'Network error. Please try again.';
         errorMsg.classList.remove('hidden');
     } finally {
-        btnText.textContent = 'Find Route';
-        btnSpinner.classList.add('hidden');
-        findRouteBtn.disabled = false;
+        clearLoadingState();
     }
 });
+
+// ============================================================================
+// Async Task Polling
+// ============================================================================
+const POLL_INTERVAL_MS = 2000;  // Poll every 2 seconds
+const MAX_POLL_TIME_MS = 300000; // 5 minute timeout
+
+/**
+ * Poll for task completion and then retry the route request.
+ * 
+ * @param {string} taskId - The Celery task ID.
+ * @param {object} originalPayload - The original route request payload.
+ */
+async function pollForTaskCompletion(taskId, originalPayload) {
+    const startTime = Date.now();
+    let pollCount = 0;
+    
+    const poll = async () => {
+        pollCount++;
+        const elapsed = Date.now() - startTime;
+        
+        // Timeout check
+        if (elapsed > MAX_POLL_TIME_MS) {
+            console.error('[App] Task polling timeout');
+            errorMsg.innerHTML = `
+                Graph building timed out after 5 minutes. 
+                <button onclick="retryWithSync()" class="underline text-blue-600">Retry with sync mode</button>
+            `;
+            errorMsg.classList.remove('hidden');
+            clearLoadingState();
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/task/${taskId}`);
+            const data = await response.json();
+            
+            console.log(`[App] Task poll #${pollCount}: ${data.status}`);
+            
+            if (data.status === 'complete') {
+                // Graph is ready, retry the route request
+                setLoadingState('Graph ready, calculating route...');
+                await retryRouteRequest(originalPayload);
+                return;
+            }
+            
+            if (data.status === 'failed') {
+                errorMsg.textContent = data.error || 'Graph building failed.';
+                errorMsg.classList.remove('hidden');
+                clearLoadingState();
+                return;
+            }
+            
+            // Still processing - update UI and continue polling
+            const mins = Math.floor(elapsed / 60000);
+            const secs = Math.floor((elapsed % 60000) / 1000);
+            setLoadingState(`Building graph... ${mins}:${secs.toString().padStart(2, '0')}`);
+            
+            // Schedule next poll
+            setTimeout(poll, POLL_INTERVAL_MS);
+            
+        } catch (err) {
+            console.error('[App] Poll error:', err);
+            // Continue polling on network errors
+            setTimeout(poll, POLL_INTERVAL_MS);
+        }
+    };
+    
+    // Start polling
+    poll();
+}
+
+/**
+ * Retry the route request after graph build completion.
+ */
+async function retryRouteRequest(payload) {
+    try {
+        const response = await fetch('/api/route', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            handleRouteSuccess(data);
+        } else {
+            errorMsg.textContent = data.error || 'Route calculation failed.';
+            errorMsg.classList.remove('hidden');
+        }
+    } catch (err) {
+        console.error('[App] Retry error:', err);
+        errorMsg.textContent = 'Failed to calculate route after graph build.';
+        errorMsg.classList.remove('hidden');
+    } finally {
+        clearLoadingState();
+    }
+}
+
+/**
+ * Handle successful route response.
+ */
+function handleRouteSuccess(data) {
+    // Display route on map
+    if (data.route_coords && data.route_coords.length > 0) {
+        mapController.displayRoute(data.route_coords);
+    }
+    
+    // Update Stats
+    if (data.stats) {
+        statDistance.textContent = data.stats.distance_km;
+        statTime.textContent = data.stats.time_min;
+        statPace.textContent = data.stats.pace_kmh;
+        routeStats.classList.remove('hidden');
+    }
+    
+    // Display edge features on map (only for short routes)
+    if (data.edge_features && data.edge_features.length > 0) {
+        mapController.displayEdgeFeatures(data.edge_features);
+    } else {
+        mapController.clearDebugLayers();
+    }
+    
+    // Update Debug Info panel
+    if (data.debug_info) {
+        if (data.debug_info.edge_preview) {
+            renderEdgePreview(data.debug_info.edge_preview);
+        }
+        debugContent.textContent = JSON.stringify(data.debug_info, null, 2);
+        debugInfo.classList.remove('hidden');
+    } else {
+        debugInfo.classList.add('hidden');
+        const edgePreviewContainer = document.getElementById('edge-preview-container');
+        if (edgePreviewContainer) edgePreviewContainer.classList.add('hidden');
+    }
+}
+
+/**
+ * Set loading state on the UI.
+ */
+function setLoadingState(message) {
+    btnText.textContent = message;
+    btnSpinner.classList.remove('hidden');
+    findRouteBtn.disabled = true;
+    errorMsg.classList.add('hidden');
+    routeStats.classList.add('hidden');
+}
+
+/**
+ * Clear loading state.
+ */
+function clearLoadingState() {
+    btnText.textContent = 'Find Route';
+    btnSpinner.classList.add('hidden');
+    findRouteBtn.disabled = false;
+}
+
+/**
+ * Retry with synchronous mode (fallback for timeout).
+ * Exposed globally for onclick handler.
+ */
+window.retryWithSync = async function() {
+    errorMsg.classList.add('hidden');
+    setLoadingState('Retrying (sync mode)...');
+    
+    const payload = {
+        start_lat: startState.lat,
+        start_lon: startState.lon,
+        end_lat: endState.lat,
+        end_lon: endState.lon,
+        force_sync: true  // Hint to server (if supported)
+    };
+    
+    // Add scenic weights
+    const scenicWeights = getScenicWeights();
+    if (scenicWeights) {
+        payload.use_wsm = true;
+        payload.weights = scenicWeights;
+    }
+    
+    await retryRouteRequest(payload);
+};
 
 // ============================================================================
 // Keyboard Shortcuts

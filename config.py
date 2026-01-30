@@ -69,3 +69,20 @@ class Config:
         'social': 0.1,      # Prefer routes near tourist/social POIs
         'slope': 0.05,      # Prefer gentler gradients
     }
+    
+    # =========================================================================
+    # Async Pipeline Configuration (Celery + Redis)
+    # =========================================================================
+    
+    # Enable async graph building
+    # When True: Cache misses enqueue a Celery task and return task_id
+    # When False: Cache misses block until graph is built (legacy behaviour)
+    ASYNC_MODE = os.environ.get('ASYNC_MODE', 'false').lower() == 'true'
+    
+    # Redis connection URLs for Celery
+    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+    CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/1')
+    
+    # Task lock timeout (seconds) - prevents duplicate tasks for same region
+    TASK_LOCK_TIMEOUT = int(os.environ.get('TASK_LOCK_TIMEOUT', '900'))  # 15 minutes
+

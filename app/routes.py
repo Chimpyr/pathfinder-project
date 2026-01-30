@@ -162,6 +162,13 @@ def calculate_route():
     Accepts EITHER coordinates OR text addresses for each point.
     Server-side geocoding is performed when addresses are provided.
     
+    When ASYNC_MODE is enabled and graph is not cached:
+        Returns immediately with {status: 'processing', task_id: '...'}
+        Client should poll /api/task/<task_id> for completion.
+    
+    When ASYNC_MODE is disabled or graph is cached:
+        Blocks until route is calculated and returns full result.
+    
     Request JSON (coordinates mode):
         {
             "start_lat": float,
@@ -176,24 +183,24 @@ def calculate_route():
             "end_address": str
         }
     
-    Request JSON (mixed mode - also valid):
-        {
-            "start_lat": float,
-            "start_lon": float,
-            "end_address": str
-        }
-    
-    Response JSON:
+    Response JSON (sync success):
         {
             "route_coords": [[lat, lon], ...],
-            "start_point": [lat, lon],   // Resolved coordinates
-            "end_point": [lat, lon],     // Resolved coordinates
+            "start_point": [lat, lon],
+            "end_point": [lat, lon],
             "stats": {...},
             "debug_info": {...}
         }
     
+    Response JSON (async pending):
+        {
+            "status": "processing",
+            "task_id": "...",
+            "message": "Graph is being built. Poll for status."
+        }
+    
     Returns:
-        Response: JSON response with route data or error message.
+        Response: JSON response with route data, task_id, or error message.
     """
     try:
         import osmnx as ox
@@ -252,7 +259,64 @@ def calculate_route():
         max_lon = max(start_point[1], end_point[1]) + buffer_deg
         bbox = (min_lat, min_lon, max_lat, max_lon)
         
-        # Get graph for this region
+        # =====================================================================
+        # ASYNC MODE: Check cache and enqueue task if necessary
+        # =====================================================================
+        async_mode = current_app.config.get('ASYNC_MODE', False)
+        
+        if async_mode:
+            from app.services.core.graph_builder import find_region_for_bbox
+            from app.services.core.cache_manager import get_cache_manager
+            from app.services.core.data_loader import OSMDataLoader
+            from app.services.core.task_manager import get_task_manager
+            
+            # Determine region for this request
+            region_name, _ = find_region_for_bbox(bbox)
+            greenness_mode = current_app.config.get('GREENNESS_MODE', 'FAST')
+            elevation_mode = current_app.config.get('ELEVATION_MODE', 'OFF')
+            normalisation_mode = current_app.config.get('NORMALISATION_MODE', 'STATIC')
+            
+            # Check cache validity
+            cache_mgr = get_cache_manager()
+            loader = OSMDataLoader()
+            loader.ensure_data_for_bbox(bbox)
+            
+            cache_hit = cache_mgr.is_cache_valid(
+                region_name, greenness_mode, elevation_mode, loader.file_path
+            )
+            
+            if not cache_hit:
+                # Cache miss - enqueue async task
+                task_mgr = get_task_manager()
+                result = task_mgr.enqueue_graph_build(
+                    region_name=region_name,
+                    bbox=bbox,
+                    greenness_mode=greenness_mode,
+                    elevation_mode=elevation_mode,
+                    normalisation_mode=normalisation_mode
+                )
+                
+                if result.get('error'):
+                    # Failed to enqueue - fall back to sync
+                    print(f"[API] Async enqueue failed: {result['error']}, falling back to sync")
+                else:
+                    # Return task ID for polling
+                    return jsonify({
+                        'status': 'processing',
+                        'task_id': result['task_id'],
+                        'is_new_task': result['is_new'],
+                        'region_name': region_name,
+                        'message': 'Graph is being built. Poll /api/task/<task_id> for status.',
+                        'start_point': list(start_point),
+                        'end_point': list(end_point),
+                        'bbox': bbox
+                    }), 202  # Accepted
+        
+        # =====================================================================
+        # SYNC MODE or CACHE HIT: Process immediately
+        # =====================================================================
+        
+        # Get graph for this region (will use cache or build synchronously)
         graph = GraphManager.get_graph(bbox)
         
         # Parse WSM settings from request
@@ -335,3 +399,4 @@ def calculate_route():
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Server error: {str(e)}'}), 500
+

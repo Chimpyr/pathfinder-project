@@ -1,0 +1,1 @@
+# How the docker setup works

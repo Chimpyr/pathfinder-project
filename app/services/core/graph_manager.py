@@ -115,83 +115,50 @@ class GraphManager:
     @classmethod
     def _load_graph_for_region(cls, bbox: Optional[Tuple], 
                                 region_name: str) -> CachedGraph:
-        """Load and process a graph for a specific region."""
-        total_start = time.perf_counter()
-        timings = {}
+        """
+        Load and process a graph for a specific region.
         
-        print(f"[GraphManager] Loading graph for region: {region_name}")
+        Delegates to the stateless GraphBuilder for actual processing.
         
-        # Initialise loader
-        loader = OSMDataLoader()
+        Args:
+            bbox: Bounding box tuple (min_lat, min_lon, max_lat, max_lon).
+            region_name: Name identifier for the region.
         
-        # Load the graph
-        t0 = time.perf_counter()
-        graph = loader.load_graph(bbox)
-        timings['Graph Loading'] = time.perf_counter() - t0
-        print(f"  [Timer] Graph Loading: {timings['Graph Loading']:.2f}s")
+        Returns:
+            CachedGraph containing the processed graph and metadata.
+        """
+        from app.services.core.graph_builder import build_graph
         
-        # Process quietness
-        t0 = time.perf_counter()
-        print("[GraphManager] Processing quietness attributes...")
-        graph = process_graph_quietness(graph)
-        timings['Quietness Processing'] = time.perf_counter() - t0
-        print(f"  [Timer] Quietness Processing: {timings['Quietness Processing']:.2f}s")
-        
-        # Process scenic attributes (greenness, water, social) via orchestrator
-        print("[GraphManager] Processing scenic attributes via orchestrator...")
-        t0 = time.perf_counter()
-        graph = process_scenic_attributes(graph, loader, timings)
-        timings['Scenic Processing (Total)'] = time.perf_counter() - t0
-        
-        # Process elevation based on mode
+        # Get processing modes from config
+        greenness_mode = get_greenness_mode()
         elevation_mode = get_elevation_mode()
-        print(f"[GraphManager] Elevation mode: {elevation_mode}")
-        
-        if elevation_mode in ('API', 'FAST', 'LOCAL'):
-            # FAST is legacy name for API mode
-            actual_mode = 'LOCAL' if elevation_mode == 'LOCAL' else 'API'
-            print(f"[GraphManager] Processing elevation gradients ({actual_mode} mode)...")
-            
-            t0 = time.perf_counter()
-            graph = process_graph_elevation(graph, mode=actual_mode)
-            timings[f'Elevation Processing ({actual_mode})'] = time.perf_counter() - t0
-            print(f"  [Timer] Elevation Processing: {timings[f'Elevation Processing ({actual_mode})']:.2f}s")
-            
-        else:
-            print("[GraphManager] Elevation processing disabled.")
-        
-        # Normalise all cost attributes to 0-1 range
         normalisation_mode = get_config('NORMALISATION_MODE', 'STATIC')
-        print(f"[GraphManager] Normalising cost attributes ({normalisation_mode})...")
-        t0 = time.perf_counter()
-        graph = normalise_graph_costs(graph, mode=normalisation_mode)
-        timings['Normalisation'] = time.perf_counter() - t0
-        print(f"  [Timer] Normalisation: {timings['Normalisation']:.2f}s")
         
-        # Compatibility shim
-        if not hasattr(graph, 'features'):
-            graph.features = None
+        print(f"[GraphManager] Delegating graph build to GraphBuilder for: {region_name}")
         
-        # Print timing summary
-        total_time = time.perf_counter() - total_start
-        timings['TOTAL'] = total_time
+        # Use stateless builder
+        result = build_graph(
+            bbox=bbox,
+            region_name=region_name,
+            greenness_mode=greenness_mode,
+            elevation_mode=elevation_mode,
+            normalisation_mode=normalisation_mode,
+            save_to_cache=True
+        )
         
-        print("\n" + "="*50)
-        print(f"[GraphManager] TIMING SUMMARY ({region_name})")
-        print("="*50)
-        for step, duration in timings.items():
-            if step != 'TOTAL':
-                pct = (duration / total_time) * 100
-                print(f"  {step}: {duration:.2f}s ({pct:.1f}%)")
-        print("-"*50)
-        print(f"  TOTAL: {total_time:.2f}s")
-        print("="*50 + "\n")
+        # Create CachedGraph from result
+        # Note: We need the loader for compatibility, so create one
+        loader = OSMDataLoader()
+        loader.ensure_data_for_bbox(bbox)
         
-        # Save to disk cache for next time
-        cache_mgr = get_cache_manager()
-        cache_mgr.save_graph(graph, region_name, get_greenness_mode(), get_elevation_mode(), loader.file_path)
-        
-        return CachedGraph(graph, region_name, bbox, loader, timings)
+        return CachedGraph(
+            graph=result.graph,
+            region_name=region_name,
+            bbox=bbox,
+            loader=loader,
+            timings=result.timings
+        )
+
     
     @classmethod
     def get_graph(cls, bbox: Optional[Tuple] = None) -> nx.MultiDiGraph:

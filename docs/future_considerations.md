@@ -125,18 +125,37 @@ Potential enhancements for the ScenicPathFinder application, organised by catego
   - Stateless processing functions for safe parallelism
 - **Complexity**: High
 
+### Bounding Box Clipping at Load Time
+
+- **Proposed**: Clip PBF data to route bounding box before graph construction
+- **Problem Solved**: Currently loads entire region PBF (e.g., Somerset = 1.1M nodes) even for small routes, consuming 10–14GB RAM
+- **Implementation**:
+  - Pass bbox to pyrosm: `OSM(filepath, bounding_box=[min_lon, min_lat, max_lon, max_lat])`
+  - Add buffer (e.g., 2–5km) around route endpoints to allow scenic detours
+  - Cache clipped graphs per bbox hash, not per region
+- **Benefits**:
+  - 90%+ RAM reduction for typical routes
+  - Faster graph construction (fewer nodes to process)
+  - Enables processing larger regions on modest hardware
+- **Trade-offs**:
+  - Cache hit rate may decrease (bbox-specific caches)
+  - Very long routes may require larger clips
+- **Complexity**: Medium
+
 ---
 
 ## Priority Matrix
 
-| Feature                       | Impact | Complexity | Priority |
-| ----------------------------- | ------ | ---------- | -------- |
-| GPX Export                    | Medium | Low        | 3        |
-| Running Mode                  | Medium | Medium     | 3        |
-| Multi-Route Visualisation     | High   | Medium     | 2        |
-| Turn Minimisation             | Medium | Medium     | 2        |
-| Circular/Loop Routes          | Medium | High       | 2        |
-| Multithreaded Graph Build     | High   | High       | 1        |
-| Async Pipeline (Celery/Redis) | High   | High       | 1        |
+| Feature                       | Impact | Complexity | Priority | Status      |
+| ----------------------------- | ------ | ---------- | -------- | ----------- |
+| GPX Export                    | Medium | Low        | 3        | Pending     |
+| Running Mode                  | Medium | Medium     | 3        | Pending     |
+| Multi-Route Visualisation     | High   | Medium     | 2        | Pending     |
+| Turn Minimisation             | Medium | Medium     | 2        | Pending     |
+| Circular/Loop Routes          | Medium | High       | 2        | Pending     |
+| Bbox Clipping                 | High   | Medium     | 1        | Pending     |
+| Multithreaded Graph Build     | High   | High       | 1        | Pending     |
+| Async Pipeline (Celery/Redis) | High   | High       | 1        | ✅ Implemented |
 
 ---
+
