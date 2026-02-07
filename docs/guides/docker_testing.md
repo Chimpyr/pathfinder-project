@@ -14,6 +14,12 @@ docker-compose up --build
 http://localhost:5000
 ```
 
+If you get the issue: 
+```
+unable to get image 'scenicpathfinder-api': error during connect: Get "http://%2F%2F.%2Fpipe%2FdockerDesktopLinuxEngine/v1.51/images/scenicpathfinder-api/json": open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+```
+This is becuase docker is not running on your machine. Make sure it is running before you try to run the app.
+
 ---
 
 ## Container Overview
