@@ -42,23 +42,39 @@
     <div id="left-panel" class="flex h-full z-20">
         
         <!-- Navigation Rail -->
-        <nav id="nav-rail" class="nav-rail bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center py-4 transition-colors duration-300">
-            <button class="nav-rail-btn active" data-view="route-view" title="Routes">
-                <i class="fas fa-route text-lg"></i>
-                <span class="nav-rail-label">Routes</span>
+        <nav id="nav-rail" class="nav-rail bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center py-2 transition-all duration-300">
+            <!-- Collapse Toggle -->
+            <button id="collapse-toggle" class="nav-rail-collapse-btn mb-2" title="Collapse panel">
+                <i class="fas fa-chevron-left text-sm"></i>
             </button>
-            <button class="nav-rail-btn" data-view="stats-view" title="Statistics">
-                <i class="fas fa-chart-bar text-lg"></i>
-                <span class="nav-rail-label">Stats</span>
-            </button>
-            <button class="nav-rail-btn" data-view="settings-view" title="Settings">
-                <i class="fas fa-cog text-lg"></i>
-                <span class="nav-rail-label">Settings</span>
-            </button>
+            
+            <!-- Main Nav Items -->
+            <div class="flex-1 flex flex-col items-center py-2">
+                <button class="nav-rail-btn active" data-view="route-view" title="Routes">
+                    <i class="fas fa-route text-lg"></i>
+                    <span class="nav-rail-label">Routes</span>
+                </button>
+                <button class="nav-rail-btn" data-view="stats-view" title="Statistics">
+                    <i class="fas fa-chart-bar text-lg"></i>
+                    <span class="nav-rail-label">Stats</span>
+                </button>
+                <button class="nav-rail-btn" data-view="settings-view" title="Settings">
+                    <i class="fas fa-cog text-lg"></i>
+                    <span class="nav-rail-label">Settings</span>
+                </button>
+            </div>
+            
+            <!-- Bottom Section: Admin -->
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2 w-full flex justify-center">
+                <a href="/admin/" class="nav-rail-btn" title="Admin Panel">
+                    <i class="fas fa-tools text-lg"></i>
+                    <span class="nav-rail-label">Admin</span>
+                </a>
+            </div>
         </nav>
 
         <!-- Sidebar Content Area -->
-        <div id="sidebar" class="w-80 min-w-[320px] max-w-md h-full bg-white dark:bg-gray-800 shadow-xl flex flex-col border-r border-gray-200 dark:border-gray-700 transition-colors duration-300 overflow-hidden">
+        <div id="sidebar" class="sidebar-resizable h-full bg-white dark:bg-gray-800 shadow-xl flex flex-col border-r border-gray-200 dark:border-gray-700 transition-colors duration-300 overflow-hidden">
             
             <!-- Route View (Default) -->
             <div id="route-view" class="view-panel flex flex-col h-full" data-active="true">
@@ -323,11 +339,19 @@
             </div>
         </div>
 
+        <!-- Sidebar Resize Handle -->
+        <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+
         <!-- Mobile Sidebar Overlay Toggle (shown only on mobile) -->
         <button id="mobile-sidebar-close" class="hidden fixed top-4 right-4 z-50 p-3 bg-white dark:bg-gray-800 rounded-full shadow-lg text-gray-600 dark:text-gray-300">
             <i class="fas fa-times text-xl"></i>
         </button>
     </div>
+
+    <!-- Floating Expand Button (visible when panel is collapsed) -->
+    <button id="expand-panel-btn" class="expand-panel-btn hidden" title="Expand panel">
+        <i class="fas fa-chevron-right"></i>
+    </button>
 
     <!-- Map Container -->
     <div class="flex-1 relative bg-gray-200 dark:bg-gray-900">

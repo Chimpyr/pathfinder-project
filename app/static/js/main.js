@@ -807,9 +807,146 @@ const themeToggleSettings = document.getElementById('theme-toggle-settings');
     }
 });
 
+// ============================================================================
+// Panel Collapse/Expand Functionality
+// ============================================================================
+const leftPanel = document.getElementById('left-panel');
+const collapseToggle = document.getElementById('collapse-toggle');
+const expandPanelBtn = document.getElementById('expand-panel-btn');
+
+/**
+ * Toggle panel collapsed state.
+ */
+function togglePanelCollapse() {
+    const isCollapsed = leftPanel.classList.toggle('collapsed');
+    
+    // Show/hide expand button
+    if (isCollapsed) {
+        expandPanelBtn.classList.remove('hidden');
+    } else {
+        expandPanelBtn.classList.add('hidden');
+    }
+    
+    // Persist state
+    localStorage.setItem('panelCollapsed', isCollapsed);
+    
+    // Trigger map resize after transition
+    setTimeout(() => {
+        if (mapController && mapController.map) {
+            mapController.map.invalidateSize();
+        }
+    }, 350);
+    
+    console.log(`[Nav] Panel ${isCollapsed ? 'collapsed' : 'expanded'}`);
+}
+
+// Collapse toggle button
+if (collapseToggle) {
+    collapseToggle.addEventListener('click', togglePanelCollapse);
+}
+
+// Expand button (floating)
+if (expandPanelBtn) {
+    expandPanelBtn.addEventListener('click', togglePanelCollapse);
+}
+
+// Restore collapsed state on load
+const savedCollapsed = localStorage.getItem('panelCollapsed') === 'true';
+if (savedCollapsed && leftPanel) {
+    leftPanel.classList.add('collapsed');
+    if (expandPanelBtn) expandPanelBtn.classList.remove('hidden');
+}
+
+// ============================================================================
+// Sidebar Resize Functionality
+// ============================================================================
+const sidebarEl = document.getElementById('sidebar');
+const resizeHandle = document.getElementById('sidebar-resize-handle');
+
+const MIN_SIDEBAR_WIDTH = 280;
+const MAX_SIDEBAR_WIDTH = 600;
+
+let isResizing = false;
+let startX = 0;
+let startWidth = 0;
+
+/**
+ * Start resize operation.
+ */
+function startResize(e) {
+    if (window.innerWidth < 768) return; // Disabled on mobile
+    
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = sidebarEl.offsetWidth;
+    
+    document.body.classList.add('resizing');
+    resizeHandle.classList.add('dragging');
+    
+    document.addEventListener('mousemove', doResize);
+    document.addEventListener('mouseup', stopResize);
+    
+    e.preventDefault();
+}
+
+/**
+ * Perform resize during drag.
+ */
+function doResize(e) {
+    if (!isResizing) return;
+    
+    const diff = e.clientX - startX;
+    let newWidth = startWidth + diff;
+    
+    // Clamp to min/max
+    newWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, newWidth));
+    
+    sidebarEl.style.width = `${newWidth}px`;
+}
+
+/**
+ * End resize operation.
+ */
+function stopResize() {
+    if (!isResizing) return;
+    
+    isResizing = false;
+    document.body.classList.remove('resizing');
+    resizeHandle.classList.remove('dragging');
+    
+    document.removeEventListener('mousemove', doResize);
+    document.removeEventListener('mouseup', stopResize);
+    
+    // Persist width
+    const currentWidth = sidebarEl.offsetWidth;
+    localStorage.setItem('sidebarWidth', currentWidth);
+    
+    // Trigger map resize
+    if (mapController && mapController.map) {
+        mapController.map.invalidateSize();
+    }
+    
+    console.log(`[Nav] Sidebar resized to ${currentWidth}px`);
+}
+
+// Attach resize handler
+if (resizeHandle) {
+    resizeHandle.addEventListener('mousedown', startResize);
+}
+
+// Restore saved width
+const savedWidth = localStorage.getItem('sidebarWidth');
+if (savedWidth && sidebarEl) {
+    const width = parseInt(savedWidth, 10);
+    if (width >= MIN_SIDEBAR_WIDTH && width <= MAX_SIDEBAR_WIDTH) {
+        sidebarEl.style.width = `${width}px`;
+    }
+}
+
 // Initial state
 updateClearButtons();
 updateInstructions();
 
 console.log('[App] PathFinder initialised with instant geocoding');
-console.log('[Nav] Navigation rail ready');
+console.log('[Nav] Navigation rail ready with collapse and resize support');
+

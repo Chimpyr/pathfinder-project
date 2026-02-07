@@ -240,3 +240,184 @@ iframe {
         min-height: 44px;
     }
 }
+
+/* ============================================================================
+   COLLAPSE TOGGLE BUTTON
+   ============================================================================ */
+
+.nav-rail-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: #6b7280;
+    background: transparent;
+    border: 1px solid #e5e7eb;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nav-rail-collapse-btn:hover {
+    background: rgba(94, 153, 16, 0.1);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.dark .nav-rail-collapse-btn {
+    color: #9ca3af;
+    border-color: #374151;
+}
+
+.dark .nav-rail-collapse-btn:hover {
+    background: rgba(122, 201, 20, 0.15);
+    border-color: var(--primary-light);
+    color: var(--primary-light);
+}
+
+/* Rotate chevron when collapsed */
+#left-panel.collapsed .nav-rail-collapse-btn i {
+    transform: rotate(180deg);
+}
+
+/* ============================================================================
+   RESIZABLE SIDEBAR
+   ============================================================================ */
+
+.sidebar-resizable {
+    width: 320px;
+    min-width: 280px;
+    max-width: 600px;
+    transition: width 0s; /* No transition during drag */
+}
+
+.sidebar-resize-handle {
+    width: 6px;
+    height: 100%;
+    background: transparent;
+    cursor: col-resize;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.2s ease;
+}
+
+.sidebar-resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 40px;
+    background: #d1d5db;
+    border-radius: 2px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle.dragging::after {
+    opacity: 1;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle.dragging {
+    background: rgba(94, 153, 16, 0.1);
+}
+
+.dark .sidebar-resize-handle::after {
+    background: #4b5563;
+}
+
+.dark .sidebar-resize-handle:hover,
+.dark .sidebar-resize-handle.dragging {
+    background: rgba(122, 201, 20, 0.1);
+}
+
+/* Prevent text selection during resize */
+body.resizing {
+    user-select: none;
+    cursor: col-resize !important;
+}
+
+/* ============================================================================
+   FLOATING EXPAND BUTTON
+   ============================================================================ */
+
+.expand-panel-btn {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 30;
+    width: 32px;
+    height: 64px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    transition: all 0.2s ease;
+}
+
+.expand-panel-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    width: 40px;
+}
+
+.dark .expand-panel-btn {
+    background: #1f2937;
+    border-color: #374151;
+    color: #9ca3af;
+}
+
+.dark .expand-panel-btn:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* ============================================================================
+   COLLAPSED PANEL STATE
+   ============================================================================ */
+
+#left-panel {
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+#left-panel.collapsed {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    overflow: hidden;
+}
+
+/* Hide resize handle when collapsed (it's a child of left-panel) */
+#left-panel.collapsed .sidebar-resize-handle {
+    display: none;
+}
+
+#left-panel.collapsed + .expand-panel-btn {
+    display: flex !important;
+}
+
+/* Hide resize handle on mobile */
+@media (max-width: 767px) {
+    .sidebar-resize-handle {
+        display: none;
+    }
+    
+    .expand-panel-btn {
+        display: none !important;
+    }
+}
