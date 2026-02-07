@@ -38,225 +38,295 @@
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 h-screen w-screen overflow-hidden flex">
 
-    <!-- Sidebar -->
-    <div class="w-1/3 min-w-[350px] max-w-md h-full bg-white dark:bg-gray-800 shadow-xl z-20 flex flex-col border-r border-gray-200 dark:border-gray-700 transition-colors duration-300">
+    <!-- Main Container: Nav Rail + Sidebar -->
+    <div id="left-panel" class="flex h-full z-20">
         
-        <!-- Header -->
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-            <div>
-                <h1 class="text-2xl font-bold text-primary-600 dark:text-primary-400">ScenicRoute</h1>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Type an address or click the map</p>
-            </div>
-            <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300">
-                <i class="fas fa-moon dark:hidden text-xl"></i>
-                <i class="fas fa-sun hidden dark:block text-yellow-400 text-xl"></i>
+        <!-- Navigation Rail -->
+        <nav id="nav-rail" class="nav-rail bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center py-4 transition-colors duration-300">
+            <button class="nav-rail-btn active" data-view="route-view" title="Routes">
+                <i class="fas fa-route text-lg"></i>
+                <span class="nav-rail-label">Routes</span>
             </button>
-        </div>
+            <button class="nav-rail-btn" data-view="stats-view" title="Statistics">
+                <i class="fas fa-chart-bar text-lg"></i>
+                <span class="nav-rail-label">Stats</span>
+            </button>
+            <button class="nav-rail-btn" data-view="settings-view" title="Settings">
+                <i class="fas fa-cog text-lg"></i>
+                <span class="nav-rail-label">Settings</span>
+            </button>
+        </nav>
 
-        <!-- Instruction Banner -->
-        <div id="instruction-banner" class="mx-6 mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p class="text-sm text-blue-700 dark:text-blue-300 flex items-center">
-                <i class="fas fa-info-circle mr-2"></i>
-                <span id="instruction-text">Type addresses below or click the map to set points</span>
-            </p>
-        </div>
-
-        <!-- Location Inputs -->
-        <div class="p-6 flex-1 overflow-y-auto">
-            <form id="route-form" class="space-y-4">
-                <!-- Start Location -->
-                <div class="space-y-2">
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                        <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-                        Start Location
-                    </label>
-                    <div class="relative">
-                        <i class="fas fa-map-marker-alt absolute left-3 top-3.5 text-green-500"></i>
-                        <input type="text" id="start-input" name="start"
-                            placeholder="e.g. Clifton Suspension Bridge" 
-                            class="w-full pl-10 pr-10 py-3 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm">
-                        <button type="button" id="clear-start" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hidden">
-                            <i class="fas fa-times"></i>
-                        </button>
+        <!-- Sidebar Content Area -->
+        <div id="sidebar" class="w-80 min-w-[320px] max-w-md h-full bg-white dark:bg-gray-800 shadow-xl flex flex-col border-r border-gray-200 dark:border-gray-700 transition-colors duration-300 overflow-hidden">
+            
+            <!-- Route View (Default) -->
+            <div id="route-view" class="view-panel flex flex-col h-full" data-active="true">
+                <!-- Header -->
+                <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
+                    <div>
+                        <h1 class="text-2xl font-bold text-primary-600 dark:text-primary-400">ScenicRoute</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Type an address or click the map</p>
                     </div>
-                    <p id="start-coords" class="text-xs text-gray-400 hidden"></p>
-                </div>
-                
-                <!-- End Location -->
-                <div class="space-y-2">
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                        <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
-                        End Location
-                    </label>
-                    <div class="relative">
-                        <i class="fas fa-map-marker absolute left-3 top-3.5 text-red-500"></i>
-                        <input type="text" id="end-input" name="end"
-                            placeholder="e.g. Bristol Temple Meads" 
-                            class="w-full pl-10 pr-10 py-3 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm">
-                        <button type="button" id="clear-end" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hidden">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <p id="end-coords" class="text-xs text-gray-400 hidden"></p>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="flex gap-3 pt-2">
-                    <button type="submit" id="find-route-btn"
-                        class="flex-1 py-3 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg shadow-md transform active:scale-[0.98] transition-all flex justify-center items-center">
-                        <span id="btn-text">Find Route</span>
-                        <i id="btn-spinner" class="fas fa-circle-notch fa-spin ml-2 hidden"></i>
-                    </button>
-                    <button type="button" id="clear-all-btn" 
-                        class="px-4 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors">
-                        <i class="fas fa-undo"></i>
+                    <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300">
+                        <i class="fas fa-moon dark:hidden text-xl"></i>
+                        <i class="fas fa-sun hidden dark:block text-yellow-400 text-xl"></i>
                     </button>
                 </div>
 
-                <!-- Scenic Routing Preferences -->
-                <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                    <div class="flex justify-between items-center mb-3">
-                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                            <i class="fas fa-sliders-h mr-2 text-primary-500"></i>Scenic Preferences
-                        </h3>
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="use-scenic-routing" class="sr-only peer">
-                            <div class="relative w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-primary-600"></div>
-                            <span class="ms-2 text-xs font-medium text-gray-600 dark:text-gray-400">Enabled</span>
-                        </label>
-                    </div>
-                    
-                    <div id="scenic-sliders" class="space-y-3 opacity-50 pointer-events-none transition-opacity">
-                        <!-- Distance (Shortest Path Priority) -->
-                        <div class="slider-group">
-                            <div class="flex justify-between items-center mb-1">
-                                <label for="weight-distance" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
-                                    <span class="mr-1">📏</span> Shortest Path
-                                </label>
-                                <span id="weight-distance-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">3</span>
-                            </div>
-                            <input type="range" id="weight-distance" min="0" max="5" value="3"
-                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-gray-500">
-                        </div>
-                        
-                        <!-- Quietness -->
-                        <div class="slider-group">
-                            <div class="flex justify-between items-center mb-1">
-                                <label for="weight-quietness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
-                                    <span class="mr-1">🔇</span> Quietness
-                                </label>
-                                <span id="weight-quietness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
-                            </div>
-                            <input type="range" id="weight-quietness" min="0" max="5" value="0"
-                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500">
-                        </div>
-                        
-                        <!-- Greenery -->
-                        <div class="slider-group">
-                            <div class="flex justify-between items-center mb-1">
-                                <label for="weight-greenness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
-                                    <span class="mr-1">🌿</span> Greenery
-                                </label>
-                                <span id="weight-greenness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
-                            </div>
-                            <input type="range" id="weight-greenness" min="0" max="5" value="0"
-                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-green-500">
-                        </div>
-                        
-                        <!-- Water -->
-                        <div class="slider-group">
-                            <div class="flex justify-between items-center mb-1">
-                                <label for="weight-water" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
-                                    <span class="mr-1">💧</span> Near Water
-                                </label>
-                                <span id="weight-water-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
-                            </div>
-                            <input type="range" id="weight-water" min="0" max="5" value="0"
-                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500">
-                        </div>
-                        
-                        <!-- Social/POIs -->
-                        <div class="slider-group">
-                            <div class="flex justify-between items-center mb-1">
-                                <label for="weight-social" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
-                                    <span class="mr-1">🏛️</span> Social/POIs
-                                </label>
-                                <span id="weight-social-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
-                            </div>
-                            <input type="range" id="weight-social" min="0" max="5" value="0"
-                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-amber-500">
-                        </div>
-                        
-                        <!-- Flatness (inverse of slope) -->
-                        <div class="slider-group">
-                            <div class="flex justify-between items-center mb-1">
-                                <label for="weight-flatness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
-                                    <span class="mr-1">🚶</span> Prefer Flat
-                                </label>
-                                <span id="weight-flatness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
-                            </div>
-                            <input type="range" id="weight-flatness" min="0" max="5" value="0"
-                                class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-red-500">
-                        </div>
-                    </div>
-                    
-                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-3 italic">
-                        0 = off &nbsp;→&nbsp; 5 = strongly prefer. Route favours ANY active feature.
+                <!-- Instruction Banner -->
+                <div id="instruction-banner" class="mx-6 mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg shrink-0">
+                    <p class="text-sm text-blue-700 dark:text-blue-300 flex items-center">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        <span id="instruction-text">Type addresses below or click the map to set points</span>
                     </p>
                 </div>
-            </form>
 
-            <!-- Route Stats -->
-            <div id="route-stats" class="mt-6 hidden space-y-4">
-                <div class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
-                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">Route Details</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Distance</p>
-                            <p class="text-xl font-bold text-primary-600 dark:text-primary-400"><span id="stat-distance"></span> km</p>
+                <!-- Location Inputs -->
+                <div class="p-6 flex-1 overflow-y-auto">
+                    <form id="route-form" class="space-y-4">
+                        <!-- Start Location -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                                Start Location
+                            </label>
+                            <div class="relative">
+                                <i class="fas fa-map-marker-alt absolute left-3 top-3.5 text-green-500"></i>
+                                <input type="text" id="start-input" name="start"
+                                    placeholder="e.g. Clifton Suspension Bridge" 
+                                    class="w-full pl-10 pr-10 py-3 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm">
+                                <button type="button" id="clear-start" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hidden">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <p id="start-coords" class="text-xs text-gray-400 hidden"></p>
                         </div>
-                        <div>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Est. Time</p>
-                            <p class="text-xl font-bold text-primary-600 dark:text-primary-400"><span id="stat-time"></span> min</p>
+                        
+                        <!-- End Location -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                                End Location
+                            </label>
+                            <div class="relative">
+                                <i class="fas fa-map-marker absolute left-3 top-3.5 text-red-500"></i>
+                                <input type="text" id="end-input" name="end"
+                                    placeholder="e.g. Bristol Temple Meads" 
+                                    class="w-full pl-10 pr-10 py-3 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm">
+                                <button type="button" id="clear-end" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hidden">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <p id="end-coords" class="text-xs text-gray-400 hidden"></p>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex gap-3 pt-2">
+                            <button type="submit" id="find-route-btn"
+                                class="flex-1 py-3 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg shadow-md transform active:scale-[0.98] transition-all flex justify-center items-center">
+                                <span id="btn-text">Find Route</span>
+                                <i id="btn-spinner" class="fas fa-circle-notch fa-spin ml-2 hidden"></i>
+                            </button>
+                            <button type="button" id="clear-all-btn" 
+                                class="px-4 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                        </div>
+
+                        <!-- Scenic Routing Preferences -->
+                        <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    <i class="fas fa-sliders-h mr-2 text-primary-500"></i>Scenic Preferences
+                                </h3>
+                                <label class="inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="use-scenic-routing" class="sr-only peer">
+                                    <div class="relative w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-primary-600"></div>
+                                    <span class="ms-2 text-xs font-medium text-gray-600 dark:text-gray-400">Enabled</span>
+                                </label>
+                            </div>
+                            
+                            <div id="scenic-sliders" class="space-y-3 opacity-50 pointer-events-none transition-opacity">
+                                <!-- Distance (Shortest Path Priority) -->
+                                <div class="slider-group">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label for="weight-distance" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                            <span class="mr-1">📏</span> Shortest Path
+                                        </label>
+                                        <span id="weight-distance-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">3</span>
+                                    </div>
+                                    <input type="range" id="weight-distance" min="0" max="5" value="3"
+                                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-gray-500">
+                                </div>
+                                
+                                <!-- Quietness -->
+                                <div class="slider-group">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label for="weight-quietness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                            <span class="mr-1">🔇</span> Quietness
+                                        </label>
+                                        <span id="weight-quietness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                                    </div>
+                                    <input type="range" id="weight-quietness" min="0" max="5" value="0"
+                                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                                </div>
+                                
+                                <!-- Greenery -->
+                                <div class="slider-group">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label for="weight-greenness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                            <span class="mr-1">🌿</span> Greenery
+                                        </label>
+                                        <span id="weight-greenness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                                    </div>
+                                    <input type="range" id="weight-greenness" min="0" max="5" value="0"
+                                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-green-500">
+                                </div>
+                                
+                                <!-- Water -->
+                                <div class="slider-group">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label for="weight-water" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                            <span class="mr-1">💧</span> Near Water
+                                        </label>
+                                        <span id="weight-water-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                                    </div>
+                                    <input type="range" id="weight-water" min="0" max="5" value="0"
+                                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                                </div>
+                                
+                                <!-- Social/POIs -->
+                                <div class="slider-group">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label for="weight-social" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                            <span class="mr-1">🏛️</span> Social/POIs
+                                        </label>
+                                        <span id="weight-social-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                                    </div>
+                                    <input type="range" id="weight-social" min="0" max="5" value="0"
+                                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                                </div>
+                                
+                                <!-- Flatness (inverse of slope) -->
+                                <div class="slider-group">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label for="weight-flatness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                            <span class="mr-1">🚶</span> Prefer Flat
+                                        </label>
+                                        <span id="weight-flatness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                                    </div>
+                                    <input type="range" id="weight-flatness" min="0" max="5" value="0"
+                                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-red-500">
+                                </div>
+                            </div>
+                            
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-3 italic">
+                                0 = off &nbsp;→&nbsp; 5 = strongly prefer. Route favours ANY active feature.
+                            </p>
+                        </div>
+                    </form>
+
+                    <!-- Route Stats -->
+                    <div id="route-stats" class="mt-6 hidden space-y-4">
+                        <div class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">Route Details</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Distance</p>
+                                    <p class="text-xl font-bold text-primary-600 dark:text-primary-400"><span id="stat-distance"></span> km</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Est. Time</p>
+                                    <p class="text-xl font-bold text-primary-600 dark:text-primary-400"><span id="stat-time"></span> min</p>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2 italic">Assuming pace of <span id="stat-pace"></span> km/h</p>
+                        </div>
+
+                        <div id="debug-info" class="hidden p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
+                            <h4 class="font-bold mb-2 border-b border-gray-300 dark:border-gray-600 pb-1">Debug Info</h4>
+                            
+                            <!-- Edge Preview Section (rendered by JS) -->
+                            <div id="edge-preview-container" class="hidden my-3 font-sans"></div>
+                            
+                            <!-- Collapsible Raw Debug Data -->
+                            <details class="mt-2">
+                                <summary class="cursor-pointer text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Raw Debug Data</summary>
+                                <pre id="debug-content" class="mt-2 overflow-x-auto font-mono"></pre>
+                            </details>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2 italic">Assuming pace of <span id="stat-pace"></span> km/h</p>
+
+                    <div id="error-message" class="mt-6 p-4 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hidden border border-red-100 dark:border-red-800 text-sm"></div>
+                    
+                    <!-- Instructions / Info -->
+                    <div class="mt-8 p-4 bg-info-bg border border-info-border rounded-lg">
+                        <h3 class="font-semibold text-info-text mb-2"><i class="fas fa-info-circle mr-2"></i>How to use</h3>
+                        <ul class="text-sm text-info-text opacity-90 space-y-1">
+                            <li><strong>Option 1:</strong> Type addresses and press Find Route</li>
+                            <li><strong>Option 2:</strong> Click the map to set start (green) then end (red)</li>
+                            <li><strong>Tip:</strong> Drag markers to fine-tune positions</li>
+                        </ul>
+                    </div>
                 </div>
 
-                <div id="debug-info" class="hidden p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
-                    <h4 class="font-bold mb-2 border-b border-gray-300 dark:border-gray-600 pb-1">Debug Info</h4>
-                    
-                    <!-- Edge Preview Section (rendered by JS) -->
-                    <div id="edge-preview-container" class="hidden my-3 font-sans"></div>
-                    
-                    <!-- Collapsible Raw Debug Data -->
-                    <details class="mt-2">
-                        <summary class="cursor-pointer text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Raw Debug Data</summary>
-                        <pre id="debug-content" class="mt-2 overflow-x-auto font-mono"></pre>
-                    </details>
+                <!-- Footer -->
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700 text-center text-xs text-gray-400 flex justify-between items-center shrink-0">
+                    <span>Using OSMnx, NetworkX &amp; Leaflet</span>
+                    <a href="/admin/" class="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
+                        <i class="fas fa-cog mr-1"></i>Admin
+                    </a>
                 </div>
             </div>
 
-            <div id="error-message" class="mt-6 p-4 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hidden border border-red-100 dark:border-red-800 text-sm"></div>
-            
-            <!-- Instructions / Info -->
-            <div class="mt-8 p-4 bg-info-bg border border-info-border rounded-lg">
-                <h3 class="font-semibold text-info-text mb-2"><i class="fas fa-info-circle mr-2"></i>How to use</h3>
-                <ul class="text-sm text-info-text opacity-90 space-y-1">
-                    <li><strong>Option 1:</strong> Type addresses and press Find Route</li>
-                    <li><strong>Option 2:</strong> Click the map to set start (green) then end (red)</li>
-                    <li><strong>Tip:</strong> Drag markers to fine-tune positions</li>
-                </ul>
+            <!-- Stats View (Placeholder) -->
+            <div id="stats-view" class="view-panel hidden flex-col h-full" data-active="false">
+                <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
+                    <div>
+                        <h1 class="text-2xl font-bold text-primary-600 dark:text-primary-400">Statistics</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Route analytics and insights</p>
+                    </div>
+                    <button id="theme-toggle-stats" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300">
+                        <i class="fas fa-moon dark:hidden text-xl"></i>
+                        <i class="fas fa-sun hidden dark:block text-yellow-400 text-xl"></i>
+                    </button>
+                </div>
+                <div class="p-6 flex-1 flex items-center justify-center">
+                    <div class="text-center text-gray-400 dark:text-gray-500">
+                        <i class="fas fa-chart-line text-5xl mb-4 opacity-50"></i>
+                        <p class="text-lg font-medium">Coming Soon</p>
+                        <p class="text-sm">Route statistics and analytics will appear here</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View (Placeholder) -->
+            <div id="settings-view" class="view-panel hidden flex-col h-full" data-active="false">
+                <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
+                    <div>
+                        <h1 class="text-2xl font-bold text-primary-600 dark:text-primary-400">Settings</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Application preferences</p>
+                    </div>
+                    <button id="theme-toggle-settings" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300">
+                        <i class="fas fa-moon dark:hidden text-xl"></i>
+                        <i class="fas fa-sun hidden dark:block text-yellow-400 text-xl"></i>
+                    </button>
+                </div>
+                <div class="p-6 flex-1 flex items-center justify-center">
+                    <div class="text-center text-gray-400 dark:text-gray-500">
+                        <i class="fas fa-tools text-5xl mb-4 opacity-50"></i>
+                        <p class="text-lg font-medium">Coming Soon</p>
+                        <p class="text-sm">Application settings will appear here</p>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Footer -->
-        <div class="p-4 border-t border-gray-200 dark:border-gray-700 text-center text-xs text-gray-400 flex justify-between items-center">
-            <span>Using OSMnx, NetworkX &amp; Leaflet</span>
-            <a href="/admin/" class="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
-                <i class="fas fa-cog mr-1"></i>Admin
-            </a>
-        </div>
+        <!-- Mobile Sidebar Overlay Toggle (shown only on mobile) -->
+        <button id="mobile-sidebar-close" class="hidden fixed top-4 right-4 z-50 p-3 bg-white dark:bg-gray-800 rounded-full shadow-lg text-gray-600 dark:text-gray-300">
+            <i class="fas fa-times text-xl"></i>
+        </button>
     </div>
 
     <!-- Map Container -->

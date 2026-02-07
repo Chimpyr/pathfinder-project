@@ -714,6 +714,96 @@ window.retryWithSync = async function() {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         mapController.clear();
+        // Also close mobile sidebar on Escape
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.classList.remove('mobile-open');
+    }
+});
+
+// ============================================================================
+// Navigation Rail View Switching
+// ============================================================================
+const navRailBtns = document.querySelectorAll('.nav-rail-btn');
+const viewPanels = document.querySelectorAll('.view-panel');
+const sidebar = document.getElementById('sidebar');
+const mobileSidebarClose = document.getElementById('mobile-sidebar-close');
+
+/**
+ * Switch to a different view panel.
+ * @param {string} viewId - The ID of the view to switch to (e.g., 'route-view').
+ */
+function switchView(viewId) {
+    // Update nav rail button states
+    navRailBtns.forEach(btn => {
+        if (btn.dataset.view === viewId) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+    
+    // Update view panel visibility
+    viewPanels.forEach(panel => {
+        if (panel.id === viewId) {
+            panel.dataset.active = 'true';
+            panel.classList.remove('hidden');
+        } else {
+            panel.dataset.active = 'false';
+            panel.classList.add('hidden');
+        }
+    });
+    
+    // On mobile: open sidebar overlay when switching views
+    if (window.innerWidth < 768 && sidebar) {
+        sidebar.classList.add('mobile-open');
+    }
+    
+    // Save selection to localStorage
+    localStorage.setItem('selectedView', viewId);
+    
+    console.log(`[Nav] Switched to view: ${viewId}`);
+}
+
+// Nav rail button click handlers
+navRailBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        const viewId = btn.dataset.view;
+        if (viewId) {
+            switchView(viewId);
+        }
+    });
+});
+
+// Mobile sidebar close button
+if (mobileSidebarClose) {
+    mobileSidebarClose.addEventListener('click', () => {
+        if (sidebar) sidebar.classList.remove('mobile-open');
+    });
+}
+
+// Close mobile sidebar when clicking outside (on the map)
+document.getElementById('map')?.addEventListener('click', () => {
+    if (window.innerWidth < 768 && sidebar) {
+        sidebar.classList.remove('mobile-open');
+    }
+});
+
+// Restore saved view on load
+const savedView = localStorage.getItem('selectedView');
+if (savedView && document.getElementById(savedView)) {
+    switchView(savedView);
+}
+
+// Theme toggle handlers for placeholder views
+const themeToggleStats = document.getElementById('theme-toggle-stats');
+const themeToggleSettings = document.getElementById('theme-toggle-settings');
+
+[themeToggleStats, themeToggleSettings].forEach(toggle => {
+    if (toggle) {
+        toggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            localStorage.theme = html.classList.contains('dark') ? 'dark' : 'light';
+        });
     }
 });
 
@@ -722,3 +812,4 @@ updateClearButtons();
 updateInstructions();
 
 console.log('[App] PathFinder initialised with instant geocoding');
+console.log('[Nav] Navigation rail ready');
