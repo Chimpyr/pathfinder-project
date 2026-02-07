@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY . .
 
-# Expose Flask port
+# Expose Flask port, documentation only
 EXPOSE 5000
 
 # Default: run Flask API
