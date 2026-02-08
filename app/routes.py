@@ -251,7 +251,7 @@ def calculate_route():
         if current_app.config.get('VERBOSE_LOGGING'):
             print(f"[API] Route request: {start_point} -> {end_point}")
         
-        # Calculate bounding box with buffer
+        # Calculate bounding box for region detection (still needed for PBF lookup)
         buffer_deg = 0.02  # ~2.2km buffer for basic bbox
         min_lat = min(start_point[0], end_point[0]) - buffer_deg
         max_lat = max(start_point[0], end_point[0]) + buffer_deg
@@ -259,19 +259,10 @@ def calculate_route():
         max_lon = max(start_point[1], end_point[1]) + buffer_deg
         bbox = (min_lat, min_lon, max_lat, max_lon)
         
-        # Calculate buffered bbox for clipping (5km buffer, matching GraphBuilder)
-        # IMPORTANT: Must calculate from bbox (not raw coords) to match graph_builder.py
-        clip_buffer_km = 5
-        clip_buffer_deg = clip_buffer_km / 111.0  # ~0.045 degrees per km
-        clip_bbox = (
-            bbox[0] - clip_buffer_deg,  # min_lat
-            bbox[1] - clip_buffer_deg,  # min_lon
-            bbox[2] + clip_buffer_deg,  # max_lat
-            bbox[3] + clip_buffer_deg   # max_lon
-        )
-        
         # =====================================================================
         # ASYNC MODE: Check cache and enqueue task if necessary
+        # Note: Async mode still uses legacy bbox-based caching for now
+        # TODO: Update async mode to use tile-based caching (ADR-007)
         # =====================================================================
         async_mode = current_app.config.get('ASYNC_MODE', False)
         
@@ -280,24 +271,28 @@ def calculate_route():
             from app.services.core.cache_manager import get_cache_manager
             from app.services.core.data_loader import OSMDataLoader
             from app.services.core.task_manager import get_task_manager
+            from app.services.core.tile_utils import get_tiles_for_route
             
-            # Determine region for this request
+            # Determine region and tiles for this request
             region_name, _ = find_region_for_bbox(bbox)
             greenness_mode = current_app.config.get('GREENNESS_MODE', 'FAST')
             elevation_mode = current_app.config.get('ELEVATION_MODE', 'OFF')
             normalisation_mode = current_app.config.get('NORMALISATION_MODE', 'STATIC')
+            tile_size_km = current_app.config.get('TILE_SIZE_KM', 15)
             
-            # Check cache validity (using clip_bbox for per-route caching)
+            # Check if all required tiles are cached
+            tile_ids = get_tiles_for_route(start_point, end_point, tile_size_km)
             cache_mgr = get_cache_manager()
             loader = OSMDataLoader()
             loader.ensure_data_for_bbox(bbox)
             
-            cache_hit = cache_mgr.is_cache_valid(
-                region_name, greenness_mode, elevation_mode, loader.file_path,
-                bbox=clip_bbox  # Use clip_bbox for per-route cache keys
+            all_tiles_cached = all(
+                cache_mgr.is_cache_valid(region_name, greenness_mode, elevation_mode, 
+                                         loader.file_path, tile_id=tid)
+                for tid in tile_ids
             )
             
-            if not cache_hit:
+            if not all_tiles_cached:
                 # Cache miss - enqueue async task
                 task_mgr = get_task_manager()
                 result = task_mgr.enqueue_graph_build(
@@ -318,6 +313,7 @@ def calculate_route():
                         'task_id': result['task_id'],
                         'is_new_task': result['is_new'],
                         'region_name': region_name,
+                        'tiles_required': tile_ids,
                         'message': 'Graph is being built. Poll /api/task/<task_id> for status.',
                         'start_point': list(start_point),
                         'end_point': list(end_point),
@@ -325,11 +321,12 @@ def calculate_route():
                     }), 202  # Accepted
         
         # =====================================================================
-        # SYNC MODE or CACHE HIT: Process immediately
+        # SYNC MODE or CACHE HIT: Process immediately using tile-based caching
         # =====================================================================
         
-        # Get graph for this region (will use cache or build synchronously)
-        graph = GraphManager.get_graph(bbox)
+        # Get graph using tile-based caching (ADR-007)
+        # This builds only missing tiles and merges them
+        graph = GraphManager.get_graph_for_route(start_point, end_point)
         
         # Parse WSM settings from request
         use_wsm = data.get('use_wsm', False)

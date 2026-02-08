@@ -1,7 +1,6 @@
 # Performance Optimisation Strategy
 
 > **Status**: ✅ Phases 1-2 Implemented (2026-01-30)  
-> **Author**: Senior Engineering Review  
 > **Focus**: Memory-efficient parallelism for graph processing
 
 ---

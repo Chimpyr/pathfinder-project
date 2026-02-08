@@ -68,19 +68,34 @@ class CacheManager:
     
     def _get_cache_key(self, region_name: str, greenness_mode: str, 
                         elevation_mode: str = 'OFF',
-                        bbox: Optional[tuple] = None) -> str:
+                        bbox: Optional[tuple] = None,
+                        tile_id: Optional[str] = None) -> str:
         """
         Generate a unique cache key for a region + mode combination.
         
-        If bbox is provided, includes a hash of the rounded bbox to enable
-        per-route caching with bbox clipping. The bbox is rounded to 0.01
-        degree (~1km) using explicit string formatting to ensure stability.
+        Supports two caching strategies:
+        - Tile-based (preferred): Uses tile_id directly for deterministic keys
+        - Bbox-based (legacy): Hashes rounded bbox for per-route caching
+        
+        Args:
+            region_name: Name of the region (e.g., 'somerset').
+            greenness_mode: Processing mode ('OFF', 'FAST', 'EDGE_SAMPLING').
+            elevation_mode: Elevation mode ('OFF', 'LOCAL', 'API').
+            bbox: Optional bounding box for legacy per-route caching.
+            tile_id: Optional tile identifier for tile-based caching.
+        
+        Returns:
+            Cache key string.
         """
         base_key = f"{region_name}_{greenness_mode.lower()}_{elevation_mode.lower()}"
         
+        # Tile-based caching (preferred - ADR-007)
+        if tile_id is not None:
+            return f"{base_key}_tile_{tile_id}"
+        
+        # Legacy bbox-based caching (ADR-004)
         if bbox is not None:
             # Format bbox to 2 decimal places (~1km) for stability
-            # Using string formatting avoids floating point precision issues in hash
             bbox_str = "_".join(f"{x:.2f}" for x in bbox)
             bbox_hash = hashlib.md5(bbox_str.encode()).hexdigest()[:8]
             return f"{base_key}_bbox_{bbox_hash}"
@@ -94,7 +109,8 @@ class CacheManager:
     def is_cache_valid(self, region_name: str, greenness_mode: str,
                        elevation_mode: str = 'OFF',
                        pbf_path: Optional[str] = None,
-                       bbox: Optional[tuple] = None) -> bool:
+                       bbox: Optional[tuple] = None,
+                       tile_id: Optional[str] = None) -> bool:
         """
         Check if a valid cache exists for the given region and mode.
         
@@ -102,11 +118,12 @@ class CacheManager:
         (e.g., Celery workers running in separate containers).
         
         Args:
-            region_name: Name of the region (e.g., 'cornwall').
-            greenness_mode: Processing mode ('OFF', 'FAST', 'NOVACK').
-            elevation_mode: Elevation mode ('OFF', 'FAST').
+            region_name: Name of the region (e.g., 'somerset').
+            greenness_mode: Processing mode ('OFF', 'FAST', 'EDGE_SAMPLING').
+            elevation_mode: Elevation mode ('OFF', 'LOCAL', 'API').
             pbf_path: Path to the PBF file (for mtime validation).
-            bbox: Optional bounding box for per-route caching.
+            bbox: Optional bounding box for legacy per-route caching.
+            tile_id: Optional tile identifier for tile-based caching.
         
         Returns:
             True if valid cache exists, False otherwise.
@@ -114,7 +131,8 @@ class CacheManager:
         # Reload manifest from disk to pick up changes from other processes
         self._manifest = self._load_manifest()
         
-        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode, bbox=bbox)
+        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode, 
+                                         bbox=bbox, tile_id=tile_id)
         cache_path = self._get_cache_path(cache_key)
         
         # Check file exists
@@ -160,7 +178,8 @@ class CacheManager:
     
     def load_graph(self, region_name: str, greenness_mode: str,
                    elevation_mode: str = 'OFF',
-                   bbox: Optional[tuple] = None) -> Optional[nx.MultiDiGraph]:
+                   bbox: Optional[tuple] = None,
+                   tile_id: Optional[str] = None) -> Optional[nx.MultiDiGraph]:
         """
         Load a cached graph from disk.
         
@@ -168,12 +187,14 @@ class CacheManager:
             region_name: Name of the region.
             greenness_mode: Processing mode.
             elevation_mode: Elevation mode.
-            bbox: Optional bounding box for per-route caching.
+            bbox: Optional bounding box for legacy per-route caching.
+            tile_id: Optional tile identifier for tile-based caching.
         
         Returns:
             The cached graph, or None if not found/invalid.
         """
-        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode, bbox=bbox)
+        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode, 
+                                         bbox=bbox, tile_id=tile_id)
         cache_path = self._get_cache_path(cache_key)
         
         if not os.path.exists(cache_path):
@@ -200,7 +221,8 @@ class CacheManager:
     def save_graph(self, graph: nx.MultiDiGraph, region_name: str, 
                    greenness_mode: str, elevation_mode: str = 'OFF',
                    pbf_path: Optional[str] = None,
-                   bbox: Optional[tuple] = None):
+                   bbox: Optional[tuple] = None,
+                   tile_id: Optional[str] = None):
         """
         Save a processed graph to disk cache.
         
@@ -210,9 +232,11 @@ class CacheManager:
             greenness_mode: Processing mode used.
             elevation_mode: Elevation mode used.
             pbf_path: Path to source PBF (for invalidation tracking).
-            bbox: Optional bounding box for per-route caching.
+            bbox: Optional bounding box for legacy per-route caching.
+            tile_id: Optional tile identifier for tile-based caching.
         """
-        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode, bbox=bbox)
+        cache_key = self._get_cache_key(region_name, greenness_mode, elevation_mode, 
+                                         bbox=bbox, tile_id=tile_id)
         cache_path = self._get_cache_path(cache_key)
         
         try:
@@ -274,6 +298,36 @@ class CacheManager:
             "cache_version": CACHE_VERSION,
             "cache_dir": self.cache_dir
         }
+    
+    def get_cached_tiles(self, region_name: str) -> list:
+        """
+        Get list of cached tile IDs for a region.
+        
+        Scans the manifest for tile-based cache entries matching the region.
+        
+        Args:
+            region_name: Name of the region to query.
+        
+        Returns:
+            List of tile IDs that are cached for this region.
+        """
+        # Reload manifest to pick up changes from other processes
+        self._manifest = self._load_manifest()
+        
+        tiles = []
+        prefix = f"{region_name}_"
+        tile_marker = "_tile_"
+        
+        for cache_key in self._manifest.get("entries", {}).keys():
+            if cache_key.startswith(prefix) and tile_marker in cache_key:
+                # Extract tile ID from key like "somerset_edge_sampling_local_tile_51.45_-2.55"
+                tile_part = cache_key.split(tile_marker)[-1]
+                # Remove version suffix if present
+                if "_v" in tile_part:
+                    tile_part = tile_part.split("_v")[0]
+                tiles.append(tile_part)
+        
+        return tiles
 
 
 # Singleton instance

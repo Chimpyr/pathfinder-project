@@ -1,7 +1,10 @@
 # ADR-004: Bounding Box Clipping for Graph Loading
 
-**Status:** Accepted  
+**Status:** Superseded by [ADR-007](./ADR-007-tile-based-caching.md)  
 **Date:** 2026-01-30  
+
+> [!NOTE]
+> This approach has been superseded by tile-based caching (ADR-007) which provides better cache reuse for nearby routes while maintaining the memory benefits described here.
 
 ---
 

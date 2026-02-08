@@ -264,3 +264,113 @@ class GraphManager:
         cls._cache.clear()
         cls._current_region = None
         print("[GraphManager] Cache cleared.")
+    
+    @classmethod
+    def get_graph_for_route(cls, start: Tuple[float, float], 
+                            end: Tuple[float, float]) -> nx.MultiDiGraph:
+        """
+        Get a graph covering a route using tile-based caching (ADR-007).
+        
+        This method uses snap-to-grid tiles instead of per-route bounding boxes.
+        Only builds tiles that aren't already cached, then merges them.
+        
+        Args:
+            start: Start point as (lat, lon).
+            end: End point as (lat, lon).
+        
+        Returns:
+            networkx.MultiDiGraph: Merged graph covering all required tiles.
+        """
+        from app.services.core.tile_utils import (
+            get_tiles_for_route, get_tile_bbox
+        )
+        from app.services.core.graph_builder import build_graph
+        
+        # Get config values
+        tile_size_km = get_config('TILE_SIZE_KM', 15)
+        tile_overlap_km = get_config('TILE_OVERLAP_KM', 1)
+        greenness_mode = get_greenness_mode()
+        elevation_mode = get_elevation_mode()
+        normalisation_mode = get_config('NORMALISATION_MODE', 'STATIC')
+        
+        # Determine required tiles
+        tile_ids = get_tiles_for_route(start, end, tile_size_km)
+        print(f"[GraphManager] Route requires {len(tile_ids)} tile(s): {tile_ids}")
+        
+        # Determine region for this route
+        mid_lat = (start[0] + end[0]) / 2
+        mid_lon = (start[1] + end[1]) / 2
+        bbox = (min(start[0], end[0]), min(start[1], end[1]),
+                max(start[0], end[0]), max(start[1], end[1]))
+        region_name, _ = cls._find_region_for_bbox(bbox)
+        
+        # Ensure PBF data exists
+        loader = OSMDataLoader()
+        loader.ensure_data_for_bbox(bbox)
+        
+        cache_mgr = get_cache_manager()
+        graphs = []
+        build_times = []
+        
+        for tile_id in tile_ids:
+            # Check disk cache for this tile
+            if cache_mgr.is_cache_valid(region_name, greenness_mode, elevation_mode,
+                                         loader.file_path, tile_id=tile_id):
+                print(f"[TileCache] HIT: {tile_id}")
+                graph = cache_mgr.load_graph(region_name, greenness_mode, 
+                                             elevation_mode, tile_id=tile_id)
+                if graph is not None:
+                    graphs.append(graph)
+                    continue
+            
+            # Cache miss - need to build this tile
+            print(f"[TileCache] MISS: {tile_id} - building...")
+            t0 = time.time()
+            
+            tile_bbox = get_tile_bbox(tile_id, tile_size_km, tile_overlap_km)
+            
+            # Build graph for this tile
+            result = build_graph(
+                bbox=tile_bbox,
+                region_name=region_name,
+                greenness_mode=greenness_mode,
+                elevation_mode=elevation_mode,
+                normalisation_mode=normalisation_mode,
+                save_to_cache=False  # We'll save with tile_id ourselves
+            )
+            
+            # Save to cache with tile_id
+            cache_mgr.save_graph(
+                result.graph, region_name, greenness_mode, elevation_mode,
+                pbf_path=loader.file_path, tile_id=tile_id
+            )
+            
+            build_time = time.time() - t0
+            build_times.append(build_time)
+            print(f"[TileCache] Built {tile_id} in {build_time:.1f}s")
+            
+            graphs.append(result.graph)
+        
+        # Merge all tiles into single graph
+        if len(graphs) == 0:
+            raise ValueError("No graphs were loaded for the route")
+        
+        if len(graphs) == 1:
+            merged_graph = graphs[0]
+            print(f"[GraphManager] Single tile, no merge needed")
+        else:
+            print(f"[GraphManager] Merging {len(graphs)} tiles...")
+            t0 = time.time()
+            merged_graph = graphs[0]
+            for g in graphs[1:]:
+                merged_graph = nx.compose(merged_graph, g)
+            merge_time = time.time() - t0
+            print(f"[GraphManager] Merged in {merge_time:.2f}s - "
+                  f"{merged_graph.number_of_nodes()} nodes, "
+                  f"{merged_graph.number_of_edges()} edges")
+        
+        # Update class state for compatibility with existing code
+        cls._current_region = region_name
+        
+        return merged_graph
+

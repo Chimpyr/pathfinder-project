@@ -57,6 +57,26 @@ class Config:
     # Higher = more memory usage, fewer reloads for multi-region routing
     MAX_CACHED_REGIONS = 3
     
+    # =========================================================================
+    # Tile-Based Graph Caching (ADR-007)
+    # =========================================================================
+    # Routes are cached using a snap-to-grid tile system. This improves cache
+    # reuse by ensuring nearby routes share the same tiles instead of creating
+    # unique cache entries for each route's bounding box.
+    
+    # Size of each tile in kilometres (default 15km covers Bristol urban area)
+    # Larger tiles = better cache reuse but higher memory per tile
+    TILE_SIZE_KM = 15
+    
+    # Overlap between adjacent tiles in kilometres
+    # Ensures boundary edges connect properly when merging tiles
+    TILE_OVERLAP_KM = 1
+    
+    # List of tile IDs to pre-build on application startup (optional)
+    # Format: ["lat_lon", ...] e.g., ["51.45_-2.55", "51.45_-2.70"]
+    # Leave empty to disable pre-warming
+    PREWARM_TILES = []
+    
     # WSM (Weighted Sum Model) default feature weights
     # Used when API request does not include custom weights
     # Higher value = stronger preference for that scenic feature
