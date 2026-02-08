@@ -35,8 +35,17 @@ class MapController {
         this.map = null;
         this.startMarker = null;
         this.endMarker = null;
-        this.routeLayer = null;
-        this.debugLayers = [];  // Debug edge feature overlays
+        this.routeLayer = null;         // Single route (legacy)
+        this.routeLayers = {};          // Multi-route: { baseline: layer, extremist: layer, balanced: layer }
+        this.selectedRoute = null;      // Currently highlighted route type
+        this.debugLayers = [];          // Debug edge feature overlays
+        
+        // Route colour configuration
+        this.routeColours = {
+            baseline: '#6B7280',    // Grey
+            extremist: '#EF4444',   // Red
+            balanced: '#3B82F6'     // Blue
+        };
         
         // Interaction state: 'idle' | 'setting_start' | 'setting_end' | 'ready'
         this.state = 'idle';
@@ -220,7 +229,7 @@ class MapController {
     }
     
     /**
-     * Display a route on the map.
+     * Display a single route on the map (legacy single-route mode).
      * 
      * @param {Array} coordinates - Array of [lat, lon] pairs.
      */
@@ -252,6 +261,123 @@ class MapController {
     }
     
     /**
+     * Display multiple routes on the map (multi-route mode).
+     * 
+     * @param {Object} routes - Routes data: { baseline: {...}, extremist: {...}, balanced: {...} }
+     *                          Each route has: coordinates, stats, colour
+     */
+    displayMultipleRoutes(routes) {
+        // Clear existing route layers
+        this.clearRouteLayers();
+        
+        if (!routes) {
+            console.warn('[MapController] No routes provided');
+            return;
+        }
+        
+        let allBounds = null;
+        
+        // Create route layers for each type
+        for (const [type, routeData] of Object.entries(routes)) {
+            if (!routeData || !routeData.route_coords || routeData.route_coords.length === 0) {
+                console.warn(`[MapController] No coordinates for ${type} route`);
+                continue;
+            }
+            
+            const colour = this.routeColours[type] || '#6B7280';
+            
+            // Create polyline with consistent styling
+            const layer = L.polyline(routeData.route_coords, {
+                color: colour,
+                weight: 4,
+                opacity: 0.7,
+                lineJoin: 'round'
+            }).addTo(this.map);
+            
+            // Store reference
+            this.routeLayers[type] = layer;
+            
+            // Accumulate bounds
+            if (allBounds) {
+                allBounds.extend(layer.getBounds());
+            } else {
+                allBounds = layer.getBounds();
+            }
+        }
+        
+        // Fit map to show all routes
+        if (allBounds) {
+            this.map.fitBounds(allBounds, { padding: [50, 50] });
+        }
+        
+        // Default: highlight balanced route
+        this.highlightRoute('balanced');
+        
+        console.log(`[MapController] Displayed ${Object.keys(this.routeLayers).length} routes`);
+    }
+    
+    /**
+     * Set visibility of a specific route.
+     * 
+     * @param {string} routeType - Route type: 'baseline', 'extremist', or 'balanced'.
+     * @param {boolean} visible - Whether the route should be visible.
+     */
+    setRouteVisibility(routeType, visible) {
+        const layer = this.routeLayers[routeType];
+        if (!layer) return;
+        
+        if (visible) {
+            if (!this.map.hasLayer(layer)) {
+                layer.addTo(this.map);
+            }
+        } else {
+            if (this.map.hasLayer(layer)) {
+                this.map.removeLayer(layer);
+            }
+        }
+        
+        console.log(`[MapController] Route ${routeType} visibility: ${visible}`);
+    }
+    
+    /**
+     * Highlight a specific route as the selected/primary route.
+     * Selected route is thicker and fully opaque; others are thinner.
+     * 
+     * @param {string} routeType - Route type to highlight.
+     */
+    highlightRoute(routeType) {
+        this.selectedRoute = routeType;
+        
+        for (const [type, layer] of Object.entries(this.routeLayers)) {
+            if (!layer || !this.map.hasLayer(layer)) continue;
+            
+            if (type === routeType) {
+                // Selected: thick and opaque
+                layer.setStyle({ weight: 6, opacity: 1.0 });
+                layer.bringToFront();
+            } else {
+                // Unselected: thinner and semi-transparent
+                layer.setStyle({ weight: 4, opacity: 0.5 });
+            }
+        }
+        
+        console.log(`[MapController] Highlighted route: ${routeType}`);
+    }
+    
+    /**
+     * Clear all multi-route layers.
+     */
+    clearRouteLayers() {
+        for (const layer of Object.values(this.routeLayers)) {
+            if (layer && this.map.hasLayer(layer)) {
+                this.map.removeLayer(layer);
+            }
+        }
+        this.routeLayers = {};
+        this.selectedRoute = null;
+    }
+    
+    /**
      * Clear all markers and route.
      */
     clear() {
@@ -268,13 +394,16 @@ class MapController {
             this.routeLayer = null;
         }
         
+        // Clear multi-route layers
+        this.clearRouteLayers();
+        
         // Clear debug layers
         this.clearDebugLayers();
         
         this.state = 'setting_start';
         this.options.onMarkersCleared();
         
-        console.log('[MapController] Cleared all markers and route');
+        console.log('[MapController] Cleared all markers and routes');
     }
     
     /**

@@ -106,6 +106,24 @@ function getScenicWeights() {
 let startState = { lat: null, lon: null, address: null, isGeocoding: false };
 let endState = { lat: null, lon: null, address: null, isGeocoding: false };
 
+// Multi-route state
+let routeState = {
+    routes: null,           // API response data (multi-route mode)
+    selected: 'balanced',   // Currently highlighted route type
+    visibility: {
+        baseline: true,
+        extremist: true,
+        balanced: true
+    }
+};
+
+// Route display names and colours
+const ROUTE_CONFIG = {
+    baseline: { name: 'Baseline', subtitle: 'Shortest', colour: '#6B7280', icon: '📏' },
+    extremist: { name: 'Extremist', subtitle: 'Max Scenic', colour: '#EF4444', icon: '🌿' },
+    balanced: { name: 'Balanced', subtitle: 'Your Mix', colour: '#3B82F6', icon: '⚖️' }
+};
+
 // Debounce timers
 let startGeocodeTimer = null;
 let endGeocodeTimer = null;
@@ -382,6 +400,7 @@ const mapController = new MapController('map', {
         updateInstructions();
         routeStats.classList.add('hidden');
         errorMsg.classList.add('hidden');
+        resetRouteState();
     }
 });
 
@@ -626,8 +645,16 @@ async function retryRouteRequest(payload) {
 
 /**
  * Handle successful route response.
+ * Detects multi-route vs single-route API responses.
  */
 function handleRouteSuccess(data) {
+    // Detect multi-route response (has 'routes' object)
+    if (data.routes) {
+        handleMultiRouteSuccess(data);
+        return;
+    }
+    
+    // Single-route mode (legacy)
     // Display route on map
     if (data.route_coords && data.route_coords.length > 0) {
         mapController.displayRoute(data.route_coords);
@@ -640,6 +667,10 @@ function handleRouteSuccess(data) {
         statPace.textContent = data.stats.pace_kmh;
         routeStats.classList.remove('hidden');
     }
+    
+    // Hide route options for single-route mode
+    const routeOptions = document.getElementById('route-options');
+    if (routeOptions) routeOptions.classList.add('hidden');
     
     // Display edge features on map (only for short routes)
     if (data.edge_features && data.edge_features.length > 0) {
@@ -661,6 +692,146 @@ function handleRouteSuccess(data) {
         if (edgePreviewContainer) edgePreviewContainer.classList.add('hidden');
     }
 }
+
+/**
+ * Handle multi-route response (3 distinct paths).
+ */
+function handleMultiRouteSuccess(data) {
+    console.log('[App] Multi-route mode - displaying 3 routes');
+    
+    // Store routes in state
+    routeState.routes = data.routes;
+    routeState.selected = 'balanced';
+    routeState.visibility = { baseline: true, extremist: true, balanced: true };
+    
+    // Display all routes on map
+    mapController.displayMultipleRoutes(data.routes);
+    
+    // Render route option cards
+    renderRouteOptions(data.routes);
+    
+    // Update stats to show selected route
+    updateStatsForRoute(routeState.selected);
+    
+    // Show route stats panel
+    routeStats.classList.remove('hidden');
+    
+    // Hide debug info for multi-route (too complex)
+    debugInfo.classList.add('hidden');
+    mapController.clearDebugLayers();
+}
+
+/**
+ * Render route option cards in the sidebar.
+ */
+function renderRouteOptions(routes) {
+    const container = document.getElementById('route-options-list');
+    const routeOptions = document.getElementById('route-options');
+    
+    if (!container || !routeOptions) return;
+    
+    let html = '';
+    
+    for (const [type, routeData] of Object.entries(routes)) {
+        const config = ROUTE_CONFIG[type];
+        if (!config || !routeData) continue;
+        
+        const isSelected = routeState.selected === type;
+        const isVisible = routeState.visibility[type];
+        
+        const distanceKm = routeData.stats?.distance_km || '?';
+        const timeMin = routeData.stats?.time_min || '?';
+        
+        html += `
+            <div class="route-option-card ${isSelected ? 'selected' : ''}" 
+                 data-route-type="${type}"
+                 onclick="selectRoute('${type}')">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <button class="route-visibility-toggle" 
+                                onclick="toggleRouteVisibility(event, '${type}')"
+                                title="Toggle visibility">
+                            <i class="fas ${isVisible ? 'fa-eye' : 'fa-eye-slash'} text-gray-400 hover:text-gray-600"></i>
+                        </button>
+                        <span class="route-colour-dot" style="background-color: ${config.colour}"></span>
+                        <div>
+                            <span class="font-medium text-gray-700 dark:text-gray-200">${config.name}</span>
+                            <span class="text-xs text-gray-400 ml-1">(${config.subtitle})</span>
+                        </div>
+                    </div>
+                    ${isSelected ? '<i class="fas fa-check text-primary-500"></i>' : ''}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-8">
+                    ${distanceKm} km • ${timeMin} min
+                </div>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html;
+    routeOptions.classList.remove('hidden');
+    
+    console.log('[App] Rendered route options for', Object.keys(routes).length, 'routes');
+}
+
+/**
+ * Toggle visibility of a route.
+ */
+function toggleRouteVisibility(event, routeType) {
+    event.stopPropagation(); // Don't trigger card click
+    
+    routeState.visibility[routeType] = !routeState.visibility[routeType];
+    mapController.setRouteVisibility(routeType, routeState.visibility[routeType]);
+    
+    // Re-render cards to update icons
+    if (routeState.routes) {
+        renderRouteOptions(routeState.routes);
+    }
+}
+
+/**
+ * Select a route as the primary/highlighted route.
+ */
+function selectRoute(routeType) {
+    routeState.selected = routeType;
+    mapController.highlightRoute(routeType);
+    
+    // Re-render cards to update selection
+    if (routeState.routes) {
+        renderRouteOptions(routeState.routes);
+    }
+    
+    // Update stats display
+    updateStatsForRoute(routeType);
+}
+
+/**
+ * Update the stats panel to show the selected route's data.
+ */
+function updateStatsForRoute(routeType) {
+    const routeData = routeState.routes?.[routeType];
+    if (!routeData?.stats) return;
+    
+    statDistance.textContent = routeData.stats.distance_km;
+    statTime.textContent = routeData.stats.time_min;
+    statPace.textContent = routeData.stats.pace_kmh;
+}
+
+/**
+ * Reset route state when markers are cleared.
+ */
+function resetRouteState() {
+    routeState.routes = null;
+    routeState.selected = 'balanced';
+    routeState.visibility = { baseline: true, extremist: true, balanced: true };
+    
+    const routeOptions = document.getElementById('route-options');
+    if (routeOptions) routeOptions.classList.add('hidden');
+}
+
+// Expose functions globally for onclick handlers
+window.toggleRouteVisibility = toggleRouteVisibility;
+window.selectRoute = selectRoute;
 
 /**
  * Set loading state on the UI.
