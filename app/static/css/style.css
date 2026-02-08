@@ -489,3 +489,24 @@ body.resizing {
     background: rgba(255, 255, 255, 0.1);
 }
 
+/* Duplicate route badge */
+.route-duplicate-badge {
+    display: block;
+    font-size: 10px;
+    color: #f59e0b;
+    font-style: italic;
+    margin-top: 2px;
+}
+
+.dark .route-duplicate-badge {
+    color: #fbbf24;
+}
+
+/* Dim duplicate routes slightly */
+.route-option-card.is-duplicate {
+    opacity: 0.85;
+}
+
+.route-option-card.is-duplicate:not(.selected) {
+    border-style: dashed;
+}

@@ -704,6 +704,9 @@ function handleMultiRouteSuccess(data) {
     routeState.selected = 'balanced';
     routeState.visibility = { baseline: true, extremist: true, balanced: true };
     
+    // Detect duplicate routes (same distance = likely same route)
+    routeState.duplicates = detectDuplicateRoutes(data.routes);
+    
     // Display all routes on map
     mapController.displayMultipleRoutes(data.routes);
     
@@ -716,9 +719,43 @@ function handleMultiRouteSuccess(data) {
     // Show route stats panel
     routeStats.classList.remove('hidden');
     
+    // Auto-scroll to Route Options panel so user sees it
+    const routeOptions = document.getElementById('route-options');
+    if (routeOptions) {
+        setTimeout(() => {
+            routeOptions.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 300);
+    }
+    
     // Hide debug info for multi-route (too complex)
     debugInfo.classList.add('hidden');
     mapController.clearDebugLayers();
+}
+
+/**
+ * Detect duplicate routes by comparing distances.
+ * Returns a map of route types to their duplicates.
+ */
+function detectDuplicateRoutes(routes) {
+    const duplicates = {};
+    const routeTypes = Object.keys(routes).filter(k => routes[k]);
+    
+    for (let i = 0; i < routeTypes.length; i++) {
+        for (let j = i + 1; j < routeTypes.length; j++) {
+            const typeA = routeTypes[i];
+            const typeB = routeTypes[j];
+            const distA = routes[typeA]?.stats?.distance_km;
+            const distB = routes[typeB]?.stats?.distance_km;
+            
+            // Compare distances (same distance = duplicate)
+            if (distA && distB && distA === distB) {
+                duplicates[typeB] = typeA;
+                console.log(`[App] Duplicate detected: ${typeB} same as ${typeA}`);
+            }
+        }
+    }
+    
+    return duplicates;
 }
 
 /**
@@ -732,18 +769,28 @@ function renderRouteOptions(routes) {
     
     let html = '';
     
-    for (const [type, routeData] of Object.entries(routes)) {
+    // Order: balanced first (selected by default), then baseline, then extremist
+    const orderedTypes = ['balanced', 'baseline', 'extremist'];
+    
+    for (const type of orderedTypes) {
+        const routeData = routes[type];
         const config = ROUTE_CONFIG[type];
         if (!config || !routeData) continue;
         
         const isSelected = routeState.selected === type;
         const isVisible = routeState.visibility[type];
+        const isDuplicate = routeState.duplicates?.[type];
         
         const distanceKm = routeData.stats?.distance_km || '?';
         const timeMin = routeData.stats?.time_min || '?';
         
+        // Duplicate badge
+        const duplicateBadge = isDuplicate 
+            ? `<span class="route-duplicate-badge">Same as ${ROUTE_CONFIG[isDuplicate]?.name || isDuplicate}</span>`
+            : '';
+        
         html += `
-            <div class="route-option-card ${isSelected ? 'selected' : ''}" 
+            <div class="route-option-card ${isSelected ? 'selected' : ''} ${isDuplicate ? 'is-duplicate' : ''}" 
                  data-route-type="${type}"
                  onclick="selectRoute('${type}')">
                 <div class="flex items-center justify-between">
@@ -757,6 +804,7 @@ function renderRouteOptions(routes) {
                         <div>
                             <span class="font-medium text-gray-700 dark:text-gray-200">${config.name}</span>
                             <span class="text-xs text-gray-400 ml-1">(${config.subtitle})</span>
+                            ${duplicateBadge}
                         </div>
                     </div>
                     ${isSelected ? '<i class="fas fa-check text-primary-500"></i>' : ''}
