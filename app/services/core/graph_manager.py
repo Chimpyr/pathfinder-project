@@ -74,6 +74,15 @@ class GraphManager:
     _cache: Dict[str, CachedGraph] = {}
     _current_region: Optional[str] = None
     
+    # Tile-level in-memory cache: cache_key -> (graph, last_used_time)
+    # This avoids reloading 250MB pickle files from disk on every request
+    _tile_cache: Dict[str, Tuple[nx.MultiDiGraph, float]] = {}
+    _max_cached_tiles: int = 12  # ~3GB memory for 12 tiles @ 250MB each
+    
+    # Merged graph cache: frozenset(tile_ids) -> (merged_graph, last_used_time)
+    # Avoids re-merging same tile combinations (20-30s per merge)
+    _merged_cache: Dict[frozenset, Tuple[nx.MultiDiGraph, float]] = {}
+    
     @classmethod
     def _find_region_for_bbox(cls, bbox: Optional[Tuple]) -> Tuple[str, str]:
         """
@@ -260,10 +269,22 @@ class GraphManager:
     
     @classmethod
     def clear_cache(cls):
-        """Clear all cached graphs."""
+        """Clear all cached graphs including tile and merged caches."""
         cls._cache.clear()
+        cls._tile_cache.clear()
+        cls._merged_cache.clear()
         cls._current_region = None
-        print("[GraphManager] Cache cleared.")
+        print("[GraphManager] All caches cleared (region, tile, merged).")
+    
+    @classmethod
+    def _evict_tile_cache_if_needed(cls):
+        """Evict least-recently-used tiles if cache exceeds max size."""
+        while len(cls._tile_cache) > cls._max_cached_tiles:
+            # Find LRU tile
+            oldest_key = min(cls._tile_cache.keys(), 
+                           key=lambda k: cls._tile_cache[k][1])
+            del cls._tile_cache[oldest_key]
+            print(f"[GraphManager] Evicted tile from memory: {oldest_key}")
     
     @classmethod
     def get_graph_for_route(cls, start: Tuple[float, float], 
@@ -309,19 +330,50 @@ class GraphManager:
         loader.ensure_data_for_bbox(bbox)
         
         cache_mgr = get_cache_manager()
+        
+        # Create cache key for merged graph (based on tiles + modes)
+        merged_key = frozenset(tile_ids)
+        merged_cache_key = (merged_key, region_name, greenness_mode, elevation_mode)
+        
+        # FAST PATH: Check if we have this exact merged graph in memory
+        if merged_cache_key in cls._merged_cache:
+            merged_graph, _ = cls._merged_cache[merged_cache_key]
+            cls._merged_cache[merged_cache_key] = (merged_graph, time.time())  # Touch
+            print(f"[GraphManager] MERGED CACHE HIT: {len(tile_ids)} tiles - instant return!")
+            cls._current_region = region_name
+            return merged_graph
+        
+        # Load tiles (from memory cache or disk)
         graphs = []
-        build_times = []
+        load_times = []
         
         for tile_id in tile_ids:
-            # Check disk cache for this tile
-            # Note: Don't pass pbf_path - each tile may use a different PBF
-            # The tile's pbf_mtime was recorded at build time
+            tile_cache_key = f"{region_name}_{greenness_mode}_{elevation_mode}_{tile_id}"
+            
+            # Check in-memory tile cache first
+            if tile_cache_key in cls._tile_cache:
+                graph, _ = cls._tile_cache[tile_cache_key]
+                cls._tile_cache[tile_cache_key] = (graph, time.time())  # Touch LRU
+                print(f"[TileCache] MEMORY HIT: {tile_id}")
+                graphs.append(graph)
+                continue
+            
+            # Check disk cache
+            t0 = time.time()
             if cache_mgr.is_cache_valid(region_name, greenness_mode, elevation_mode,
                                          pbf_path=None, tile_id=tile_id):
-                print(f"[TileCache] HIT: {tile_id}")
+                print(f"[TileCache] DISK HIT: {tile_id} - loading...")
                 graph = cache_mgr.load_graph(region_name, greenness_mode, 
                                              elevation_mode, tile_id=tile_id)
                 if graph is not None:
+                    load_time = time.time() - t0
+                    load_times.append(load_time)
+                    print(f"[TileCache] Loaded {tile_id} from disk in {load_time:.1f}s")
+                    
+                    # Store in memory cache
+                    cls._tile_cache[tile_cache_key] = (graph, time.time())
+                    cls._evict_tile_cache_if_needed()
+                    
                     graphs.append(graph)
                     continue
             
@@ -348,8 +400,12 @@ class GraphManager:
             )
             
             build_time = time.time() - t0
-            build_times.append(build_time)
             print(f"[TileCache] Built {tile_id} in {build_time:.1f}s")
+            
+            # Store in memory cache
+            tile_cache_key = f"{region_name}_{greenness_mode}_{elevation_mode}_{tile_id}"
+            cls._tile_cache[tile_cache_key] = (result.graph, time.time())
+            cls._evict_tile_cache_if_needed()
             
             graphs.append(result.graph)
         
@@ -373,6 +429,13 @@ class GraphManager:
         
         # Update class state for compatibility with existing code
         cls._current_region = region_name
+        
+        # Cache the merged graph for instant lookup next time
+        cls._merged_cache[merged_cache_key] = (merged_graph, time.time())
+        # Limit merged cache size (keep last 5 merged combinations)
+        if len(cls._merged_cache) > 5:
+            oldest = min(cls._merged_cache.keys(), key=lambda k: cls._merged_cache[k][1])
+            del cls._merged_cache[oldest]
         
         return merged_graph
 
