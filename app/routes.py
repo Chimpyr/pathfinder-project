@@ -348,8 +348,81 @@ def calculate_route():
             if current_app.config.get('VERBOSE_LOGGING'):
                 print(f"[API] WSM routing enabled with weights: {weights}")
         
-        # Find route
+        # Initialise route finder
         finder = RouteFinder(graph)
+        
+        # Check for multi-route mode
+        multi_route_mode = current_app.config.get('MULTI_ROUTE_MODE', False)
+        
+        if multi_route_mode and use_wsm:
+            # Multi-route mode: run three A* passes
+            from app.services.routing.distinct_paths_runner import find_distinct_paths
+            
+            distinct_result = find_distinct_paths(
+                finder, start_point, end_point, weights
+            )
+            
+            # Validate that at least one route was found
+            if not distinct_result.get('balanced', {}).get('route'):
+                return jsonify({
+                    'error': 'Could not find a route between these locations.'
+                }), 404
+            
+            # Build multi-route response
+            def build_route_entry(route_data, graph):
+                """Build JSON entry for a single route."""
+                route = route_data.get('route')
+                if not route:
+                    return None
+                
+                return {
+                    'route_coords': MapRenderer.route_to_coords(graph, route),
+                    'stats': {
+                        'distance_km': f"{route_data.get('distance', 0) / 1000:.2f}",
+                        'time_min': int(route_data.get('time_seconds', 0) // 60),
+                    },
+                    'colour': route_data.get('colour', '#808080'),
+                }
+            
+            response_data = {
+                'success': True,
+                'multi_route': True,
+                'routes': {
+                    'baseline': build_route_entry(distinct_result['baseline'], graph),
+                    'extremist': {
+                        **build_route_entry(distinct_result['extremist'], graph),
+                        'dominant_feature': distinct_result['extremist'].get('dominant_feature'),
+                    } if distinct_result.get('extremist', {}).get('route') else None,
+                    'balanced': build_route_entry(distinct_result['balanced'], graph),
+                },
+                'start_point': list(start_point),
+                'end_point': list(end_point),
+            }
+            
+            # Add debug info if enabled
+            if current_app.config.get('VERBOSE_LOGGING') or current_app.config.get('DEBUG'):
+                balanced_route = distinct_result['balanced']['route']
+                balanced_distance = distinct_result['balanced']['distance']
+                
+                response_data['debug_info'] = {
+                    'start_coord': start_point,
+                    'end_coord': end_point,
+                    'node_count_balanced': len(balanced_route) if balanced_route else 0,
+                    'graph_nodes': len(graph.nodes),
+                    'bbox': bbox,
+                    'loaded_pbf': GraphManager.get_loaded_file_path(),
+                    'multi_route_mode': True,
+                }
+                
+                # Visual debug uses balanced route
+                if balanced_distance < VISUAL_DEBUG_THRESHOLD_M:
+                    all_edges = _extract_edge_features(graph, balanced_route)
+                    response_data['edge_features'] = all_edges
+                    response_data['debug_info']['visual_debug_enabled'] = True
+            
+            return jsonify(response_data)
+        
+        # Single-route mode (legacy or non-WSM)
         route, _, _, distance, time_seconds = finder.find_route(
             start_point, end_point,
             use_wsm=use_wsm,
@@ -367,6 +440,7 @@ def calculate_route():
         # Build response with resolved coordinates
         response_data = {
             'success': True,  # Required by admin.html JavaScript
+            'multi_route': False,
             'route_coords': route_coords,
             'start_point': list(start_point),  # Return resolved coords
             'end_point': list(end_point),      # Return resolved coords

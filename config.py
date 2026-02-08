@@ -70,6 +70,15 @@ class Config:
         'slope': 0.05,      # Prefer gentler gradients
     }
     
+    # Multi-route mode (Distinct Paths strategy)
+    # When True: Returns 3 routes per request (Baseline, Extremist, Balanced)
+    #   - Baseline: Pure shortest distance (distance=1.0, others=0)
+    #   - Extremist: Maximises user's strongest scenic preference
+    #   - Balanced: Uses user's actual weight configuration
+    # When False: Returns single route using user weights (legacy behaviour)
+    # Approximates Pareto frontier without NP-hard evolutionary algorithms.
+    MULTI_ROUTE_MODE = True
+    
     # =========================================================================
     # Async Pipeline Configuration (Celery + Redis)
     # =========================================================================
