@@ -32,3 +32,15 @@ scenic-api      scenicpathfinder-api      "python run.py"          api       54 
 scenic-redis    redis:7-alpine            "docker-entrypoint.s…"   redis     8 days ago       Up 54 minutes (healthy)   0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
 scenic-worker   scenicpathfinder-worker   "celery -A celery_ap…"   worker    54 minutes ago   Up 54 minutes             5000/tcp
 ```
+
+## Look at logs
+
+```bash
+docker compose logs worker | Select-String "TILE:"
+```
+
+## Clear cache
+
+```bash
+docker compose exec api rm -rf /app/app/data/cache/*
+```

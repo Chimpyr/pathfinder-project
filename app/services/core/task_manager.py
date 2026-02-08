@@ -252,6 +252,193 @@ class TaskManager:
         except Exception as e:
             logger.exception(f"Error clearing lock: {e}")
             return False
+    
+    # =========================================================================
+    # Tile-Based Caching Methods (ADR-007)
+    # =========================================================================
+    
+    def _get_tile_lock_key(
+        self,
+        tile_id: str,
+        region_name: str,
+        greenness_mode: str,
+        elevation_mode: str
+    ) -> str:
+        """
+        Generate a unique lock key for a tile + mode combination.
+        
+        Args:
+            tile_id: Tile identifier (e.g., '51.45_-2.55').
+            region_name: Name of the region.
+            greenness_mode: Greenness processing mode.
+            elevation_mode: Elevation processing mode.
+        
+        Returns:
+            Redis key string.
+        """
+        return f"building_tile:{region_name}:{tile_id}:{greenness_mode}:{elevation_mode}"
+    
+    def get_existing_tile_task(
+        self,
+        tile_id: str,
+        region_name: str,
+        greenness_mode: str = 'FAST',
+        elevation_mode: str = 'OFF'
+    ) -> Optional[str]:
+        """
+        Check if a tile build task is already running.
+        
+        Args:
+            tile_id: Tile identifier.
+            region_name: Name of the region.
+            greenness_mode: Greenness processing mode.
+            elevation_mode: Elevation processing mode.
+        
+        Returns:
+            Existing task ID if found, None otherwise.
+        """
+        if not self.redis_client:
+            return None
+        
+        lock_key = self._get_tile_lock_key(tile_id, region_name, greenness_mode, elevation_mode)
+        
+        try:
+            existing_task_id = self.redis_client.get(lock_key)
+            if existing_task_id:
+                task_id = existing_task_id.decode('utf-8')
+                
+                # Check actual task state
+                from celery.result import AsyncResult
+                from celery_app import celery
+                
+                result = AsyncResult(task_id, app=celery)
+                if result.state in ['SUCCESS', 'FAILURE', 'REVOKED']:
+                    logger.info(f"[TaskManager] Found stale tile lock for {tile_id} (Task {task_id} is {result.state}). Clearing.")
+                    self.redis_client.delete(lock_key)
+                    return None
+                
+                return task_id
+                
+        except Exception as e:
+            logger.exception(f"Error checking existing tile task: {e}")
+        
+        return None
+    
+    def enqueue_tile_build(
+        self,
+        tile_id: str,
+        region_name: str,
+        greenness_mode: str = 'FAST',
+        elevation_mode: str = 'OFF',
+        normalisation_mode: str = 'STATIC',
+        tile_size_km: float = 15,
+        tile_overlap_km: float = 1
+    ) -> Dict[str, Any]:
+        """
+        Enqueue a tile build task, preventing duplicates.
+        
+        If a task is already running for this tile, returns the existing
+        task ID instead of creating a new one.
+        
+        Args:
+            tile_id: Tile identifier.
+            region_name: Name of the region.
+            greenness_mode: Greenness processing mode.
+            elevation_mode: Elevation processing mode.
+            normalisation_mode: Normalisation mode.
+            tile_size_km: Size of each tile in kilometres.
+            tile_overlap_km: Overlap buffer for tile boundaries.
+        
+        Returns:
+            Dictionary with task_id, is_new, and error (if any).
+        """
+        # Check for existing task first
+        existing_task_id = self.get_existing_tile_task(tile_id, region_name, greenness_mode, elevation_mode)
+        if existing_task_id:
+            logger.info(f"[TaskManager] Reusing existing task {existing_task_id} for tile {tile_id}")
+            return {
+                'task_id': existing_task_id,
+                'is_new': False,
+                'error': None
+            }
+        
+        # Import here to avoid circular imports
+        try:
+            from app.tasks.graph_tasks import build_tile_task
+        except ImportError as e:
+            logger.error(f"Failed to import Celery tile task: {e}")
+            return {
+                'task_id': None,
+                'is_new': False,
+                'error': 'Celery tile tasks not available'
+            }
+        
+        try:
+            # Enqueue the task
+            task = build_tile_task.delay(
+                tile_id=tile_id,
+                region_name=region_name,
+                greenness_mode=greenness_mode,
+                elevation_mode=elevation_mode,
+                normalisation_mode=normalisation_mode,
+                tile_size_km=tile_size_km,
+                tile_overlap_km=tile_overlap_km
+            )
+            task_id = task.id
+            
+            # Set the lock to prevent duplicate tasks
+            if self.redis_client:
+                lock_key = self._get_tile_lock_key(tile_id, region_name, greenness_mode, elevation_mode)
+                self.redis_client.setex(lock_key, self.lock_timeout, task_id)
+                logger.info(f"[TaskManager] Set tile lock {lock_key} for task {task_id}")
+            
+            logger.info(f"[TaskManager] Enqueued new tile task {task_id} for tile {tile_id}")
+            
+            return {
+                'task_id': task_id,
+                'is_new': True,
+                'error': None
+            }
+            
+        except Exception as e:
+            logger.exception(f"Failed to enqueue tile build task: {e}")
+            return {
+                'task_id': None,
+                'is_new': False,
+                'error': str(e)
+            }
+    
+    def clear_tile_lock(
+        self,
+        tile_id: str,
+        region_name: str,
+        greenness_mode: str = 'FAST',
+        elevation_mode: str = 'OFF'
+    ) -> bool:
+        """
+        Clear a tile-specific task lock.
+        
+        Args:
+            tile_id: Tile identifier.
+            region_name: Name of the region.
+            greenness_mode: Greenness processing mode.
+            elevation_mode: Elevation processing mode.
+        
+        Returns:
+            True if lock was cleared, False otherwise.
+        """
+        if not self.redis_client:
+            return False
+        
+        lock_key = self._get_tile_lock_key(tile_id, region_name, greenness_mode, elevation_mode)
+        
+        try:
+            self.redis_client.delete(lock_key)
+            logger.info(f"[TaskManager] Cleared tile lock {lock_key}")
+            return True
+        except Exception as e:
+            logger.exception(f"Error clearing tile lock: {e}")
+            return False
 
 
 # Module-level singleton
@@ -273,3 +460,4 @@ def get_task_manager() -> TaskManager:
             lock_timeout = current_app.config.get('TASK_LOCK_TIMEOUT', 900)
         _task_manager = TaskManager(lock_timeout=lock_timeout)
     return _task_manager
+

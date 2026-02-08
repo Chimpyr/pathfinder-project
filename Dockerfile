@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
-`   
+
 # Copy requirements first for layer caching
 COPY requirements.txt .
 

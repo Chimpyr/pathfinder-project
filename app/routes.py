@@ -260,9 +260,8 @@ def calculate_route():
         bbox = (min_lat, min_lon, max_lat, max_lon)
         
         # =====================================================================
-        # ASYNC MODE: Check cache and enqueue task if necessary
-        # Note: Async mode still uses legacy bbox-based caching for now
-        # TODO: Update async mode to use tile-based caching (ADR-007)
+        # ASYNC MODE: Check tile cache and enqueue tile builds if necessary
+        # Uses tile-based caching (ADR-007)
         # =====================================================================
         async_mode = current_app.config.get('ASYNC_MODE', False)
         
@@ -279,42 +278,61 @@ def calculate_route():
             elevation_mode = current_app.config.get('ELEVATION_MODE', 'OFF')
             normalisation_mode = current_app.config.get('NORMALISATION_MODE', 'STATIC')
             tile_size_km = current_app.config.get('TILE_SIZE_KM', 15)
+            tile_overlap_km = current_app.config.get('TILE_OVERLAP_KM', 1)
             
-            # Check if all required tiles are cached
+            # Check which tiles are cached
+            # Note: Don't pass pbf_path here - each tile may use a different PBF
+            # The tile's cached pbf_mtime is verified at build time
             tile_ids = get_tiles_for_route(start_point, end_point, tile_size_km)
             cache_mgr = get_cache_manager()
-            loader = OSMDataLoader()
-            loader.ensure_data_for_bbox(bbox)
             
-            all_tiles_cached = all(
-                cache_mgr.is_cache_valid(region_name, greenness_mode, elevation_mode, 
-                                         loader.file_path, tile_id=tid)
-                for tid in tile_ids
-            )
+            print(f"[API] Checking {len(tile_ids)} tiles: {tile_ids}")
             
-            if not all_tiles_cached:
-                # Cache miss - enqueue async task
-                task_mgr = get_task_manager()
-                result = task_mgr.enqueue_graph_build(
-                    region_name=region_name,
-                    bbox=bbox,
-                    greenness_mode=greenness_mode,
-                    elevation_mode=elevation_mode,
-                    normalisation_mode=normalisation_mode
+            # Find missing tiles (check without pbf_path since tiles self-validate)
+            missing_tiles = []
+            for tid in tile_ids:
+                is_valid = cache_mgr.is_cache_valid(
+                    region_name, greenness_mode, elevation_mode, 
+                    pbf_path=None, tile_id=tid
                 )
+                print(f"[API] Tile {tid}: {'CACHED' if is_valid else 'MISSING'}")
+                if not is_valid:
+                    missing_tiles.append(tid)
+            
+            print(f"[API] Missing tiles: {missing_tiles}")
+            
+            if missing_tiles:
+                # Enqueue tile build tasks for each missing tile
+                task_mgr = get_task_manager()
+                task_ids = []
                 
-                if result.get('error'):
-                    # Failed to enqueue - fall back to sync
-                    print(f"[API] Async enqueue failed: {result['error']}, falling back to sync")
-                else:
-                    # Return task ID for polling
+                for tile_id in missing_tiles:
+                    result = task_mgr.enqueue_tile_build(
+                        tile_id=tile_id,
+                        region_name=region_name,
+                        greenness_mode=greenness_mode,
+                        elevation_mode=elevation_mode,
+                        normalisation_mode=normalisation_mode,
+                        tile_size_km=tile_size_km,
+                        tile_overlap_km=tile_overlap_km
+                    )
+                    if result.get('task_id'):
+                        task_ids.append({
+                            'tile_id': tile_id,
+                            'task_id': result['task_id'],
+                            'is_new': result['is_new']
+                        })
+                
+                if task_ids:
+                    # Return first task ID for polling (tiles will be built in parallel)
                     return jsonify({
                         'status': 'processing',
-                        'task_id': result['task_id'],
-                        'is_new_task': result['is_new'],
+                        'task_id': task_ids[0]['task_id'],  # Primary task to poll
+                        'is_new_task': task_ids[0]['is_new'],
                         'region_name': region_name,
                         'tiles_required': tile_ids,
-                        'message': 'Graph is being built. Poll /api/task/<task_id> for status.',
+                        'tiles_building': [t['tile_id'] for t in task_ids],
+                        'message': f'Building {len(missing_tiles)} tile(s). Poll /api/task/<task_id> for status.',
                         'start_point': list(start_point),
                         'end_point': list(end_point),
                         'bbox': bbox

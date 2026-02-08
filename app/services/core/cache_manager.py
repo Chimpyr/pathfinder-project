@@ -59,10 +59,35 @@ class CacheManager:
         return {"version": CACHE_VERSION, "entries": {}}
     
     def _save_manifest(self):
-        """Save the cache manifest to disk."""
+        """
+        Save the cache manifest to disk atomically.
+        
+        Uses reload-merge-save pattern to avoid race conditions when
+        multiple workers save concurrently (e.g., parallel tile builds).
+        """
+        import filelock
+        
+        lock_path = self.cache_dir / "manifest.lock"
+        lock = filelock.FileLock(lock_path, timeout=30)
+        
         try:
-            with open(self.manifest_path, 'w') as f:
-                json.dump(self._manifest, f, indent=2)
+            with lock:
+                # Reload current manifest from disk (may have new entries from other workers)
+                disk_manifest = self._load_manifest()
+                
+                # Merge our entries into disk manifest
+                for key, entry in self._manifest.get("entries", {}).items():
+                    disk_manifest.setdefault("entries", {})[key] = entry
+                
+                # Update our in-memory copy
+                self._manifest = disk_manifest
+                
+                # Write merged manifest
+                with open(self.manifest_path, 'w') as f:
+                    json.dump(self._manifest, f, indent=2)
+                    
+        except filelock.Timeout:
+            print(f"[CacheManager] Warning: Could not acquire manifest lock, skipping save")
         except IOError as e:
             print(f"[CacheManager] Warning: Could not save manifest: {e}")
     
@@ -163,10 +188,14 @@ class CacheManager:
             return False
         
         # Check PBF modification time if provided
+        # Use integer precision (1 second) to avoid Docker volume timing differences
         if pbf_path and os.path.exists(pbf_path):
-            pbf_mtime = os.path.getmtime(pbf_path)
-            if entry.get("pbf_mtime") != pbf_mtime:
-                print(f"[CacheManager] PBF modified since cache creation for {cache_key}")
+            pbf_mtime = int(os.path.getmtime(pbf_path))
+            cached_mtime = entry.get("pbf_mtime")
+            # Handle both int and float stored values for compatibility
+            if cached_mtime is not None and int(cached_mtime) != pbf_mtime:
+                print(f"[CacheManager] PBF modified since cache creation for {cache_key} "
+                      f"(cached: {cached_mtime}, current: {pbf_mtime})")
                 return False
         
         # Check greenness mode
@@ -254,7 +283,8 @@ class CacheManager:
             self._manifest["entries"][cache_key] = {
                 "version": CACHE_VERSION,
                 "greenness_mode": greenness_mode,
-                "pbf_mtime": os.path.getmtime(pbf_path) if pbf_path and os.path.exists(pbf_path) else None,
+                # Store as integer (1-second precision) to avoid Docker volume timing issues
+                "pbf_mtime": int(os.path.getmtime(pbf_path)) if pbf_path and os.path.exists(pbf_path) else None,
                 "created": time.time(),
                 "size_mb": cache_size_mb
             }

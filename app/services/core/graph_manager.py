@@ -314,8 +314,10 @@ class GraphManager:
         
         for tile_id in tile_ids:
             # Check disk cache for this tile
+            # Note: Don't pass pbf_path - each tile may use a different PBF
+            # The tile's pbf_mtime was recorded at build time
             if cache_mgr.is_cache_valid(region_name, greenness_mode, elevation_mode,
-                                         loader.file_path, tile_id=tile_id):
+                                         pbf_path=None, tile_id=tile_id):
                 print(f"[TileCache] HIT: {tile_id}")
                 graph = cache_mgr.load_graph(region_name, greenness_mode, 
                                              elevation_mode, tile_id=tile_id)
