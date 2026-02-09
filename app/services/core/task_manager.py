@@ -23,6 +23,8 @@ except ImportError:
     current_app = None
     def has_app_context(): return False
 
+from app.services.core.tile_utils import DEFAULT_TILE_SIZE_KM, DEFAULT_TILE_OVERLAP_KM
+
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -324,6 +326,10 @@ class TaskManager:
         
         return None
     
+        # Import constants for defaults (lazy import to resolve ONLY if needed, or assume top-level if safe)
+        # However, for signature defaults, we need them at definition time.
+        # We'll import them at top level of file.
+        
     def enqueue_tile_build(
         self,
         tile_id: str,
@@ -331,8 +337,8 @@ class TaskManager:
         greenness_mode: str = 'FAST',
         elevation_mode: str = 'OFF',
         normalisation_mode: str = 'STATIC',
-        tile_size_km: float = 30,
-        tile_overlap_km: float = 2
+        tile_size_km: float = DEFAULT_TILE_SIZE_KM,
+        tile_overlap_km: float = DEFAULT_TILE_OVERLAP_KM
     ) -> Dict[str, Any]:
         """
         Enqueue a tile build task, preventing duplicates.

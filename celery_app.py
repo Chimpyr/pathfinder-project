@@ -54,6 +54,7 @@ def make_celery() -> Celery:
         # Worker settings
         worker_prefetch_multiplier=1,  # Process one task at a time
         worker_concurrency=1,  # Single worker thread (graph building is CPU-heavy)
+        worker_max_tasks_per_child=1,  # Force restart after each task to release memory (CRITICAL for large graphs)
         
         # Result settings
         result_expires=3600,  # Results expire after 1 hour

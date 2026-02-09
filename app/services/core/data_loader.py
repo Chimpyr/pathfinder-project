@@ -21,6 +21,11 @@ class OSMDataLoader:
     
     INDEX_URL = "https://download.geofabrik.de/index-v1.json"
     INDEX_FILE = "geofabrik_index.json"
+    
+    # PBFs larger than this will be pre-extracted using osmium to avoid OOM
+    # pyrosm loads the full PBF into memory before clipping, so large files
+    # (like england.osm.pbf at 1.5GB) will exceed container memory limits
+    MAX_PYROSM_PBF_SIZE = 100 * 1024 * 1024  # 100MB
 
     def log(self, message):
         """
@@ -58,6 +63,55 @@ class OSMDataLoader:
             os.makedirs(self.data_dir)
             
         self.file_path = None # Will be set dynamically by ensure_data_for_bbox
+        self._active_pbf_path = None  # Tracks the PBF used for last load_graph (may be osmium-extracted)
+    
+    def _extract_bbox_with_osmium(self, source_pbf: str, clip_bbox: tuple, output_pbf: str) -> bool:
+        """
+        Use osmium-tool to extract a bbox region from a large PBF file.
+        
+        This is memory-efficient because osmium streams the data rather than
+        loading it all into memory like pyrosm does.
+        
+        Args:
+            source_pbf: Path to the large source PBF file
+            clip_bbox: (min_lat, min_lon, max_lat, max_lon) to extract
+            output_pbf: Path for the extracted output PBF
+            
+        Returns:
+            True if extraction succeeded, False otherwise
+        """
+        import subprocess
+        
+        # osmium extract uses format: left,bottom,right,top (min_lon,min_lat,max_lon,max_lat)
+        bbox_str = f"{clip_bbox[1]},{clip_bbox[0]},{clip_bbox[3]},{clip_bbox[2]}"
+        
+        cmd = [
+            "osmium", "extract",
+            "-b", bbox_str,
+            source_pbf,
+            "-o", output_pbf,
+            "--overwrite"  # Allow overwriting if file exists
+        ]
+        
+        self.log(f"[OSMDataLoader] Running osmium extract: {' '.join(cmd)}")
+        
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if result.returncode == 0:
+                self.log(f"[OSMDataLoader] Osmium extraction complete: {output_pbf}")
+                return True
+            else:
+                self.log(f"[OSMDataLoader] Osmium extraction failed: {result.stderr}")
+                return False
+        except subprocess.TimeoutExpired:
+            self.log("[OSMDataLoader] Osmium extraction timed out after 5 minutes")
+            return False
+        except FileNotFoundError:
+            self.log("[OSMDataLoader] osmium-tool not installed, cannot extract bbox")
+            return False
+        except Exception as e:
+            self.log(f"[OSMDataLoader] Osmium extraction error: {e}")
+            return False
 
     def ensure_data_for_bbox(self, bbox: tuple):
         """
@@ -115,17 +169,51 @@ class OSMDataLoader:
         if not os.path.exists(self.file_path):
             raise FileNotFoundError(f"PBF file not found: {self.file_path}")
 
-        self.log(f"[OSMDataLoader] Parsing PBF data: {self.file_path} (This uses pyrosm for speed)")
+        # Check if PBF is too large for pyrosm to handle directly
+        # pyrosm loads the entire PBF into memory before clipping, so large files
+        # will cause OOM. We use osmium to pre-extract the bbox region instead.
+        pbf_size = os.path.getsize(self.file_path)
+        actual_pbf_path = self.file_path
+        temp_extracted_pbf = None
+        
+        if pbf_size > self.MAX_PYROSM_PBF_SIZE and clip_bbox:
+            self.log(f"[OSMDataLoader] PBF is {pbf_size / (1024*1024):.1f}MB (> {self.MAX_PYROSM_PBF_SIZE / (1024*1024):.0f}MB limit)")
+            self.log("[OSMDataLoader] Using osmium to pre-extract bbox region to avoid OOM...")
+            
+            # Create a temporary output path for the extracted PBF
+            # Include bbox in filename to allow caching of extracted regions
+            bbox_id = f"{clip_bbox[0]:.2f}_{clip_bbox[1]:.2f}_{clip_bbox[2]:.2f}_{clip_bbox[3]:.2f}"
+            extracted_filename = f"extracted_{bbox_id}.osm.pbf"
+            temp_extracted_pbf = os.path.join(self.data_dir, extracted_filename)
+            
+            # Check if we already have this extracted region cached
+            if os.path.exists(temp_extracted_pbf) and os.path.getsize(temp_extracted_pbf) > 1024:
+                self.log(f"[OSMDataLoader] Using cached extracted PBF: {temp_extracted_pbf}")
+                actual_pbf_path = temp_extracted_pbf
+            else:
+                # Run osmium extraction
+                if self._extract_bbox_with_osmium(self.file_path, clip_bbox, temp_extracted_pbf):
+                    actual_pbf_path = temp_extracted_pbf
+                else:
+                    # Fallback: try pyrosm anyway and hope for the best
+                    self.log("[OSMDataLoader] Osmium failed, attempting pyrosm direct load (may OOM)...")
+        
+        # Store the active PBF path for feature extraction methods to use
+        self._active_pbf_path = actual_pbf_path
+        
+        self.log(f"[OSMDataLoader] Parsing PBF data: {actual_pbf_path} (This uses pyrosm for speed)")
         
         try:
             # Initialise Pyrosm - optionally clip to bbox for memory efficiency
+            # If we pre-extracted with osmium, the PBF is already small so pyrosm bounding_box
+            # is less critical but still useful for exact clipping
             if clip_bbox:
                 # Convert from (min_lat, min_lon, max_lat, max_lon) to pyrosm format [min_lon, min_lat, max_lon, max_lat]
                 bounding_box = [clip_bbox[1], clip_bbox[0], clip_bbox[3], clip_bbox[2]]
                 self.log(f"[OSMDataLoader] Clipping to bbox: {clip_bbox}")
-                osm = OSM(self.file_path, bounding_box=bounding_box)
+                osm = OSM(actual_pbf_path, bounding_box=bounding_box)
             else:
-                osm = OSM(self.file_path)
+                osm = OSM(actual_pbf_path)
             
             # Custom filter for Weighted Sum Model
             extra_attributes = [
@@ -275,14 +363,17 @@ class OSMDataLoader:
         """
         import geopandas as gpd
         
-        if not self.file_path or not os.path.exists(self.file_path):
+        # Use the active PBF path if set (may be osmium-extracted), otherwise fall back to file_path
+        pbf_path = self._active_pbf_path or self.file_path
+        
+        if not pbf_path or not os.path.exists(pbf_path):
             self.log("[OSMDataLoader] Cannot extract green areas - PBF not loaded.")
             return gpd.GeoDataFrame()
         
-        self.log("[OSMDataLoader] Extracting green areas for visibility analysis...")
+        self.log(f"[OSMDataLoader] Extracting green areas from: {os.path.basename(pbf_path)}")
         
         try:
-            osm = OSM(self.file_path)
+            osm = OSM(pbf_path)
             
             custom_filter = {
                 'landuse': ['grass', 'forest', 'meadow', 'recreation_ground', 
@@ -326,14 +417,17 @@ class OSMDataLoader:
         """
         import geopandas as gpd
         
-        if not self.file_path or not os.path.exists(self.file_path):
+        # Use the active PBF path if set (may be osmium-extracted), otherwise fall back to file_path
+        pbf_path = self._active_pbf_path or self.file_path
+        
+        if not pbf_path or not os.path.exists(pbf_path):
             self.log("[OSMDataLoader] Cannot extract buildings - PBF not loaded.")
             return gpd.GeoDataFrame()
         
-        self.log("[OSMDataLoader] Extracting buildings for visibility analysis...")
+        self.log(f"[OSMDataLoader] Extracting buildings from: {os.path.basename(pbf_path)}")
         
         try:
-            osm = OSM(self.file_path)
+            osm = OSM(pbf_path)
             
             # Get buildings - pyrosm has a dedicated method for this
             gdf = osm.get_buildings()
@@ -378,14 +472,17 @@ class OSMDataLoader:
         # Buffer width for river/canal LineStrings (in metres after projection)
         RIVER_BUFFER_METRES = 10
         
-        if not self.file_path or not os.path.exists(self.file_path):
+        # Use the active PBF path if set (may be osmium-extracted), otherwise fall back to file_path
+        pbf_path = self._active_pbf_path or self.file_path
+        
+        if not pbf_path or not os.path.exists(pbf_path):
             self.log("[OSMDataLoader] Cannot extract water - PBF not loaded.")
             return gpd.GeoDataFrame()
         
-        self.log("[OSMDataLoader] Extracting water features...")
+        self.log(f"[OSMDataLoader] Extracting water features from: {os.path.basename(pbf_path)}")
         
         try:
-            osm = OSM(self.file_path)
+            osm = OSM(pbf_path)
             
             custom_filter = {
                 'natural': ['water', 'wetland'],
@@ -441,14 +538,17 @@ class OSMDataLoader:
         """
         import geopandas as gpd
         
-        if not self.file_path or not os.path.exists(self.file_path):
+        # Use the active PBF path if set (may be osmium-extracted), otherwise fall back to file_path
+        pbf_path = self._active_pbf_path or self.file_path
+        
+        if not pbf_path or not os.path.exists(pbf_path):
             self.log("[OSMDataLoader] Cannot extract POIs - PBF not loaded.")
             return gpd.GeoDataFrame()
         
-        self.log("[OSMDataLoader] Extracting tourist and social POIs...")
+        self.log(f"[OSMDataLoader] Extracting POIs from: {os.path.basename(pbf_path)}")
         
         try:
-            osm = OSM(self.file_path)
+            osm = OSM(pbf_path)
             
             custom_filter = {
                 'tourism': ['attraction', 'viewpoint', 'museum', 'artwork', 

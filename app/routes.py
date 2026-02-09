@@ -347,13 +347,16 @@ def calculate_route():
             from app.services.core.cache_manager import get_cache_manager
             from app.services.core.data_loader import OSMDataLoader
             from app.services.core.task_manager import get_task_manager
-            from app.services.core.tile_utils import get_tiles_for_route, get_tile_bbox
+            from app.services.core.tile_utils import (
+                get_tiles_for_route, get_tile_bbox, 
+                DEFAULT_TILE_SIZE_KM, DEFAULT_TILE_OVERLAP_KM
+            )
             
             greenness_mode = current_app.config.get('GREENNESS_MODE', 'FAST')
             elevation_mode = current_app.config.get('ELEVATION_MODE', 'OFF')
             normalisation_mode = current_app.config.get('NORMALISATION_MODE', 'STATIC')
-            tile_size_km = current_app.config.get('TILE_SIZE_KM', 30)
-            tile_overlap_km = current_app.config.get('TILE_OVERLAP_KM', 2)
+            tile_size_km = current_app.config.get('TILE_SIZE_KM', DEFAULT_TILE_SIZE_KM)
+            tile_overlap_km = current_app.config.get('TILE_OVERLAP_KM', DEFAULT_TILE_OVERLAP_KM)
             
             # Determine tiles first, then derive region from the TILE bbox
             # so that cache keys match what the worker uses (ADR-007 consistency)
@@ -423,8 +426,9 @@ def calculate_route():
         graph = GraphManager.get_graph_for_route(start_point, end_point)
         
         # Calculate tile_ids for response highlighting
-        from app.services.core.tile_utils import get_tiles_for_route
-        tile_size_km = current_app.config.get('TILE_SIZE_KM', 30)
+        # Calculate tile_ids for response highlighting
+        from app.services.core.tile_utils import get_tiles_for_route, DEFAULT_TILE_SIZE_KM
+        tile_size_km = current_app.config.get('TILE_SIZE_KM', DEFAULT_TILE_SIZE_KM)
         tile_ids = get_tiles_for_route(start_point, end_point, tile_size_km)
         
         # Parse WSM settings from request

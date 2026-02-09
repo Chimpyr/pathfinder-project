@@ -22,6 +22,8 @@ from celery_app import celery
 
 from app.services.core.graph_builder import build_graph, find_region_for_bbox
 from app.services.core.cache_manager import get_cache_manager
+# Import constants for defaults
+from app.services.core.tile_utils import DEFAULT_TILE_SIZE_KM, DEFAULT_TILE_OVERLAP_KM
 
 
 # Configure logging for tasks
@@ -175,8 +177,8 @@ def build_tile_task(
     greenness_mode: str = 'FAST',
     elevation_mode: str = 'OFF',
     normalisation_mode: str = 'STATIC',
-    tile_size_km: float = 30,
-    tile_overlap_km: float = 2
+    tile_size_km: float = DEFAULT_TILE_SIZE_KM,
+    tile_overlap_km: float = DEFAULT_TILE_OVERLAP_KM
 ) -> Dict[str, Any]:
     """
     Celery task to build and cache a single tile (ADR-007).

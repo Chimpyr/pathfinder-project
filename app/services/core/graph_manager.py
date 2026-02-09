@@ -75,9 +75,9 @@ class GraphManager:
     _current_region: Optional[str] = None
     
     # Tile-level in-memory cache: cache_key -> (graph, last_used_time)
-    # This avoids reloading 250MB pickle files from disk on every request
+    # REDUCED LIMIT: 12 -> 4 to prevent OOM with 15km tiles (User request 09/02/26)
     _tile_cache: Dict[str, Tuple[nx.MultiDiGraph, float]] = {}
-    _max_cached_tiles: int = 12  # ~3GB memory for 12 tiles @ 250MB each
+    _max_cached_tiles: int = 4  # ~1.5GB limit assuming 300-400MB per 15km tile
     
     # Merged graph cache: frozenset(tile_ids) -> (merged_graph, last_used_time)
     # Avoids re-merging same tile combinations (20-30s per merge)
@@ -299,13 +299,13 @@ class GraphManager:
             networkx.MultiDiGraph: Merged graph covering all required tiles.
         """
         from app.services.core.tile_utils import (
-            get_tiles_for_route, get_tile_bbox
+            get_tiles_for_route, get_tile_bbox, DEFAULT_TILE_SIZE_KM, DEFAULT_TILE_OVERLAP_KM
         )
         from app.services.core.graph_builder import build_graph
         
-        # Get config values
-        tile_size_km = get_config('TILE_SIZE_KM', 30)
-        tile_overlap_km = get_config('TILE_OVERLAP_KM', 2)
+        # Get config values (use constants from tile_utils as defaults)
+        tile_size_km = get_config('TILE_SIZE_KM', DEFAULT_TILE_SIZE_KM)
+        tile_overlap_km = get_config('TILE_OVERLAP_KM', DEFAULT_TILE_OVERLAP_KM)
         greenness_mode = get_greenness_mode()
         elevation_mode = get_elevation_mode()
         normalisation_mode = get_config('NORMALISATION_MODE', 'STATIC')
@@ -426,8 +426,8 @@ class GraphManager:
         
         # Cache the merged graph for instant lookup next time
         cls._merged_cache[merged_cache_key] = (merged_graph, time.time())
-        # Limit merged cache size (keep last 5 merged combinations)
-        if len(cls._merged_cache) > 5:
+        # Limit merged cache size (keep last 2 merged combinations to save RAM)
+        if len(cls._merged_cache) > 2:
             oldest = min(cls._merged_cache.keys(), key=lambda k: cls._merged_cache[k][1])
             del cls._merged_cache[oldest]
         

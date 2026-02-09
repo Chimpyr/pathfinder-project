@@ -68,7 +68,7 @@ class Config:
     # 30km covers most of greater Bristol area in 1-2 tiles for typical routes
     # Larger tiles = better cache reuse, fewer cross-boundary routes
     # Trade-off: longer initial build time (~3-4 min per tile)
-    TILE_SIZE_KM = 30
+    TILE_SIZE_KM = 15
     
     # Overlap between adjacent tiles in kilometres
     # Ensures boundary edges connect properly when merging tiles

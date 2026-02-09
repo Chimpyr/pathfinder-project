@@ -15,8 +15,26 @@ import math
 # Approximate degrees per kilometre at mid-latitudes (UK ~51°N)
 DEG_PER_KM = 1 / 111.0
 
+# Import configuration to ensure single source of truth for tile sizes
+try:
+    # Try importing from root config
+    import sys
+    import os
+    # Ensure root directory is in path
+    root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    if root_dir not in sys.path:
+        sys.path.insert(0, root_dir)
+    from config import Config
+    DEFAULT_TILE_SIZE_KM = Config.TILE_SIZE_KM
+    DEFAULT_TILE_OVERLAP_KM = Config.TILE_OVERLAP_KM
+except ImportError:
+    # Fallback if config cannot be loaded (e.g. strict unit tests)
+    print("WARNING: Could not import Config in tile_utils.py, using defaults.")
+    DEFAULT_TILE_SIZE_KM = 15
+    DEFAULT_TILE_OVERLAP_KM = 2
 
-def get_tile_id(lat: float, lon: float, tile_size_km: float = 30) -> str:
+
+def get_tile_id(lat: float, lon: float, tile_size_km: float = DEFAULT_TILE_SIZE_KM) -> str:
     """
     Snap coordinates to the nearest tile grid cell.
     
@@ -46,7 +64,7 @@ def get_tile_id(lat: float, lon: float, tile_size_km: float = 30) -> str:
 
 def get_tiles_for_bbox(min_lat: float, min_lon: float, 
                        max_lat: float, max_lon: float,
-                       tile_size_km: float = 30) -> List[str]:
+                       tile_size_km: float = DEFAULT_TILE_SIZE_KM) -> List[str]:
     """
     Determine which tiles cover a bounding box.
     
@@ -81,7 +99,7 @@ def get_tiles_for_bbox(min_lat: float, min_lon: float,
 
 def get_tiles_for_route(start: Tuple[float, float], 
                         end: Tuple[float, float],
-                        tile_size_km: float = 30) -> List[str]:
+                        tile_size_km: float = DEFAULT_TILE_SIZE_KM) -> List[str]:
     """
     Determine which tiles a route between two points requires.
     
@@ -136,8 +154,8 @@ def get_tiles_for_route(start: Tuple[float, float],
     return candidates
 
 
-def get_tile_bbox(tile_id: str, tile_size_km: float = 30,
-                  overlap_km: float = 2) -> Tuple[float, float, float, float]:
+def get_tile_bbox(tile_id: str, tile_size_km: float = DEFAULT_TILE_SIZE_KM,
+                  overlap_km: float = DEFAULT_TILE_OVERLAP_KM) -> Tuple[float, float, float, float]:
     """
     Get the bounding box for a tile, including overlap buffer.
     

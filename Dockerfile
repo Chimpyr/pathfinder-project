@@ -6,6 +6,8 @@ LABEL description="Multi-purpose image for Flask API and Celery worker"
 WORKDIR /app
 
 # Install system dependencies for geospatial libraries
+# osmium-tool is used to pre-extract bbox regions from large PBFs
+# (pyrosm loads full PBF into memory before clipping, causing OOM on large files)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgeos-dev \
@@ -13,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdal-dev \
     libffi-dev \
     curl \
+    osmium-tool \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for layer caching
