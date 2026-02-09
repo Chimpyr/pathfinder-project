@@ -18,7 +18,7 @@ services:
     build: .
     container_name: scenic-api
     ports:
-      - "5000:5000"
+      - "5001:5000"
     volumes:
       # Shared cache volume for processed graphs
       - ./app/data:/app/app/data
@@ -73,7 +73,7 @@ services:
         condition: service_healthy
     command: celery -A celery_app flower --port=5555
     profiles:
-      - monitoring  # Only starts with `docker-compose --profile monitoring up`
+      - monitoring # Only starts with `docker-compose --profile monitoring up`
 
 volumes:
   redis_data:
