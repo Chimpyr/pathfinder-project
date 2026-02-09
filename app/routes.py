@@ -204,7 +204,7 @@ def get_cached_tiles():
             try:
                 tile_lat = float(tile_parts[0])
                 tile_lon = float(tile_parts[1])
-                tile_id = f"{tile_lat}_{tile_lon}"
+                tile_id = f"{tile_lat:.2f}_{tile_lon:.2f}"
                 
                 # Calculate bounding box for this tile
                 bbox = get_tile_bbox(tile_id, tile_size_km, tile_overlap_km)
