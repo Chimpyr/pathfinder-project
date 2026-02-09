@@ -1,19 +1,20 @@
 """
 Social Processor Module
 
-Calculates proximity to tourist and social points of interest for each graph edge.
+Calculates sociability of graph edges based on "Third Places" density.
 
-OSM tags used:
-- tourism: attraction, viewpoint, museum, artwork, gallery, information
-- historic: castle, monument, memorial, ruins, archaeological_site
-- amenity: cafe, restaurant, pub, theatre, cinema
+Implements Novack et al. (2018) methodology:
+- Uses specific OSM tags for social/third places (Table 1).
+- Calculates social cost as: Length / Count of Third Places within 50 buffer.
+- Lower cost = Higher sociability (better density of social spots).
 
 Edge attribute added:
-- raw_social_cost: 0.0 = near POIs, 1.0 = no POIs (lower = better for routing)
+- raw_social_cost: Calculated density metric (lower = better).
 """
 
 import time
-from typing import List, Tuple, Optional
+import math
+from typing import List, Tuple, Optional, Set
 import networkx as nx
 import geopandas as gpd
 from shapely.geometry import Point
@@ -22,22 +23,22 @@ from pyproj import Transformer
 
 
 # Configuration constants
-FAST_BUFFER_RADIUS: float = 50.0  # metres - larger buffer for POIs (sparse features)
+BUFFER_RADIUS: float = 50.0  # metres - as per Novack (2018)
+MIN_social_COUNT: float = 0.1  # small epsilon to avoid div/0 for 0 POIs
 
-# POI categories and their OSM tags
-POI_TOURISM_TAGS = frozenset({
-    'attraction', 'viewpoint', 'museum', 'artwork', 'gallery', 
-    'information', 'picnic_site', 'zoo', 'theme_park'
-})
-
-POI_HISTORIC_TAGS = frozenset({
-    'castle', 'monument', 'memorial', 'ruins', 'archaeological_site',
-    'church', 'manor', 'fort', 'battlefield', 'boundary_stone'
-})
-
+# Novack (2018) Table 1: Third Place Tags
 POI_AMENITY_TAGS = frozenset({
-    'cafe', 'restaurant', 'pub', 'bar', 'theatre', 'cinema',
-    'arts_centre', 'community_centre', 'library'
+    'cafe', 'bar', 'pub', 'restaurant',
+    'ice_cream', 'fast_food', 'food_court', 'biergarten'  # Expanded slightly for completeness
+})
+
+POI_SHOP_TAGS = frozenset({
+    'bakery', 'convenience', 'supermarket', 'mall', 'department_store',
+    'clothes', 'fashion', 'shoes', 'gift', 'books'
+})
+
+POI_LEISURE_TAGS = frozenset({
+    'fitness_centre', 'sports_centre', 'gym', 'dance', 'bowling_alley'
 })
 
 # Coordinate transformer: WGS84 (lat/lon) to UTM zone 30N (metres)
@@ -59,7 +60,7 @@ def _transform_coords(lon: float, lat: float) -> Tuple[float, float]:
     return x, y
 
 
-def _build_spatial_index(gdf: Optional[gpd.GeoDataFrame]) -> Tuple[Optional[STRtree], List]:
+def _build_spatial_index(gdf: Optional[gpd.GeoDataFrame]) -> Tuple[Optional[STRtree], List, List[dict]]:
     """
     Build R-tree spatial index for efficient geometry lookups.
     
@@ -67,80 +68,69 @@ def _build_spatial_index(gdf: Optional[gpd.GeoDataFrame]) -> Tuple[Optional[STRt
         gdf: GeoDataFrame of POI points/polygons (projected to metres).
     
     Returns:
-        Tuple of (spatial_index, geometry_list).
+        Tuple of (spatial_index, geometry_list, attributes_list).
     """
     if gdf is None or gdf.empty:
-        return None, []
+        return None, [], []
     
     geoms = list(gdf.geometry)
+    
+    # Store attributes if needed for filtering, though currently we rely on
+    # the loader to pre-filter POIs based on tags.
+    attrs = gdf.drop(columns='geometry').to_dict('records')
+    
     sindex = STRtree(geoms)
-    return sindex, geoms
+    return sindex, geoms, attrs
 
 
-def _calculate_social_score_fast(
+def _calculate_novack_social_cost(
     midpoint: Point,
+    length: float,
     poi_sindex: Optional[STRtree],
     poi_geoms: List,
-    buffer_radius: float = FAST_BUFFER_RADIUS
+    buffer_radius: float = BUFFER_RADIUS
 ) -> float:
     """
-    Calculate social/POI proximity score using buffer intersection (FAST mode).
+    Calculate Novack social cost: Length / Count of Third Places.
     
-    For point POIs, we count the number within the buffer.
-    For polygon POIs (e.g., parks with attractions), we measure intersection area.
-    
-    The score is normalised: presence of any POI within buffer gives a score,
-    with diminishing returns for additional POIs.
+    Novack (2018): "The sociability factor was computed... by dividing its length
+    by the number of third place features [in 50m buffer]."
     
     Args:
         midpoint: Edge midpoint (projected coordinates).
+        length: Edge length in metres.
         poi_sindex: Spatial index for POIs.
         poi_geoms: List of POI geometries.
         buffer_radius: Search radius in metres.
     
     Returns:
-        Float between 0.0 and 1.0 representing POI proximity.
+        Float cost value (lower = better/more social).
     """
     if poi_sindex is None or len(poi_geoms) == 0:
-        return 0.0
+        # No POIs at all -> Max cost (Length / epsilon)
+        return length / MIN_social_COUNT
     
     buffer = midpoint.buffer(buffer_radius)
     
     candidate_indices = poi_sindex.query(buffer)
     if len(candidate_indices) == 0:
-        return 0.0
+         return length / MIN_social_COUNT
     
-    # Count POIs within buffer and calculate proximity score
+    # Count actual intersections
     poi_count = 0
-    total_proximity = 0.0
-    
     for idx in candidate_indices:
         geom = poi_geoms[idx]
         try:
             if buffer.intersects(geom):
-                # Calculate distance-weighted score
-                if geom.geom_type == 'Point':
-                    distance = midpoint.distance(geom)
-                else:
-                    distance = midpoint.distance(geom.centroid)
-                
-                # Closer POIs score higher (inverse distance, normalised)
-                if distance < buffer_radius:
-                    proximity = 1.0 - (distance / buffer_radius)
-                    total_proximity += proximity
-                    poi_count += 1
+                poi_count += 1
         except Exception:
             continue
     
-    if poi_count == 0:
-        return 0.0
-    
-    # Diminishing returns: 1 POI = 0.5, 2 = 0.7, 3+ = 0.85, 5+ = 0.95
-    # Using average proximity weighted by count
-    avg_proximity = total_proximity / poi_count
-    count_factor = min(1.0, 0.3 + (poi_count * 0.15))  # Caps at 1.0 around 5 POIs
-    
-    return min(1.0, avg_proximity * count_factor * 1.5)
+    # Apply Novack formula
+    # If count is 0, use epsilon to avoid infinity
+    # Higher count -> Lower cost
+    effective_count = max(MIN_social_COUNT,  float(poi_count))
+    return length / effective_count
 
 
 def process_graph_social(
@@ -148,17 +138,14 @@ def process_graph_social(
     poi_gdf: Optional[gpd.GeoDataFrame]
 ) -> nx.MultiDiGraph:
     """
-    Process all edges to assign social/POI proximity scores.
-    
-    Uses 50m buffer around edge midpoints to calculate proximity
-    to tourist attractions, historic sites, and social amenities.
+    Process all edges to assign social costs using Novack (2018) methodology.
     
     Args:
         graph: NetworkX MultiDiGraph with node coordinates.
         poi_gdf: GeoDataFrame of POI points/polygons (projected).
     
     Returns:
-        Graph with raw_social_cost added to edges (0.0 = near POIs, 1.0 = no POIs).
+        Graph with raw_social_cost added to edges.
     """
     if graph is None:
         return graph
@@ -168,20 +155,24 @@ def process_graph_social(
         return graph
     
     print("[SocialProcessor] Building spatial index...")
-    poi_sindex, poi_geoms = _build_spatial_index(poi_gdf)
+    poi_sindex, poi_geoms, _ = _build_spatial_index(poi_gdf)
     
     poi_count = len(poi_geoms)
-    print(f"[SocialProcessor] Found {poi_count} POIs in dataset")
+    print(f"[SocialProcessor] Found {poi_count} Third Places to analyse")
     
     edges_processed = 0
     total_edges = graph.number_of_edges()
     report_interval = max(1, total_edges // 10)
     
-    print(f"[SocialProcessor] Processing {total_edges} edges...")
+    print(f"[SocialProcessor] Processing {total_edges} edges (Novack Density)...")
     t0 = time.perf_counter()
+    
+    # Track stats for normalization advice
+    costs = []
     
     for u, v, key, data in graph.edges(keys=True, data=True):
         try:
+            # Get geometry
             start_lon = graph.nodes[u].get('x', 0)
             start_lat = graph.nodes[u].get('y', 0)
             end_lon = graph.nodes[v].get('x', 0)
@@ -190,17 +181,23 @@ def process_graph_social(
             start_x, start_y = _transform_coords(start_lon, start_lat)
             end_x, end_y = _transform_coords(end_lon, end_lat)
             
+            # Simple midpoint approximation for the "buffer around segment"
+            # For short urban segments, this is very close to buffering the line
             mid_x = (start_x + end_x) / 2
             mid_y = (start_y + end_y) / 2
             midpoint = Point(mid_x, mid_y)
             
-            social_score = _calculate_social_score_fast(midpoint, poi_sindex, poi_geoms)
+            length = data.get('length', 1.0) # Default to 1m if missing
             
-            # Convert to cost (lower = better)
-            graph[u][v][key]['raw_social_cost'] = 1.0 - social_score
+            social_cost = _calculate_novack_social_cost(
+                midpoint, length, poi_sindex, poi_geoms
+            )
+            
+            graph[u][v][key]['raw_social_cost'] = social_cost
+            costs.append(social_cost)
             
         except Exception:
-            graph[u][v][key]['raw_social_cost'] = 1.0
+            graph[u][v][key]['raw_social_cost'] = 1000.0 # High fallback cost
         
         edges_processed += 1
         if edges_processed % report_interval == 0:
@@ -208,6 +205,11 @@ def process_graph_social(
             print(f"  > Progress: {pct:.0f}% ({edges_processed}/{total_edges})")
     
     elapsed = time.perf_counter() - t0
+    
+    if costs:
+        min_c, max_c = min(costs), max(costs)
+        print(f"[SocialProcessor] Cost Range: {min_c:.2f} - {max_c:.2f}")
+        
     print(f"[SocialProcessor] Processed {edges_processed} edges in {elapsed:.2f}s")
     
     return graph

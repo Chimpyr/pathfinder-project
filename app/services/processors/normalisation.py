@@ -139,7 +139,7 @@ def normalise_attribute(
         raw_value = data.get(raw_attr)
         
         if raw_value is not None:
-            if dynamic or invert or raw_attr in ('noise_factor', 'slope_time_cost'):
+            if dynamic or invert or raw_attr in ('noise_factor', 'slope_time_cost', 'raw_social_cost'):
                 # Need to actually normalise
                 norm_value = normalise_value(raw_value, min_val, max_val, invert)
             else:
