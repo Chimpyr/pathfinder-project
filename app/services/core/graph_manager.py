@@ -15,6 +15,7 @@ from app.services.processors.orchestrator import process_scenic_attributes
 from app.services.processors.elevation import process_graph_elevation
 from app.services.processors.normalisation import normalise_graph_costs
 from app.services.core.cache_manager import get_cache_manager
+from config import Config
 
 try:
     from flask import current_app, has_app_context
@@ -75,9 +76,9 @@ class GraphManager:
     _current_region: Optional[str] = None
     
     # Tile-level in-memory cache: cache_key -> (graph, last_used_time)
-    # REDUCED LIMIT: 12 -> 4 to prevent OOM with 15km tiles (User request 09/02/26)
+    # REDUCED LIMIT: Controlled by config
     _tile_cache: Dict[str, Tuple[nx.MultiDiGraph, float]] = {}
-    _max_cached_tiles: int = 4  # ~1.5GB limit assuming 300-400MB per 15km tile
+    _max_cached_tiles: int = getattr(Config, 'MAX_CACHED_TILES', 4)
     
     # Merged graph cache: frozenset(tile_ids) -> (merged_graph, last_used_time)
     # Avoids re-merging same tile combinations (20-30s per merge)
@@ -426,8 +427,8 @@ class GraphManager:
         
         # Cache the merged graph for instant lookup next time
         cls._merged_cache[merged_cache_key] = (merged_graph, time.time())
-        # Limit merged cache size (keep last 2 merged combinations to save RAM)
-        if len(cls._merged_cache) > 2:
+        # Limit merged cache size (keep last 5 merged combinations)
+        if len(cls._merged_cache) > 5:
             oldest = min(cls._merged_cache.keys(), key=lambda k: cls._merged_cache[k][1])
             del cls._merged_cache[oldest]
         
