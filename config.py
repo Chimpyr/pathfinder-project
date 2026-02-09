@@ -55,8 +55,6 @@ class Config:
     # Graph caching configuration
     # Maximum number of region graphs to keep in memory (LRU eviction)
     # Higher = more memory usage, fewer reloads for multi-region routing
-    # Maximum number of region graphs to keep in memory (LRU eviction)
-    # Higher = more memory usage, fewer reloads for multi-region routing
     MAX_CACHED_REGIONS = 3
     
     # Maximum number of tile graphs to keep in memory (LRU eviction)
@@ -74,9 +72,6 @@ class Config:
     # 30km covers most of greater Bristol area in 1-2 tiles for typical routes
     # Larger tiles = better cache reuse, fewer cross-boundary routes
     # Trade-off: longer initial build time (~3-4 min per tile)
-    # Size of each tile in kilometres
-    # 7.5km increases parallelism (more tasks per route)
-    # Trade-off: slightly more overhead for very short routes
     TILE_SIZE_KM = 15
     
     # Overlap between adjacent tiles in kilometres

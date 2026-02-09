@@ -130,6 +130,11 @@ if (showCachedTilesToggle) {
             tileCountSpan.textContent = '';
         }
     });
+    
+    // Initial check (handles soft reloads where browser keeps checkbox state)
+    if (showCachedTilesToggle.checked) {
+        refreshTileOverlay();
+    }
 }
 
 /**
@@ -742,6 +747,14 @@ function handleRouteSuccess(data) {
         debugInfo.classList.add('hidden');
         const edgePreviewContainer = document.getElementById('edge-preview-container');
         if (edgePreviewContainer) edgePreviewContainer.classList.add('hidden');
+    }
+    
+    // Extract tiles used for this route and refresh overlay
+    if (data.tiles_required && Array.isArray(data.tiles_required)) {
+        routeUsedTileIds = data.tiles_required;
+        refreshTileOverlay();
+    } else {
+        routeUsedTileIds = [];
     }
 }
 

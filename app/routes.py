@@ -184,6 +184,7 @@ def get_cached_tiles():
         tile_overlap_km = current_app.config.get('TILE_OVERLAP_KM', 2)
         
         cache_mgr = get_cache_manager()
+        cache_mgr.refresh_manifest()  # Force reload to see tiles from workers
         manifest = cache_mgr._manifest
         
         tiles = []
@@ -550,7 +551,8 @@ def calculate_route():
                 'time_min': int(time_seconds // 60),
                 'pace_kmh': current_app.config.get('WALKING_SPEED_KMH', 5.0),
                 'routing_mode': 'scenic' if use_wsm else 'shortest'
-            }
+            },
+            'tiles_required': tile_ids if 'tile_ids' in locals() else []
         }
         
         # Add debug info if enabled

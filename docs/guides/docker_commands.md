@@ -38,6 +38,11 @@ scenic-worker   scenicpathfinder-worker   "celery -A celery_ap…"   worker    5
 ```bash
 docker compose logs worker | Select-String "TILE:"
 ```
+or all logs from all containers
+
+```bash
+docker compose logs
+```
 
 ## Clear cache
 

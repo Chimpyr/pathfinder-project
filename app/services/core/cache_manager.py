@@ -58,6 +58,13 @@ class CacheManager:
                 return {"version": CACHE_VERSION, "entries": {}}
         return {"version": CACHE_VERSION, "entries": {}}
     
+    def refresh_manifest(self):
+        """
+        Force reload of the manifest from disk.
+        Useful for debug endpoints to see latest cache state from workers.
+        """
+        self._manifest = self._load_manifest()
+
     def _save_manifest(self):
         """
         Save the cache manifest to disk atomically.

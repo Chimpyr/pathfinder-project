@@ -92,3 +92,28 @@ When `DEBUG` or `VERBOSE_LOGGING` is enabled, the `/api/route` endpoint includes
     "edge_features": [...]  // All edges (only if route < 5km currently)
 }
 ```
+
+---
+
+## Cached Tiles Visualisation
+
+To debug the graph caching system and verify which tiles are being used for routing, a visualisation tool is available in the frontend.
+
+### Usage
+
+1.  Toggle the **"Show Cached Tiles"** checkbox at the bottom of the sidebar (always visible).
+2.  The map will overlay the grid of currently cached tiles.
+    -   *Note: If the cache is empty, the label will show "(no tiles cached)".*
+
+### Color Coding
+
+| Color | Meaning | Description |
+|-------|---------|-------------|
+| **Purple** | Cached Tile | The tile exists in the backend cache (ready for use). |
+| **Orange** | Used in Route | The tile was specifically required and loaded for the most recent route calculation. |
+
+### Behavior
+
+-   **On Load**: If the checkbox is checked, the available tiles are fetched immediately from the backend.
+-   **Before Routing**: Shows the set of all currently cached tiles (useful to see what's already built).
+-   **After Routing**: Automatically updates to highlight (in Orange) the specific tiles used to construct the graph for that route.
