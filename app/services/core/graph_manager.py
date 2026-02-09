@@ -97,12 +97,8 @@ class GraphManager:
             # Default to Bristol
             return 'bristol', None
         
-        # Calculate centre point
-        lat = (bbox[0] + bbox[2]) / 2
-        lon = (bbox[1] + bbox[3]) / 2
-        
-        # Use loader's method to find the right PBF
-        pbf_url, region_name = loader._find_pbf_url_for_location(lat, lon)
+        # Use bbox-aware lookup to find the smallest extract covering the full bbox
+        pbf_url, region_name = loader._find_pbf_url_for_bbox(bbox)
         
         if region_name is None:
             region_name = 'unknown'
@@ -308,8 +304,8 @@ class GraphManager:
         from app.services.core.graph_builder import build_graph
         
         # Get config values
-        tile_size_km = get_config('TILE_SIZE_KM', 15)
-        tile_overlap_km = get_config('TILE_OVERLAP_KM', 1)
+        tile_size_km = get_config('TILE_SIZE_KM', 30)
+        tile_overlap_km = get_config('TILE_OVERLAP_KM', 2)
         greenness_mode = get_greenness_mode()
         elevation_mode = get_elevation_mode()
         normalisation_mode = get_config('NORMALISATION_MODE', 'STATIC')
@@ -318,16 +314,14 @@ class GraphManager:
         tile_ids = get_tiles_for_route(start, end, tile_size_km)
         print(f"[GraphManager] Route requires {len(tile_ids)} tile(s): {tile_ids}")
         
-        # Determine region for this route
-        mid_lat = (start[0] + end[0]) / 2
-        mid_lon = (start[1] + end[1]) / 2
-        bbox = (min(start[0], end[0]), min(start[1], end[1]),
-                max(start[0], end[0]), max(start[1], end[1]))
-        region_name, _ = cls._find_region_for_bbox(bbox)
+        # Determine region from the TILE bbox (not route bbox) so cache keys
+        # match what the worker uses when building tiles (ADR-007 consistency)
+        first_tile_bbox = get_tile_bbox(tile_ids[0], tile_size_km, tile_overlap_km)
+        region_name, _ = cls._find_region_for_bbox(first_tile_bbox)
         
-        # Ensure PBF data exists
+        # Ensure PBF data exists for the tile area
         loader = OSMDataLoader()
-        loader.ensure_data_for_bbox(bbox)
+        loader.ensure_data_for_bbox(first_tile_bbox)
         
         cache_mgr = get_cache_manager()
         

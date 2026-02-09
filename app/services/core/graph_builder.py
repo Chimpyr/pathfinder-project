@@ -255,12 +255,8 @@ def find_region_for_bbox(bbox: Optional[Tuple[float, float, float, float]]) -> T
     if bbox is None:
         return 'bristol', None
     
-    # Calculate centre point
-    lat = (bbox[0] + bbox[2]) / 2
-    lon = (bbox[1] + bbox[3]) / 2
-    
-    # Use loader's method to find the right PBF
-    pbf_url, region_name = loader._find_pbf_url_for_location(lat, lon)
+    # Use bbox-aware lookup to find the smallest extract covering the full bbox
+    pbf_url, region_name = loader._find_pbf_url_for_bbox(bbox)
     
     if region_name is None:
         region_name = 'unknown'

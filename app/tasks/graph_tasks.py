@@ -175,8 +175,8 @@ def build_tile_task(
     greenness_mode: str = 'FAST',
     elevation_mode: str = 'OFF',
     normalisation_mode: str = 'STATIC',
-    tile_size_km: float = 15,
-    tile_overlap_km: float = 1
+    tile_size_km: float = 30,
+    tile_overlap_km: float = 2
 ) -> Dict[str, Any]:
     """
     Celery task to build and cache a single tile (ADR-007).

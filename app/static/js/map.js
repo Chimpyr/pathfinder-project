@@ -511,6 +511,91 @@ class MapController {
     resetToStart() {
         this.state = 'setting_start';
     }
+    
+    /**
+     * Display cached tiles as overlay rectangles for debug visualization.
+     * 
+     * @param {Array} tiles - Array of tile objects with tile_id and bbox.
+     * @param {Array} highlightedTileIds - Optional array of tile IDs to highlight in orange (used in route).
+     */
+    displayCachedTiles(tiles, highlightedTileIds = []) {
+        // Clear any existing tile layers first
+        this.clearTileLayers();
+        
+        if (!tiles || tiles.length === 0) {
+            console.log('[MapController] No cached tiles to display');
+            return;
+        }
+        
+        this.tileLayers = [];
+        const highlightSet = new Set(highlightedTileIds);
+        
+        tiles.forEach(tile => {
+            const { tile_id, bbox, size_mb, created } = tile;
+            const isHighlighted = highlightSet.has(tile_id);
+            
+            // Create rectangle bounds
+            const bounds = [
+                [bbox.min_lat, bbox.min_lon],
+                [bbox.max_lat, bbox.max_lon]
+            ];
+            
+            // Highlighted tiles (used in route) are orange, others are purple
+            const color = isHighlighted ? '#F97316' : '#9333EA';  // Orange vs Purple
+            const fillOpacity = isHighlighted ? 0.25 : 0.12;
+            
+            // Create rectangle with appropriate styling
+            const rect = L.rectangle(bounds, {
+                color: color,
+                fillColor: color,
+                fillOpacity: fillOpacity,
+                weight: isHighlighted ? 3 : 2,
+                dashArray: isHighlighted ? null : '5, 5'  // Solid for highlighted, dashed for cached
+            });
+            
+            // Format creation date
+            const createdDate = created 
+                ? new Date(created * 1000).toLocaleString()
+                : 'Unknown';
+            
+            // Add tooltip with tile info
+            const statusLabel = isHighlighted 
+                ? '<span style="color: #F97316; font-weight: bold;">🚀 Used in Route</span>'
+                : '<span style="color: #9333EA;">📦 Cached</span>';
+            
+            rect.bindTooltip(`
+                <div style="margin-bottom: 4px;">
+                    ${statusLabel}
+                </div>
+                <div style="font-weight: bold; margin-bottom: 4px;">
+                    🗃️ Tile: ${tile_id}
+                </div>
+                <div style="font-size: 11px;">
+                    📦 Size: ${size_mb?.toFixed(1) || '?'} MB<br>
+                    📅 Created: ${createdDate}
+                </div>
+            `, {
+                sticky: true,
+                className: 'tile-tooltip'
+            });
+            
+            rect.addTo(this.map);
+            this.tileLayers.push(rect);
+        });
+        
+        const highlightCount = highlightedTileIds.length;
+        console.log(`[MapController] Displayed ${tiles.length} cached tile(s), ${highlightCount} highlighted`);
+    }
+    
+    /**
+     * Clear tile overlay layers from the map.
+     */
+    clearTileLayers() {
+        if (this.tileLayers && this.tileLayers.length > 0) {
+            this.tileLayers.forEach(layer => this.map.removeLayer(layer));
+            this.tileLayers = [];
+        }
+    }
 }
 
 // Export for use in main.js

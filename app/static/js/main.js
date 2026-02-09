@@ -80,6 +80,58 @@ useScenicToggle.addEventListener('change', () => {
     }
 });
 
+// ============================================================================
+// Cached Tiles Debug Toggle Handler
+// ============================================================================
+const showCachedTilesToggle = document.getElementById('show-cached-tiles');
+const tileCountSpan = document.getElementById('tile-count');
+
+// Track tiles used in the current route for highlighting
+let routeUsedTileIds = [];
+
+/**
+ * Refresh the tile overlay display.
+ * Called when toggle is checked or after route completion.
+ */
+async function refreshTileOverlay() {
+    if (!showCachedTilesToggle || !showCachedTilesToggle.checked) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/cached-tiles');
+        const data = await response.json();
+        
+        if (data.tiles && data.tiles.length > 0) {
+            // Pass highlighted tiles (used in current route)
+            mapController.displayCachedTiles(data.tiles, routeUsedTileIds);
+            
+            const usedCount = routeUsedTileIds.length;
+            tileCountSpan.textContent = usedCount > 0
+                ? `(${data.tiles.length} cached, ${usedCount} used)`
+                : `(${data.tiles.length} tiles, ${data.tile_size_km}km)`;
+        } else {
+            tileCountSpan.textContent = '(no tiles cached)';
+            mapController.clearTileLayers();
+        }
+    } catch (err) {
+        console.error('Failed to fetch cached tiles:', err);
+        tileCountSpan.textContent = '(error)';
+    }
+}
+
+if (showCachedTilesToggle) {
+    showCachedTilesToggle.addEventListener('change', async () => {
+        if (showCachedTilesToggle.checked) {
+            await refreshTileOverlay();
+        } else {
+            // Hide tiles
+            mapController.clearTileLayers();
+            tileCountSpan.textContent = '';
+        }
+    });
+}
+
 /**
  * Get scenic weights from sliders.
  * All values use the same 0-10 scale for proportional weighting.
@@ -725,6 +777,15 @@ function handleMultiRouteSuccess(data) {
         setTimeout(() => {
             routeOptions.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }, 300);
+    }
+    
+    // Extract tiles used for this route and refresh overlay
+    if (data.tiles_required && Array.isArray(data.tiles_required)) {
+        routeUsedTileIds = data.tiles_required;
+        console.log(`[App] Route used ${routeUsedTileIds.length} tile(s): ${routeUsedTileIds.join(', ')}`);
+        refreshTileOverlay();  // Refresh to show highlighted tiles
+    } else {
+        routeUsedTileIds = [];
     }
     
     // Hide debug info for multi-route (too complex)

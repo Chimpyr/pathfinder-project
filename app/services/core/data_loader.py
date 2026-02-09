@@ -73,12 +73,9 @@ class OSMDataLoader:
              self.file_path = os.path.join(self.data_dir, "bristol-260106.osm.pbf")
              return
 
-        # Calculate center point
-        lat = (bbox[0] + bbox[2]) / 2
-        lon = (bbox[1] + bbox[3]) / 2
-        
-        # 1. Find the URL from the Index
-        pbf_url, name = self._find_pbf_url_for_location(lat, lon)
+        # Find the smallest extract that covers the ENTIRE bbox (not just the centre)
+        # This prevents tiles whose centre falls in one region from using the wrong PBF
+        pbf_url, name = self._find_pbf_url_for_bbox(bbox)
         
         if not pbf_url:
             self.log("[OSMDataLoader] Could not find a specific extract, defaulting to England fallback.")
@@ -483,27 +480,30 @@ class OSMDataLoader:
             self.log(f"  [Error] POI extraction failed: {e}")
             return gpd.GeoDataFrame()
 
-    def _find_pbf_url_for_location(self, lat, lon):
-        """
-        Downloads/Loads Geofabrik Index and finds the smallest polygon containing the point.
-        """
+    def _load_geofabrik_index(self):
+        """Load and cache the Geofabrik index data."""
         index_path = os.path.join(self.data_dir, self.INDEX_FILE)
         
-        # Cache index if missing
         if not os.path.exists(index_path):
             self.log("[OSMDataLoader] Downloading Geofabrik Index...")
             self._download_file(self.INDEX_URL, index_path)
             
         try:
             with open(index_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+                return json.load(f)
         except Exception as e:
             print(f"[OSMDataLoader] Error reading index {e}, re-downloading...")
             if os.path.exists(index_path):
                 os.remove(index_path)
             self._download_file(self.INDEX_URL, index_path)
             with open(index_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+                return json.load(f)
+
+    def _find_pbf_url_for_location(self, lat, lon):
+        """
+        Downloads/Loads Geofabrik Index and finds the smallest polygon containing the point.
+        """
+        data = self._load_geofabrik_index()
         
         point = Point(lon, lat)
         best_match = None
@@ -538,6 +538,60 @@ class OSMDataLoader:
             return url, name
             
         return None, None
+
+    def _find_pbf_url_for_bbox(self, bbox):
+        """
+        Find the smallest Geofabrik extract whose polygon fully contains the
+        entire bounding box (all 4 corners), not just the centre point.
+        
+        This prevents the bug where a large tile's centre falls in one region
+        (e.g. Somerset) while the actual route points are in another (e.g. Bristol).
+        
+        Falls back to _find_pbf_url_for_location (centre-point) if no single
+        extract covers the full bbox.
+        
+        Args:
+            bbox: (min_lat, min_lon, max_lat, max_lon)
+        
+        Returns:
+            Tuple of (pbf_url, region_name) or (None, None).
+        """
+        from shapely.geometry import box as shapely_box
+        
+        data = self._load_geofabrik_index()
+        
+        # Build a Shapely box from the bbox (note: shapely_box takes minx,miny,maxx,maxy = lon,lat order)
+        query_box = shapely_box(bbox[1], bbox[0], bbox[3], bbox[2])
+        
+        best_match = None
+        best_area = float('inf')
+        
+        for feature in data['features']:
+            props = feature['properties']
+            if 'pbf' not in props.get('urls', {}):
+                continue
+            try:
+                geom = shape(feature['geometry'])
+                if geom.contains(query_box):
+                    area = geom.area
+                    if area < best_area:
+                        best_area = area
+                        best_match = feature
+            except Exception:
+                continue
+        
+        if best_match:
+            url = best_match['properties']['urls']['pbf']
+            raw_id = best_match['properties']['id']
+            name = raw_id.replace('/', '_').replace('-', '_')
+            self.log(f"[OSMDataLoader] Identified best extract (bbox-cover): {best_match['properties']['name']} ({name})")
+            return url, name
+        
+        # Fallback: no single extract covers the full bbox → use centre point
+        lat = (bbox[0] + bbox[2]) / 2
+        lon = (bbox[1] + bbox[3]) / 2
+        self.log(f"[OSMDataLoader] No extract covers full bbox, falling back to centre-point lookup")
+        return self._find_pbf_url_for_location(lat, lon)
         
     def _download_file(self, url: str, dest_path: str):
         """

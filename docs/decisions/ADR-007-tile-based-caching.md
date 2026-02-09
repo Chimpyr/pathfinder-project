@@ -68,8 +68,8 @@ graph = GraphManager.get_graph_for_route(start_point, end_point)
 
 ```python
 # config.py
-TILE_SIZE_KM = 15        # Size of each tile (15km covers Bristol urban area)
-TILE_OVERLAP_KM = 1      # Buffer for boundary connectivity
+TILE_SIZE_KM = 30        # Size of each tile (30km covers greater Bristol area)
+TILE_OVERLAP_KM = 2      # Buffer for boundary connectivity
 PREWARM_TILES = []       # Optional: Pre-build tiles on startup
 ```
 

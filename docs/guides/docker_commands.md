@@ -44,3 +44,17 @@ docker compose logs worker | Select-String "TILE:"
 ```bash
 docker compose exec api rm -rf /app/app/data/cache/*
 ```
+
+## Attach container to terminal console
+
+```bash
+docker attach <container_name>
+or
+docker container attach <container_name>
+```
+
+## Detach container from terminal console
+
+```bash
+docker detach <container_name>
+```

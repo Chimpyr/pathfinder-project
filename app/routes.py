@@ -154,6 +154,83 @@ def geocode_address():
         return jsonify({'error': str(e)}), 500
 
 
+@main.route('/api/cached-tiles', methods=['GET'])
+def get_cached_tiles():
+    """
+    API endpoint to get all cached tiles for debug visualization.
+    
+    Returns a list of cached tiles with their bounding boxes for
+    displaying on the map as debug overlays.
+    
+    Response JSON:
+        {
+            "tiles": [
+                {
+                    "tile_id": "51.45_-2.55",
+                    "bbox": {"min_lat": 51.3, "min_lon": -2.7, "max_lat": 51.6, "max_lon": -2.4},
+                    "created": 1707411234.5,
+                    "size_mb": 245.2
+                },
+                ...
+            ],
+            "tile_size_km": 30
+        }
+    """
+    from app.services.core.cache_manager import get_cache_manager
+    from app.services.core.tile_utils import get_tile_bbox
+    
+    try:
+        tile_size_km = current_app.config.get('TILE_SIZE_KM', 30)
+        tile_overlap_km = current_app.config.get('TILE_OVERLAP_KM', 2)
+        
+        cache_mgr = get_cache_manager()
+        manifest = cache_mgr._manifest
+        
+        tiles = []
+        for cache_key, entry in manifest.get("entries", {}).items():
+            # Extract tile_id from cache key (format: region_tile_ID_modes_version)
+            parts = cache_key.split("_tile_")
+            if len(parts) < 2:
+                continue
+            
+            # tile_id is between "_tile_" and the next parts
+            rest = parts[1]
+            # tile_id format: "51.45_-2.55" - extract lat and lon
+            tile_parts = rest.split("_")
+            if len(tile_parts) < 2:
+                continue
+            
+            try:
+                tile_lat = float(tile_parts[0])
+                tile_lon = float(tile_parts[1])
+                tile_id = f"{tile_lat}_{tile_lon}"
+                
+                # Calculate bounding box for this tile
+                bbox = get_tile_bbox(tile_id, tile_size_km, tile_overlap_km)
+                
+                tiles.append({
+                    "tile_id": tile_id,
+                    "bbox": {
+                        "min_lat": bbox[0],
+                        "min_lon": bbox[1],
+                        "max_lat": bbox[2],
+                        "max_lon": bbox[3]
+                    },
+                    "created": entry.get("created"),
+                    "size_mb": entry.get("size_mb", 0)
+                })
+            except (ValueError, IndexError):
+                continue
+        
+        return jsonify({
+            "tiles": tiles,
+            "tile_size_km": tile_size_km
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @main.route('/api/route', methods=['POST'])
 def calculate_route():
     """
@@ -270,20 +347,19 @@ def calculate_route():
             from app.services.core.cache_manager import get_cache_manager
             from app.services.core.data_loader import OSMDataLoader
             from app.services.core.task_manager import get_task_manager
-            from app.services.core.tile_utils import get_tiles_for_route
+            from app.services.core.tile_utils import get_tiles_for_route, get_tile_bbox
             
-            # Determine region and tiles for this request
-            region_name, _ = find_region_for_bbox(bbox)
             greenness_mode = current_app.config.get('GREENNESS_MODE', 'FAST')
             elevation_mode = current_app.config.get('ELEVATION_MODE', 'OFF')
             normalisation_mode = current_app.config.get('NORMALISATION_MODE', 'STATIC')
-            tile_size_km = current_app.config.get('TILE_SIZE_KM', 15)
-            tile_overlap_km = current_app.config.get('TILE_OVERLAP_KM', 1)
+            tile_size_km = current_app.config.get('TILE_SIZE_KM', 30)
+            tile_overlap_km = current_app.config.get('TILE_OVERLAP_KM', 2)
             
-            # Check which tiles are cached
-            # Note: Don't pass pbf_path here - each tile may use a different PBF
-            # The tile's cached pbf_mtime is verified at build time
+            # Determine tiles first, then derive region from the TILE bbox
+            # so that cache keys match what the worker uses (ADR-007 consistency)
             tile_ids = get_tiles_for_route(start_point, end_point, tile_size_km)
+            first_tile_bbox = get_tile_bbox(tile_ids[0], tile_size_km, tile_overlap_km)
+            region_name, _ = find_region_for_bbox(first_tile_bbox)
             cache_mgr = get_cache_manager()
             
             print(f"[API] Checking {len(tile_ids)} tiles: {tile_ids}")
@@ -345,6 +421,11 @@ def calculate_route():
         # Get graph using tile-based caching (ADR-007)
         # This builds only missing tiles and merges them
         graph = GraphManager.get_graph_for_route(start_point, end_point)
+        
+        # Calculate tile_ids for response highlighting
+        from app.services.core.tile_utils import get_tiles_for_route
+        tile_size_km = current_app.config.get('TILE_SIZE_KM', 30)
+        tile_ids = get_tiles_for_route(start_point, end_point, tile_size_km)
         
         # Parse WSM settings from request
         use_wsm = data.get('use_wsm', False)
@@ -412,6 +493,7 @@ def calculate_route():
                 },
                 'start_point': list(start_point),
                 'end_point': list(end_point),
+                'tiles_required': tile_ids if 'tile_ids' in dir() else [],
             }
             
             # Add debug info if enabled

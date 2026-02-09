@@ -64,13 +64,15 @@ class Config:
     # reuse by ensuring nearby routes share the same tiles instead of creating
     # unique cache entries for each route's bounding box.
     
-    # Size of each tile in kilometres (default 15km covers Bristol urban area)
-    # Larger tiles = better cache reuse but higher memory per tile
-    TILE_SIZE_KM = 15
+    # Size of each tile in kilometres
+    # 30km covers most of greater Bristol area in 1-2 tiles for typical routes
+    # Larger tiles = better cache reuse, fewer cross-boundary routes
+    # Trade-off: longer initial build time (~3-4 min per tile)
+    TILE_SIZE_KM = 30
     
     # Overlap between adjacent tiles in kilometres
     # Ensures boundary edges connect properly when merging tiles
-    TILE_OVERLAP_KM = 1
+    TILE_OVERLAP_KM = 2
     
     # List of tile IDs to pre-build on application startup (optional)
     # Format: ["lat_lon", ...] e.g., ["51.45_-2.55", "51.45_-2.70"]
