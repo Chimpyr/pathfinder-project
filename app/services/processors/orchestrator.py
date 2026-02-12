@@ -29,6 +29,7 @@ def _get_config(key: str, default: Any) -> Any:
     """Get configuration value from Flask app or return default."""
     if has_app_context() and current_app:
         return current_app.config.get(key, default)
+    print(f"[ScenicOrchestrator] Configuration key '{key}' not found, using default: {default}")
     return default
 
 
@@ -39,12 +40,12 @@ def get_greenness_mode() -> str:
 
 def get_water_mode() -> str:
     """Get the configured water processing mode."""
-    return _get_config('WATER_MODE', 'OFF').upper()
+    return _get_config('WATER_MODE', 'FAST').upper()
 
 
 def get_social_mode() -> str:
     """Get the configured social/POI processing mode."""
-    return _get_config('SOCIAL_MODE', 'OFF').upper()
+    return _get_config('SOCIAL_MODE', 'FAST').upper()
 
 
 def process_scenic_attributes(

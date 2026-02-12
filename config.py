@@ -50,7 +50,7 @@ class Config:
     #       Only best scenic criterion contributes. Good at ANY = rewarded.
     #       Prevents multi-criteria collapse, respects weight priority.
     # See ADR-001, ADR-003 for detailed rationale.
-    COST_FUNCTION = 'HYBRID_DISJUNCTIVE'
+    COST_FUNCTION = 'WSM_ADDITIVE'
     
     # Graph caching configuration
     # Maximum number of region graphs to keep in memory (LRU eviction)

@@ -38,3 +38,7 @@ cache
 # all files in cache directory
 cache/*
 .python-version
+
+# git
+.github/
+.flowbaby/
