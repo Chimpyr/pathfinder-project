@@ -64,6 +64,23 @@ const weightDistance = document.getElementById("weight-distance");
 const weightNature = document.getElementById("weight-nature");
 const groupNatureToggle = document.getElementById("group-nature-toggle");
 
+// Loop/Round Trip mode elements
+const modeStandardBtn = document.getElementById("mode-standard");
+const modeLoopBtn = document.getElementById("mode-loop");
+const endLocationGroup = document.getElementById("end-location-group");
+const loopDistanceGroup = document.getElementById("loop-distance-group");
+const loopDistanceSlider = document.getElementById("loop-distance-slider");
+const loopDistanceValue = document.getElementById("loop-distance-value");
+const longLoopWarning = document.getElementById("long-loop-warning");
+const longLoopWarningText = document.getElementById("long-loop-warning-text");
+const directionalBiasControl = document.getElementById(
+  "directional-bias-control",
+);
+
+// Routing mode state: 'standard' or 'loop'
+let routingMode = "standard";
+let selectedDirection = "none";
+
 // ============================================================================
 // Scenic Routing Toggle Handler
 // ============================================================================
@@ -117,6 +134,109 @@ if (groupNatureToggle) {
     console.log(`[App] Group Nature: ${grouped ? "ON" : "OFF"}`);
   });
 }
+
+// ============================================================================
+// Routing Mode Toggle (Standard / Round Trip)
+// ============================================================================
+
+/**
+ * Switch routing mode between 'standard' and 'loop'.
+ * @param {string} mode - 'standard' or 'loop'
+ */
+function setRoutingMode(mode) {
+  routingMode = mode;
+
+  // Update button active states
+  if (mode === "standard") {
+    modeStandardBtn.classList.add("active");
+    modeLoopBtn.classList.remove("active");
+    endLocationGroup.classList.remove("hidden");
+    loopDistanceGroup.classList.add("hidden");
+    btnText.textContent = "Find Route";
+  } else {
+    modeStandardBtn.classList.remove("active");
+    modeLoopBtn.classList.add("active");
+    endLocationGroup.classList.add("hidden");
+    loopDistanceGroup.classList.remove("hidden");
+    btnText.textContent = "Find Loop";
+  }
+
+  // Update instruction banner for the mode
+  updateInstructions();
+
+  console.log(`[App] Routing mode: ${mode}`);
+}
+
+// Mode toggle button click handlers
+if (modeStandardBtn) {
+  modeStandardBtn.addEventListener("click", () => setRoutingMode("standard"));
+}
+if (modeLoopBtn) {
+  modeLoopBtn.addEventListener("click", () => setRoutingMode("loop"));
+}
+
+// ============================================================================
+// Loop Distance Slider Handler
+// ============================================================================
+
+/**
+ * Update loop distance warning tier based on slider value.
+ * Tiers: 15-20km amber, 20-25km orange, 25-30km red.
+ */
+function updateLoopDistanceWarning(distanceKm) {
+  if (!longLoopWarning) return;
+
+  if (distanceKm > 25) {
+    longLoopWarning.classList.remove("hidden");
+    longLoopWarning.className =
+      "p-3 rounded-lg border transition-all loop-warning-red";
+    longLoopWarningText.innerHTML =
+      "<strong>Very long route!</strong> Distances over 25 km will take significantly longer and may timeout.";
+  } else if (distanceKm > 20) {
+    longLoopWarning.classList.remove("hidden");
+    longLoopWarning.className =
+      "p-3 rounded-lg border transition-all loop-warning-orange";
+    longLoopWarningText.innerHTML =
+      "<strong>Long route.</strong> Distances over 20 km may take longer to calculate.";
+  } else if (distanceKm > 15) {
+    longLoopWarning.classList.remove("hidden");
+    longLoopWarning.className =
+      "p-3 rounded-lg border transition-all loop-warning-amber";
+    longLoopWarningText.textContent =
+      "Routes over 15 km may take longer to calculate.";
+  } else {
+    longLoopWarning.classList.add("hidden");
+  }
+}
+
+if (loopDistanceSlider) {
+  loopDistanceSlider.addEventListener("input", () => {
+    const val = parseFloat(loopDistanceSlider.value);
+    loopDistanceValue.textContent = `${val.toFixed(1)} km`;
+    updateLoopDistanceWarning(val);
+  });
+}
+
+// ============================================================================
+// Directional Bias Compass Handlers
+// ============================================================================
+
+const directionBtns = document.querySelectorAll(".direction-btn");
+
+directionBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    // Remove active from all
+    directionBtns.forEach((b) => {
+      b.classList.remove("active");
+    });
+
+    // Set active on clicked button
+    btn.classList.add("active");
+    selectedDirection = btn.dataset.direction;
+
+    console.log(`[App] Direction bias: ${selectedDirection}`);
+  });
+});
 
 // ============================================================================
 // Cached Tiles Debug Toggle Handler
@@ -229,6 +349,13 @@ let routeState = {
   },
 };
 
+// Multi-loop state
+let loopState = {
+  loops: null,
+  selected: null,
+  visibility: {},
+};
+
 // Route display names and colours
 const ROUTE_CONFIG = {
   baseline: {
@@ -264,7 +391,7 @@ function formatCoords(lat, lon) {
 }
 
 /**
- * Update instruction banner based on current state.
+ * Update instruction banner based on current state and routing mode.
  */
 function updateInstructions() {
   const hasStart = startState.lat !== null;
@@ -276,6 +403,21 @@ function updateInstructions() {
       '<i class="fas fa-spinner fa-spin mr-1"></i> Looking up address...';
     instructionBanner.className =
       "mx-6 mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg";
+  } else if (routingMode === "loop") {
+    // Loop mode: only need start point
+    if (!hasStart) {
+      instructionBanner.classList.remove("hidden");
+      instructionText.innerHTML =
+        '<i class="fas fa-sync-alt mr-1"></i> Set your <strong>starting point</strong> for the loop (type or click map)';
+      instructionBanner.className =
+        "mx-6 mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg";
+    } else {
+      instructionBanner.classList.remove("hidden");
+      instructionText.innerHTML =
+        '<i class="fas fa-check-circle mr-1 text-green-500"></i> Start set! Adjust distance & direction, then click <strong>Find Loop</strong>';
+      instructionBanner.className =
+        "mx-6 mt-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg";
+    }
   } else if (!hasStart && !hasEnd) {
     instructionBanner.classList.remove("hidden");
     instructionText.innerHTML =
@@ -622,6 +764,18 @@ clearAllBtn.addEventListener("click", () => {
 routeForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
+  // Dispatch to correct handler based on routing mode
+  if (routingMode === "loop") {
+    await handleLoopSubmit();
+  } else {
+    await handleStandardSubmit();
+  }
+});
+
+/**
+ * Handle standard (A-to-B) route submission.
+ */
+async function handleStandardSubmit() {
   // Validate that we have coordinates for both points
   if (!startState.lat || !endState.lat) {
     errorMsg.textContent = "Please set both start and end locations.";
@@ -692,7 +846,409 @@ routeForm.addEventListener("submit", async (e) => {
   } finally {
     clearLoadingState();
   }
-});
+}
+
+/**
+ * Handle loop/round-trip route submission.
+ */
+async function handleLoopSubmit() {
+  // Loop mode only needs start point
+  if (!startState.lat) {
+    errorMsg.textContent = "Please set a starting location for your loop.";
+    errorMsg.classList.remove("hidden");
+    return;
+  }
+
+  const distanceKm = parseFloat(loopDistanceSlider.value);
+
+  // Build loop request payload
+  const payload = {
+    start_lat: startState.lat,
+    start_lon: startState.lon,
+    distance_km: distanceKm,
+    directional_bias: selectedDirection,
+  };
+
+  // Add scenic routing weights if enabled
+  const scenicWeights = getScenicWeights();
+  if (scenicWeights) {
+    payload.use_wsm = true;
+    payload.weights = scenicWeights;
+
+    if (groupNatureToggle && groupNatureToggle.checked) {
+      payload.combine_nature = true;
+    }
+
+    console.log(
+      "[App] Loop with scenic weights:",
+      scenicWeights,
+      "direction:",
+      selectedDirection,
+    );
+  }
+
+  // UI Loading State
+  setLoadingState("Calculating loop...");
+
+  try {
+    const response = await fetch("/api/loop", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    // Handle async processing (202 Accepted)
+    if (response.status === 202 && data.status === "processing") {
+      console.log("[App] Graph building for loop in progress, polling...");
+      await pollForLoopTaskCompletion(data.task_id, payload);
+      return;
+    }
+
+    // Handle success
+    if (response.ok && data.success) {
+      handleLoopRouteSuccess(data);
+    } else {
+      errorMsg.textContent = data.error || "Failed to calculate loop route.";
+      errorMsg.classList.remove("hidden");
+    }
+  } catch (err) {
+    console.error("[App] Loop network error:", err);
+    errorMsg.textContent = "Network error. Please try again.";
+    errorMsg.classList.remove("hidden");
+  } finally {
+    clearLoadingState();
+  }
+}
+
+/**
+ * Handle successful loop route response.
+ * Supports both multi-loop (new) and legacy single-loop responses.
+ */
+function handleLoopRouteSuccess(data) {
+  console.log("[App] Loop route received:", data);
+
+  // Multi-loop response (new format)
+  if (data.multi_loop && data.loops && data.loops.length > 0) {
+    handleMultiLoopSuccess(data);
+    return;
+  }
+
+  // Legacy single-loop fallback
+  if (data.route_coords && data.route_coords.length > 0) {
+    mapController.displayRoute(data.route_coords);
+  }
+
+  const routeOptions = document.getElementById("route-options");
+  if (routeOptions) routeOptions.classList.add("hidden");
+
+  if (data.stats) {
+    statDistance.textContent = data.stats.distance_km;
+    statTime.textContent = data.stats.time_min;
+    statPace.textContent = data.stats.pace_kmh || "5.0";
+    routeStats.classList.remove("hidden");
+  }
+
+  buildLoopInfoPanel(data);
+  handleLoopWarning(data);
+  mapController.clearDebugLayers();
+  updateTileOverlay(data);
+}
+
+/**
+ * Handle multi-loop response — display multiple loop candidates.
+ */
+function handleMultiLoopSuccess(data) {
+  console.log(
+    `[App] Multi-loop mode — displaying ${data.loops.length} loop candidates`,
+  );
+
+  // Initialise loop state
+  loopState.loops = data.loops;
+  loopState.selected = data.loops[0]?.id || null;
+  loopState.visibility = {};
+  data.loops.forEach((loop) => {
+    loopState.visibility[loop.id] = true;
+  });
+
+  // Display all loops on map
+  mapController.displayMultipleLoops(data.loops);
+
+  // Render loop option cards (reuses route-options container)
+  renderLoopOptions(data);
+
+  // Update stats for first (best) loop
+  if (data.stats) {
+    statDistance.textContent = data.stats.distance_km;
+    statTime.textContent = data.stats.time_min;
+    statPace.textContent = data.stats.pace_kmh || "5.0";
+    routeStats.classList.remove("hidden");
+  }
+
+  buildLoopInfoPanel(data);
+  handleLoopWarning(data);
+  mapController.clearDebugLayers();
+  updateTileOverlay(data);
+
+  // Scroll to loop options
+  const routeOptions = document.getElementById("route-options");
+  if (routeOptions) {
+    setTimeout(() => {
+      routeOptions.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 300);
+  }
+}
+
+/**
+ * Render loop option cards with toggle visibility and selection.
+ */
+function renderLoopOptions(data) {
+  const container = document.getElementById("route-options-list");
+  const routeOptions = document.getElementById("route-options");
+  if (!container || !routeOptions) return;
+
+  let html = "";
+
+  for (const loop of data.loops) {
+    const isSelected = loopState.selected === loop.id;
+    const isVisible = loopState.visibility[loop.id] !== false;
+
+    const devSign = loop.deviation_percent >= 0 ? "+" : "";
+    const devClass =
+      Math.abs(loop.deviation_percent) <= 10
+        ? "text-green-600 dark:text-green-400"
+        : Math.abs(loop.deviation_percent) <= 20
+          ? "text-yellow-600 dark:text-yellow-400"
+          : "text-red-600 dark:text-red-400";
+
+    html += `
+      <div class="route-option-card ${isSelected ? "selected" : ""}"
+           data-loop-id="${loop.id}"
+           onclick="selectLoop('${loop.id}')">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <button class="route-visibility-toggle"
+                    onclick="toggleLoopVisibility(event, '${loop.id}')"
+                    title="Toggle visibility">
+              <i class="fas ${isVisible ? "fa-eye" : "fa-eye-slash"} text-gray-400 hover:text-gray-600"></i>
+            </button>
+            <span class="route-colour-dot" style="background-color: ${loop.colour}"></span>
+            <div>
+              <span class="font-medium text-gray-700 dark:text-gray-200">${loop.label}</span>
+            </div>
+          </div>
+          ${isSelected ? '<i class="fas fa-check text-primary-500"></i>' : ""}
+        </div>
+        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-8 flex gap-3">
+          <span>${loop.distance_km} km</span>
+          <span>${loop.time_min} min</span>
+          <span class="${devClass}">${devSign}${loop.deviation_percent}%</span>
+        </div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+  routeOptions.classList.remove("hidden");
+  console.log(`[App] Rendered ${data.loops.length} loop option cards`);
+}
+
+/**
+ * Toggle loop candidate visibility on the map.
+ */
+function toggleLoopVisibility(event, loopId) {
+  event.stopPropagation();
+  loopState.visibility[loopId] = !loopState.visibility[loopId];
+  mapController.setLoopVisibility(loopId, loopState.visibility[loopId]);
+  if (loopState.loops) {
+    renderLoopOptions({ loops: loopState.loops });
+  }
+}
+
+/**
+ * Select a loop candidate — highlight it and update stats.
+ */
+function selectLoop(loopId) {
+  loopState.selected = loopId;
+  mapController.highlightLoop(loopId);
+  if (loopState.loops) {
+    renderLoopOptions({ loops: loopState.loops });
+  }
+  // Update stats for selected loop
+  const loop = loopState.loops?.find((l) => l.id === loopId);
+  if (loop) {
+    statDistance.textContent = loop.distance_km;
+    statTime.textContent = loop.time_min;
+  }
+}
+
+window.toggleLoopVisibility = toggleLoopVisibility;
+window.selectLoop = selectLoop;
+
+/**
+ * Build the loop info metadata panel.
+ */
+function buildLoopInfoPanel(data) {
+  const loopMeta = data.loop_metadata || {};
+  const statsContainer = document.getElementById("route-stats");
+  let loopInfoEl = document.getElementById("loop-route-info");
+
+  if (!loopInfoEl) {
+    loopInfoEl = document.createElement("div");
+    loopInfoEl.id = "loop-route-info";
+    loopInfoEl.className =
+      "p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600";
+    statsContainer.appendChild(loopInfoEl);
+  }
+
+  const dirLabel =
+    loopMeta.directional_bias && loopMeta.directional_bias !== "none"
+      ? loopMeta.directional_bias.charAt(0).toUpperCase() +
+        loopMeta.directional_bias.slice(1)
+      : "None";
+
+  const budgetDev = loopMeta.budget_deviation
+    ? `${(loopMeta.budget_deviation * 100).toFixed(1)}%`
+    : "N/A";
+
+  const algLabel = loopMeta.algorithm || "?";
+  const numCandidates = loopMeta.num_candidates || "?";
+
+  loopInfoEl.innerHTML = `
+    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+      <i class="fas fa-sync-alt mr-2 text-blue-500"></i>Loop Details
+    </h3>
+    <div class="space-y-2 text-sm">
+      <div class="flex justify-between items-center">
+        <span class="text-gray-500 dark:text-gray-400">Target Distance</span>
+        <span class="font-medium">${loopMeta.target_distance_km || data.target_distance_km || "?"} km</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-gray-500 dark:text-gray-400">Best Match</span>
+        <span class="font-medium">${data.stats?.distance_km || loopMeta.actual_distance_km || "?"} km</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-gray-500 dark:text-gray-400">Deviation</span>
+        <span class="loop-stats-badge budget">${budgetDev}</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-gray-500 dark:text-gray-400">Direction</span>
+        <span class="loop-stats-badge direction"><i class="fas fa-compass mr-1"></i>${dirLabel}</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-gray-500 dark:text-gray-400">Algorithm</span>
+        <span class="text-xs font-mono text-gray-500">${algLabel}</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-gray-500 dark:text-gray-400">Candidates</span>
+        <span class="text-xs font-mono text-gray-500">${numCandidates}</span>
+      </div>
+    </div>
+  `;
+  loopInfoEl.classList.remove("hidden");
+}
+
+function handleLoopWarning(data) {
+  if (data.warning) {
+    errorMsg.textContent = data.warning;
+    errorMsg.className =
+      "mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-lg border border-yellow-200 dark:border-yellow-800 text-sm";
+    errorMsg.classList.remove("hidden");
+  }
+}
+
+function updateTileOverlay(data) {
+  if (data.tiles_required && Array.isArray(data.tiles_required)) {
+    routeUsedTileIds = data.tiles_required;
+    refreshTileOverlay();
+  } else {
+    routeUsedTileIds = [];
+  }
+}
+
+/**
+ * Poll for loop task completion (async graph build).
+ */
+async function pollForLoopTaskCompletion(taskId, originalPayload) {
+  const startTime = Date.now();
+  let pollCount = 0;
+
+  const poll = async () => {
+    pollCount++;
+    const elapsed = Date.now() - startTime;
+
+    if (elapsed > MAX_POLL_TIME_MS) {
+      errorMsg.textContent = "Loop route calculation timed out.";
+      errorMsg.classList.remove("hidden");
+      clearLoadingState();
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/task/${taskId}`);
+      const data = await response.json();
+
+      if (data.status === "complete") {
+        setLoadingState("Graph ready, calculating loop...");
+        await retryLoopRequest(originalPayload);
+        return;
+      }
+
+      if (data.status === "failed") {
+        errorMsg.textContent = data.error || "Graph building failed.";
+        errorMsg.classList.remove("hidden");
+        clearLoadingState();
+        return;
+      }
+
+      const mins = Math.floor(elapsed / 60000);
+      const secs = Math.floor((elapsed % 60000) / 1000);
+      setLoadingState(
+        `Building graph for loop... ${mins}:${secs.toString().padStart(2, "0")}`,
+      );
+
+      setTimeout(poll, POLL_INTERVAL_MS);
+    } catch (err) {
+      setTimeout(poll, POLL_INTERVAL_MS);
+    }
+  };
+
+  poll();
+}
+
+/**
+ * Retry loop request after graph build.
+ */
+async function retryLoopRequest(payload) {
+  try {
+    const response = await fetch("/api/loop", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      handleLoopRouteSuccess(data);
+    } else {
+      errorMsg.textContent = data.error || "Loop route calculation failed.";
+      errorMsg.classList.remove("hidden");
+    }
+  } catch (err) {
+    errorMsg.textContent = "Failed to calculate loop route after graph build.";
+    errorMsg.classList.remove("hidden");
+  } finally {
+    clearLoadingState();
+  }
+}
 
 // ============================================================================
 // Async Task Polling
@@ -1052,8 +1608,18 @@ function resetRouteState() {
   routeState.selected = "balanced";
   routeState.visibility = { baseline: true, extremist: true, balanced: true };
 
+  loopState.loops = null;
+  loopState.selected = null;
+  loopState.visibility = {};
+
   const routeOptions = document.getElementById("route-options");
   if (routeOptions) routeOptions.classList.add("hidden");
+
+  // Also hide loop route info
+  const loopInfoEl = document.getElementById("loop-route-info");
+  if (loopInfoEl) loopInfoEl.classList.add("hidden");
+
+  mapController.clearLoopLayers();
 }
 
 // Expose functions globally for onclick handlers
@@ -1075,7 +1641,7 @@ function setLoadingState(message) {
  * Clear loading state.
  */
 function clearLoadingState() {
-  btnText.textContent = "Find Route";
+  btnText.textContent = routingMode === "loop" ? "Find Loop" : "Find Route";
   btnSpinner.classList.add("hidden");
   findRouteBtn.disabled = false;
 }
@@ -1087,6 +1653,29 @@ function clearLoadingState() {
 window.retryWithSync = async function () {
   errorMsg.classList.add("hidden");
   setLoadingState("Retrying (sync mode)...");
+
+  if (routingMode === "loop") {
+    // Retry loop request
+    const payload = {
+      start_lat: startState.lat,
+      start_lon: startState.lon,
+      distance_km: parseFloat(loopDistanceSlider.value),
+      directional_bias: selectedDirection,
+      force_sync: true,
+    };
+
+    const scenicWeights = getScenicWeights();
+    if (scenicWeights) {
+      payload.use_wsm = true;
+      payload.weights = scenicWeights;
+      if (groupNatureToggle && groupNatureToggle.checked) {
+        payload.combine_nature = true;
+      }
+    }
+
+    await retryLoopRequest(payload);
+    return;
+  }
 
   const payload = {
     start_lat: startState.lat,

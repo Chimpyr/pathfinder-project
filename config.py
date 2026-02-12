@@ -96,6 +96,30 @@ class Config:
         'slope': 0.05,      # Prefer gentler gradients
     }
     
+    # =========================================================================
+    # Loop Routing Configuration
+    # =========================================================================
+    
+    # Loop solver algorithm selection (plug-and-play)
+    # Options: 'BUDGET_ASTAR', 'RANDOM_WALK' (legacy)
+    # - BUDGET_ASTAR: State-augmented A* with budget heuristic (recommended)
+    # - RANDOM_WALK: Two-phase random walk + A* return (deprecated)
+    LOOP_SOLVER_ALGORITHM = 'BUDGET_ASTAR'
+    
+    # Number of loop candidates to return (like multi-route mode)
+    LOOP_NUM_CANDIDATES = 3
+    
+    # Loop distance tolerance (±%)
+    # Routes within this tolerance are considered successful
+    LOOP_DISTANCE_TOLERANCE = 0.15  # ±15%
+    
+    # Minimum viable loop distance in metres (reject tiny loops)
+    LOOP_MIN_DISTANCE = 1000  # 1km minimum
+    
+    # Loop candidate selection strategy
+    # Options: 'DIVERSE' (maximise route difference), 'TOP_K' (best K by score)
+    LOOP_CANDIDATE_STRATEGY = 'DIVERSE'
+    
     # Multi-route mode (Distinct Paths strategy)
     # When True: Returns 3 routes per request (Baseline, Extremist, Balanced)
     #   - Baseline: Pure shortest distance (distance=1.0, others=0)

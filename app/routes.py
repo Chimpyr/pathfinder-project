@@ -154,6 +154,317 @@ def geocode_address():
         return jsonify({'error': str(e)}), 500
 
 
+@main.route('/api/loop', methods=['POST'])
+def calculate_loop_route():
+    """
+    API endpoint to calculate a circular (loop) route from a single start point.
+    
+    Accepts a start point and target distance, returns a circular route that
+    starts and ends at the same location with approximate target distance.
+    
+    Request JSON:
+        {
+            "start_lat": float,
+            "start_lon": float,
+            "target_distance_km": float (1-30),
+            "directional_bias": "north" | "east" | "south" | "west" | "none",
+            "use_wsm": bool,
+            "weights": {...},
+            "combine_nature": bool
+        }
+    
+    Response JSON (success):
+        {
+            "success": true,
+            "multi_route": false,
+            "route_mode": "loop",
+            "route_coords": [[lat, lon], ...],
+            "start_point": [lat, lon],
+            "end_point": [lat, lon],
+            "stats": {...},
+            "target_distance_km": 5.0,
+            "actual_distance_km": 4.8,
+            "tiles_required": [...]
+        }
+    
+    Returns:
+        Response: JSON response with loop route data or error message.
+    """
+    try:
+        import osmnx as ox
+        import math
+        
+        # Parse request data
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Validate required fields
+        if data.get('start_lat') is None or data.get('start_lon') is None:
+            return jsonify({'error': 'Please provide start location coordinates.'}), 400
+        
+        start_point = (float(data['start_lat']), float(data['start_lon']))
+        
+        # Validate target distance (1-30 km) - accept both field names
+        target_distance_km = float(data.get('distance_km', data.get('target_distance_km', 5.0)))
+        if target_distance_km < 1 or target_distance_km > 30:
+            return jsonify({'error': 'Target distance must be between 1 and 30 km.'}), 400
+        
+        target_distance_m = target_distance_km * 1000
+        
+        # Validate directional bias
+        directional_bias = data.get('directional_bias', 'none').lower()
+        valid_biases = {'north', 'east', 'south', 'west', 'none'}
+        if directional_bias not in valid_biases:
+            return jsonify({'error': f'Invalid directional_bias. Must be one of: {valid_biases}'}), 400
+        
+        # Log warning for long loops
+        if target_distance_km > 15:
+            print(f"[API] Long loop requested ({target_distance_km}km), may take longer to calculate")
+        
+        if current_app.config.get('VERBOSE_LOGGING'):
+            print(f"[API] Loop route request: start={start_point}, "
+                  f"target={target_distance_km}km, bias={directional_bias}")
+        
+        # =====================================================================
+        # Calculate tiles needed for loop (radius-based)
+        # =====================================================================
+        from app.services.core.tile_utils import (
+            get_tiles_for_route, get_tile_bbox,
+            DEFAULT_TILE_SIZE_KM, DEFAULT_TILE_OVERLAP_KM
+        )
+        
+        tile_size_km = current_app.config.get('TILE_SIZE_KM', DEFAULT_TILE_SIZE_KM)
+        tile_overlap_km = current_app.config.get('TILE_OVERLAP_KM', DEFAULT_TILE_OVERLAP_KM)
+        
+        # Synthesize virtual "end points" by projecting target_distance/2 in diagonal directions
+        # This creates a bounding box that covers the area the loop might traverse
+        offset_km = target_distance_km * 0.6  # Slightly more than half for margin
+        offset_deg_lat = offset_km / 111.0  # 1 degree latitude ≈ 111 km
+        offset_deg_lon = offset_km / (111.0 * math.cos(math.radians(start_point[0])))
+        
+        # Create virtual corners for tile calculation
+        virtual_ne = (start_point[0] + offset_deg_lat, start_point[1] + offset_deg_lon)
+        virtual_sw = (start_point[0] - offset_deg_lat, start_point[1] - offset_deg_lon)
+        
+        # Get tiles for the bounding box
+        tile_ids = get_tiles_for_route(virtual_sw, virtual_ne, tile_size_km)
+        
+        if current_app.config.get('VERBOSE_LOGGING'):
+            print(f"[API] Loop requires {len(tile_ids)} tiles: {tile_ids}")
+        
+        # =====================================================================
+        # ASYNC MODE: Check tile cache (same pattern as /api/route)
+        # =====================================================================
+        async_mode = current_app.config.get('ASYNC_MODE', False)
+        
+        if async_mode:
+            from app.services.core.graph_builder import find_region_for_bbox
+            from app.services.core.cache_manager import get_cache_manager
+            from app.services.core.task_manager import get_task_manager
+            
+            greenness_mode = current_app.config.get('GREENNESS_MODE', 'FAST')
+            elevation_mode = current_app.config.get('ELEVATION_MODE', 'OFF')
+            normalisation_mode = current_app.config.get('NORMALISATION_MODE', 'STATIC')
+            
+            # Get region from first tile
+            first_tile_bbox = get_tile_bbox(tile_ids[0], tile_size_km, tile_overlap_km)
+            region_name, _ = find_region_for_bbox(first_tile_bbox)
+            cache_mgr = get_cache_manager()
+            
+            # Check for missing tiles
+            missing_tiles = []
+            for tid in tile_ids:
+                is_valid = cache_mgr.is_cache_valid(
+                    region_name, greenness_mode, elevation_mode,
+                    pbf_path=None, tile_id=tid
+                )
+                if not is_valid:
+                    missing_tiles.append(tid)
+            
+            if missing_tiles:
+                # Enqueue tile build tasks
+                task_mgr = get_task_manager()
+                task_ids = []
+                
+                for tile_id in missing_tiles:
+                    result = task_mgr.enqueue_tile_build(
+                        tile_id=tile_id,
+                        region_name=region_name,
+                        greenness_mode=greenness_mode,
+                        elevation_mode=elevation_mode,
+                        normalisation_mode=normalisation_mode,
+                        tile_size_km=tile_size_km,
+                        tile_overlap_km=tile_overlap_km
+                    )
+                    if result.get('task_id'):
+                        task_ids.append({
+                            'tile_id': tile_id,
+                            'task_id': result['task_id'],
+                            'is_new': result['is_new']
+                        })
+                
+                if task_ids:
+                    return jsonify({
+                        'status': 'processing',
+                        'task_id': task_ids[0]['task_id'],
+                        'is_new_task': task_ids[0]['is_new'],
+                        'region_name': region_name,
+                        'tiles_required': tile_ids,
+                        'tiles_building': [t['tile_id'] for t in task_ids],
+                        'message': f'Building {len(missing_tiles)} tile(s). Poll /api/task/<task_id> for status.',
+                        'start_point': list(start_point),
+                        'route_mode': 'loop',
+                        'target_distance_km': target_distance_km
+                    }), 202
+        
+        # =====================================================================
+        # SYNC MODE or CACHE HIT: Process immediately
+        # =====================================================================
+        
+        # Get graph using tile-based caching
+        # Use virtual corners to ensure we get enough coverage
+        graph = GraphManager.get_graph_for_route(virtual_sw, virtual_ne)
+        
+        # Parse WSM settings
+        use_wsm = data.get('use_wsm', True)  # Default to WSM for loop routes
+        combine_nature = data.get('combine_nature', False)
+        weights = None
+        
+        if use_wsm:
+            ui_weights = data.get('weights', None)
+            if ui_weights:
+                from app.services.routing.cost_calculator import normalise_ui_weights
+                weights = normalise_ui_weights(ui_weights)
+            else:
+                weights = current_app.config.get('WSM_DEFAULT_WEIGHTS')
+            
+            if current_app.config.get('VERBOSE_LOGGING'):
+                print(f"[API] Loop WSM weights: {weights}, combine_nature: {combine_nature}")
+        
+        # Initialise route finder and find loop candidates
+        finder = RouteFinder(graph)
+        
+        candidates = finder.find_loop_route(
+            start_point=start_point,
+            target_distance_m=target_distance_m,
+            use_wsm=use_wsm,
+            weights=weights,
+            combine_nature=combine_nature,
+            directional_bias=directional_bias
+        )
+        
+        if not candidates:
+            return jsonify({
+                'error': 'Could not find a loop route. Try a shorter distance or different start point.'
+            }), 404
+        
+        # Build multi-loop response
+        walking_speed_kmh = current_app.config.get('WALKING_SPEED_KMH', 5.0)
+        speed_ms = walking_speed_kmh * 1000 / 3600
+        
+        loops_json = []
+        for candidate in candidates:
+            route_coords = MapRenderer.route_to_coords(graph, candidate.route)
+            time_seconds = candidate.distance / speed_ms if speed_ms > 0 else 0
+            
+            loops_json.append({
+                'id': candidate.label.lower().replace(' ', '_'),
+                'label': candidate.label,
+                'colour': candidate.colour,
+                'route_coords': route_coords,
+                'distance': candidate.distance,
+                'distance_km': candidate.distance_km,
+                'deviation': round(candidate.deviation, 4),
+                'deviation_percent': candidate.deviation_percent,
+                'scenic_cost': round(candidate.scenic_cost, 4),
+                'quality_score': round(candidate.quality_score, 4),
+                'time_seconds': int(time_seconds),
+                'time_min': int(time_seconds // 60),
+                'algorithm': candidate.algorithm,
+                'metadata': candidate.metadata,
+            })
+        
+        # Best candidate for primary stats
+        best = candidates[0]
+        best_distance = best.distance
+        best_time = best_distance / speed_ms if speed_ms > 0 else 0
+        
+        # Build warning message
+        warning = None
+        if target_distance_km > 25:
+            warning = "Very long route! Performance may be affected for distances over 25 km."
+        elif target_distance_km > 20:
+            warning = "Long route. Distances over 20 km may affect calculation accuracy."
+        elif target_distance_km > 15:
+            warning = "Routes over 15 km may take longer to calculate."
+        
+        # Check if all candidates have high deviation
+        min_deviation = min(c.deviation for c in candidates)
+        if min_deviation > 0.20:
+            dev_warning = f"Best loop deviates {min_deviation*100:.0f}% from target. Try adjusting distance."
+            warning = f"{warning} {dev_warning}" if warning else dev_warning
+        
+        algorithm = current_app.config.get('LOOP_SOLVER_ALGORITHM', 'BUDGET_ASTAR')
+        
+        response_data = {
+            'success': True,
+            'multi_loop': True,
+            'route_mode': 'loop',
+            'target_distance_km': target_distance_km,
+            'algorithm': algorithm,
+            'loops': loops_json,
+            'start_point': list(start_point),
+            'end_point': list(start_point),
+            'stats': {
+                'distance_km': f"{best_distance / 1000:.2f}",
+                'time_min': int(best_time // 60),
+                'pace_kmh': walking_speed_kmh,
+                'routing_mode': 'loop'
+            },
+            'loop_metadata': {
+                'target_distance_km': target_distance_km,
+                'actual_distance_km': round(best_distance / 1000, 2),
+                'budget_deviation': round((best_distance - target_distance_m) / target_distance_m, 3),
+                'directional_bias': directional_bias,
+                'num_candidates': len(candidates),
+                'algorithm': algorithm,
+            },
+            'tiles_required': tile_ids,
+            'warning': warning,
+        }
+        
+        # Add debug info if enabled
+        if current_app.config.get('VERBOSE_LOGGING') or current_app.config.get('DEBUG'):
+            response_data['debug_info'] = {
+                'start_coord': start_point,
+                'target_distance_m': target_distance_m,
+                'actual_distance_m': best_distance,
+                'distance_deviation_percent': round((best_distance - target_distance_m) / target_distance_m * 100, 1),
+                'node_count': len(best.route),
+                'graph_nodes': len(graph.nodes),
+                'directional_bias': directional_bias,
+                'algorithm': algorithm,
+                'num_candidates_returned': len(candidates),
+            }
+            
+            # Edge features for short routes
+            if best_distance < VISUAL_DEBUG_THRESHOLD_M:
+                all_edges = _extract_edge_features(graph, best.route)
+                response_data['edge_features'] = all_edges
+                response_data['debug_info']['visual_debug_enabled'] = True
+        
+        return jsonify(response_data)
+        
+    except ValueError as e:
+        return jsonify({'error': f'Invalid input values: {str(e)}'}), 400
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+
 @main.route('/api/cached-tiles', methods=['GET'])
 def get_cached_tiles():
     """

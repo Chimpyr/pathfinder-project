@@ -101,6 +101,23 @@
                 <!-- Location Inputs -->
                 <div class="p-6 flex-1 overflow-y-auto">
                     <form id="route-form" class="space-y-4">
+                        
+                        <!-- Routing Mode Toggle (Standard / Round Trip) -->
+                        <div class="flex justify-center mb-4">
+                            <div class="inline-flex rounded-lg bg-gray-100 dark:bg-gray-700 p-1" role="group">
+                                <button type="button" id="mode-standard" 
+                                    class="routing-mode-btn px-4 py-2 text-sm font-medium rounded-md transition-all active"
+                                    data-mode="standard">
+                                    <i class="fas fa-route mr-1"></i> Standard
+                                </button>
+                                <button type="button" id="mode-loop" 
+                                    class="routing-mode-btn px-4 py-2 text-sm font-medium rounded-md transition-all"
+                                    data-mode="loop">
+                                    <i class="fas fa-sync-alt mr-1"></i> Round Trip
+                                </button>
+                            </div>
+                        </div>
+                        
                         <!-- Start Location -->
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
@@ -119,8 +136,8 @@
                             <p id="start-coords" class="text-xs text-gray-400 hidden"></p>
                         </div>
                         
-                        <!-- End Location -->
-                        <div class="space-y-2">
+                        <!-- End Location (Standard Mode only) -->
+                        <div id="end-location-group" class="space-y-2">
                             <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
                                 <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
                                 End Location
@@ -135,6 +152,67 @@
                                 </button>
                             </div>
                             <p id="end-coords" class="text-xs text-gray-400 hidden"></p>
+                        </div>
+                        
+                        <!-- Loop Distance Group (Round Trip Mode only) -->
+                        <div id="loop-distance-group" class="space-y-4 hidden">
+                            <!-- Target Distance Slider -->
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                    <i class="fas fa-sync-alt text-blue-500 mr-2"></i>
+                                    Target Distance
+                                </label>
+                                <div class="flex items-center gap-3">
+                                    <input type="range" id="loop-distance-slider" 
+                                        min="1" max="30" step="0.5" value="5"
+                                        class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                                    <span id="loop-distance-value" class="text-lg font-bold text-primary-600 dark:text-primary-400 w-16 text-right">5.0 km</span>
+                                </div>
+                                <p class="text-xs text-gray-400">Target distance for your loop (1-30 km)</p>
+                            </div>
+                            
+                            <!-- Long Loop Warning -->
+                            <div id="long-loop-warning" class="hidden p-3 rounded-lg border transition-all">
+                                <p class="text-sm flex items-center">
+                                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                                    <span id="long-loop-warning-text">Routes over 15 km may take longer to calculate</span>
+                                </p>
+                            </div>
+                            
+                            <!-- Directional Bias Selector -->
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                    <i class="fas fa-compass text-teal-500 mr-2"></i>
+                                    Direction Bias <span class="text-xs text-gray-400 ml-2">(optional)</span>
+                                </label>
+                                <div id="directional-bias-control" class="flex justify-center">
+                                    <div class="grid grid-cols-3 gap-1 w-32">
+                                        <!-- Top row: North -->
+                                        <div></div>
+                                        <button type="button" class="direction-btn p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300" data-direction="north" title="Prefer routes heading North">
+                                            <i class="fas fa-arrow-up"></i>
+                                        </button>
+                                        <div></div>
+                                        <!-- Middle row: West, Center, East -->
+                                        <button type="button" class="direction-btn p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300" data-direction="west" title="Prefer routes heading West">
+                                            <i class="fas fa-arrow-left"></i>
+                                        </button>
+                                        <button type="button" class="direction-btn active p-2 rounded-lg border border-gray-300 dark:border-gray-600 transition-colors" data-direction="none" title="No directional preference">
+                                            <i class="fas fa-circle text-xs"></i>
+                                        </button>
+                                        <button type="button" class="direction-btn p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300" data-direction="east" title="Prefer routes heading East">
+                                            <i class="fas fa-arrow-right"></i>
+                                        </button>
+                                        <!-- Bottom row: South -->
+                                        <div></div>
+                                        <button type="button" class="direction-btn p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300" data-direction="south" title="Prefer routes heading South">
+                                            <i class="fas fa-arrow-down"></i>
+                                        </button>
+                                        <div></div>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-400 text-center">Click a direction to bias the loop shape</p>
+                            </div>
                         </div>
 
                         <!-- Action Buttons -->

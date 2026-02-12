@@ -42,3 +42,5 @@ cache/*
 # git
 .github/
 .flowbaby/
+.agent-output/
+agent-output

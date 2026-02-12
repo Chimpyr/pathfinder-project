@@ -10,6 +10,8 @@ class RouteFinder:
     
     Supports both standard A* (shortest path by distance) and WSM A*
     (weighted scenic routing) depending on the use_wsm parameter.
+    
+    Also supports loop (round-trip) routing via find_loop_route().
     """
 
     def __init__(self, graph):
@@ -20,6 +22,103 @@ class RouteFinder:
             graph (networkx.MultiDiGraph): The street network graph.
         """
         self.graph = graph
+
+    def find_loop_route(
+        self, 
+        start_point, 
+        target_distance_m, 
+        use_wsm=True, 
+        weights=None, 
+        combine_nature=False,
+        directional_bias="none"
+    ):
+        """
+        Finds multiple circular (loop) route candidates.
+        
+        Uses the plug-and-play loop solver framework. The algorithm is
+        selected via config.py LOOP_SOLVER_ALGORITHM.
+        
+        Returns multiple candidates as LoopCandidate objects for the
+        multi-loop display (similar to multi-route mode for standard
+        point-to-point routing).
+        
+        Args:
+            start_point (tuple): (lat, lon) start/end location.
+            target_distance_m (float): Target loop distance in metres.
+            use_wsm (bool): If True, use WSM cost function for scenic routing.
+            weights (dict): Feature weights for WSM mode. Uses defaults if None.
+            combine_nature (bool): If True, combine greenness and water scores.
+            directional_bias (str): Direction preference ("north"/"east"/"south"/"west"/"none").
+
+        Returns:
+            list: List of LoopCandidate objects (may be empty if no loops found).
+                  Each candidate has .route, .distance, .scenic_cost, etc.
+        """
+        try:
+            if current_app.config.get('VERBOSE_LOGGING'):
+                print(f"[VERBOSE] Finding loop route: start={start_point}, "
+                      f"target={target_distance_m/1000:.1f}km, bias={directional_bias}")
+
+            # Find the nearest node in the graph to the start point
+            start_node = ox.distance.nearest_nodes(self.graph, start_point[1], start_point[0])
+
+            if current_app.config.get('VERBOSE_LOGGING'):
+                print(f"[VERBOSE] Start Node ID: {start_node}")
+
+            # Use provided weights or fall back to config defaults
+            if weights is None:
+                weights = current_app.config.get('WSM_DEFAULT_WEIGHTS')
+            
+            # Read loop config
+            num_candidates = current_app.config.get('LOOP_NUM_CANDIDATES', 3)
+            distance_tolerance = current_app.config.get('LOOP_DISTANCE_TOLERANCE', 0.15)
+            min_loop_distance = current_app.config.get('LOOP_MIN_DISTANCE', 1000)
+            
+            # Adjust search time based on distance
+            max_search_time = 30 if target_distance_m <= 15000 else 120
+            
+            # Create solver via factory (reads LOOP_SOLVER_ALGORITHM from config)
+            from app.services.routing.loop_solvers import LoopSolverFactory
+            solver = LoopSolverFactory.create()
+            
+            if current_app.config.get('VERBOSE_LOGGING'):
+                algorithm = current_app.config.get('LOOP_SOLVER_ALGORITHM', 'BUDGET_ASTAR')
+                print(f"[VERBOSE] Loop solver: {algorithm}, "
+                      f"candidates={num_candidates}, tolerance=±{distance_tolerance*100:.0f}%")
+                print(f"[VERBOSE] Weights: {weights}, combine_nature: {combine_nature}")
+            
+            # Find loop candidates
+            candidates = solver.find_loops(
+                graph=self.graph,
+                start_node=start_node,
+                target_distance=target_distance_m,
+                weights=weights,
+                combine_nature=combine_nature,
+                directional_bias=directional_bias,
+                num_candidates=num_candidates,
+                distance_tolerance=distance_tolerance,
+                max_search_time=max_search_time,
+            )
+            
+            # Filter out loops below minimum distance
+            candidates = [c for c in candidates if c.distance >= min_loop_distance]
+            
+            if current_app.config.get('VERBOSE_LOGGING'):
+                if candidates:
+                    print(f"[VERBOSE] Found {len(candidates)} loop candidates:")
+                    for i, c in enumerate(candidates):
+                        print(f"  [{i}] {c.label}: {c.distance:.0f}m "
+                              f"(±{c.deviation*100:.1f}%), quality={c.quality_score:.3f}")
+                else:
+                    print(f"[VERBOSE] No loop candidates found")
+
+            return candidates
+            
+        except Exception as e:
+            print(f"Error finding loop route: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
 
     def find_route(self, start_point, end_point, use_wsm=False, weights=None, combine_nature=False):
         """
