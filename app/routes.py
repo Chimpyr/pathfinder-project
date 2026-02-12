@@ -434,6 +434,7 @@ def calculate_route():
         
         # Parse WSM settings from request
         use_wsm = data.get('use_wsm', False)
+        combine_nature = data.get('combine_nature', False)
         weights = None
         
         if use_wsm:
@@ -447,7 +448,7 @@ def calculate_route():
                 weights = current_app.config.get('WSM_DEFAULT_WEIGHTS')
             
             if current_app.config.get('VERBOSE_LOGGING'):
-                print(f"[API] WSM routing enabled with weights: {weights}")
+                print(f"[API] WSM routing enabled with weights: {weights}, combine_nature: {combine_nature}")
         
         # Initialise route finder
         finder = RouteFinder(graph)
@@ -460,7 +461,8 @@ def calculate_route():
             from app.services.routing.distinct_paths_runner import find_distinct_paths
             
             distinct_result = find_distinct_paths(
-                finder, start_point, end_point, weights
+                finder, start_point, end_point, weights,
+                combine_nature=combine_nature
             )
             
             # Validate that at least one route was found
@@ -528,7 +530,8 @@ def calculate_route():
         route, _, _, distance, time_seconds = finder.find_route(
             start_point, end_point,
             use_wsm=use_wsm,
-            weights=weights
+            weights=weights,
+            combine_nature=combine_nature
         )
         
         if not route:

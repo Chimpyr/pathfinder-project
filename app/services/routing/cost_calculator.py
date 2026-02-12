@@ -87,6 +87,27 @@ def get_active_cost_function() -> CostFunction:
         return CostFunction.HYBRID_DISJUNCTIVE
 
 
+def _calculate_nature_cost(norm_green: float, norm_water: float, weight: float) -> float:
+    """
+    Combine green and water scores into a single nature score (best of both).
+    
+    When the user enables "Group Nature", greenery and water are treated as
+    interchangeable scenic features. The best (lowest) score is used so that
+    an edge near water OR in a green area is equally rewarded.
+    
+    Args:
+        norm_green: Normalised greenness cost (0=green, 1=not green).
+        norm_water: Normalised water cost (0=near water, 1=far from water).
+        weight: Combined nature weight from the UI slider.
+    
+    Returns:
+        Weighted nature cost contribution.
+    """
+    # min() selects the best score (lower is better)
+    nature_cost = min(norm_green, norm_water)
+    return weight * nature_cost
+
+
 def cost_wsm_additive(
     norm_length: float,
     norm_green: float,
@@ -94,7 +115,8 @@ def cost_wsm_additive(
     norm_social: float,
     norm_quiet: float,
     norm_slope: float,
-    weights: Dict[str, float]
+    weights: Dict[str, float],
+    combine_nature: bool = False
 ) -> float:
     """
     Pure Weighted Sum Model (AND semantics).
@@ -120,8 +142,14 @@ def cost_wsm_additive(
         Combined cost value (lower is better).
     """
     cost = weights['distance'] * norm_length
-    cost += weights['greenness'] * norm_green
-    cost += weights['water'] * norm_water
+    
+    if combine_nature:
+        # User wants "Nature" (best of green/water)
+        cost += _calculate_nature_cost(norm_green, norm_water, weights['greenness'])
+    else:
+        cost += weights['greenness'] * norm_green
+        cost += weights['water'] * norm_water
+    
     cost += weights['social'] * norm_social
     cost += weights['quietness'] * norm_quiet
     cost += weights['slope'] * norm_slope
@@ -136,7 +164,8 @@ def cost_hybrid_disjunctive(
     norm_social: float,
     norm_quiet: float,
     norm_slope: float,
-    weights: Dict[str, float]
+    weights: Dict[str, float],
+    combine_nature: bool = False
 ) -> float:
     """
     Hybrid Additive-Disjunctive with Weighted-MIN (OR semantics).
@@ -169,13 +198,23 @@ def cost_hybrid_disjunctive(
     cost = weights['distance'] * norm_length
     
     # Collect active scenic criteria
-    scenic_data = [
-        (norm_green, weights['greenness']),
-        (norm_water, weights['water']),
-        (norm_social, weights['social']),
-        (norm_quiet, weights['quietness']),
-        (norm_slope, weights['slope']),
-    ]
+    if combine_nature:
+        # Combine green and water into a single nature score
+        nature_score = min(norm_green, norm_water)
+        scenic_data = [
+            (nature_score, weights['greenness']),
+            (norm_social, weights['social']),
+            (norm_quiet, weights['quietness']),
+            (norm_slope, weights['slope']),
+        ]
+    else:
+        scenic_data = [
+            (norm_green, weights['greenness']),
+            (norm_water, weights['water']),
+            (norm_social, weights['social']),
+            (norm_quiet, weights['quietness']),
+            (norm_slope, weights['slope']),
+        ]
     
     active = [(val, w) for val, w in scenic_data if w > 0]
     
@@ -201,7 +240,8 @@ def compute_cost(
     norm_quiet: float,
     norm_slope: float,
     weights: Dict[str, float],
-    method: CostFunction = None
+    method: CostFunction = None,
+    combine_nature: bool = False
 ) -> float:
     """
     Dispatcher function - routes to the active cost function.
@@ -210,6 +250,7 @@ def compute_cost(
         norm_*: Normalised cost values (0=good, 1=bad)
         weights: Dictionary of feature weights
         method: Optional override for cost function (uses config.COST_FUNCTION if None)
+        combine_nature: If True, combine greenness and water into a single "nature" score.
     
     Returns:
         Combined cost value (lower is better).
@@ -220,12 +261,14 @@ def compute_cost(
     if method == CostFunction.WSM_ADDITIVE:
         return cost_wsm_additive(
             norm_length, norm_green, norm_water, 
-            norm_social, norm_quiet, norm_slope, weights
+            norm_social, norm_quiet, norm_slope, weights,
+            combine_nature=combine_nature
         )
     elif method == CostFunction.HYBRID_DISJUNCTIVE:
         return cost_hybrid_disjunctive(
             norm_length, norm_green, norm_water,
-            norm_social, norm_quiet, norm_slope, weights
+            norm_social, norm_quiet, norm_slope, weights,
+            combine_nature=combine_nature
         )
     else:
         raise ValueError(f"Unknown cost function: {method}")
@@ -239,7 +282,8 @@ def compute_wsm_cost(
     norm_social: float,
     norm_quiet: float,
     norm_slope: float,
-    weights: Dict[str, float]
+    weights: Dict[str, float],
+    combine_nature: bool = False
 ) -> float:
     """
     Backward-compatible wrapper. Uses the currently active cost function.
@@ -249,7 +293,8 @@ def compute_wsm_cost(
     """
     return compute_cost(
         norm_length, norm_green, norm_water,
-        norm_social, norm_quiet, norm_slope, weights
+        norm_social, norm_quiet, norm_slope, weights,
+        combine_nature=combine_nature
     )
 
 

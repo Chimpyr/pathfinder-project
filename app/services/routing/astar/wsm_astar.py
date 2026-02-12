@@ -36,7 +36,8 @@ class WSMNetworkXAStar(AStar):
         self, 
         graph, 
         weights: Optional[Dict[str, float]] = None,
-        length_range: Optional[tuple[float, float]] = None
+        length_range: Optional[tuple[float, float]] = None,
+        combine_nature: bool = False
     ):
         """
         Initialise WSM A* solver.
@@ -45,8 +46,10 @@ class WSMNetworkXAStar(AStar):
             graph: NetworkX MultiDiGraph with norm_* edge attributes.
             weights: Feature weights dictionary. If None, uses equal weights.
             length_range: Pre-computed (min, max) length tuple. If None, computed from graph.
+            combine_nature: If True, combine greenness and water into a single "nature" score.
         """
         self.graph = graph
+        self.combine_nature = combine_nature
         
         # Validate and set weights
         if weights is None:
@@ -127,7 +130,8 @@ class WSMNetworkXAStar(AStar):
                 norm_social=norm_social,
                 norm_quiet=norm_quiet,
                 norm_slope=norm_slope,
-                weights=self.weights
+                weights=self.weights,
+                combine_nature=self.combine_nature
             )
             
             # Debug logging for first few edges (to see greenness variance)

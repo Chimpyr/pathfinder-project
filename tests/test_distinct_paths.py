@@ -154,7 +154,7 @@ class TestDistinctPathsRunner:
         finder = MagicMock()
         
         # Different routes for different weight configurations
-        def mock_find_route(start, end, use_wsm=False, weights=None):
+        def mock_find_route(start, end, use_wsm=False, weights=None, combine_nature=False):
             if weights and weights.get('distance', 0) == 1.0:
                 # Baseline: shortest distance
                 return ([1, 3], start, end, 100.0, 72.0)

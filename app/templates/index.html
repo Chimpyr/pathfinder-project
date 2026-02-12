@@ -168,11 +168,11 @@
                                 <div class="slider-group">
                                     <div class="flex justify-between items-center mb-1">
                                         <label for="weight-distance" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
-                                            <span class="mr-1">📏</span> Shortest Path
+                                            <span class="mr-1">📏</span> Shortest Path Priority
                                         </label>
-                                        <span id="weight-distance-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">3</span>
+                                        <span id="weight-distance-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">2</span>
                                     </div>
-                                    <input type="range" id="weight-distance" min="0" max="5" value="3"
+                                    <input type="range" id="weight-distance" min="0" max="5" value="2"
                                         class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-gray-500">
                                 </div>
                                 
@@ -188,8 +188,17 @@
                                         class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500">
                                 </div>
                                 
-                                <!-- Greenery -->
-                                <div class="slider-group">
+                                <!-- Group Nature Toggle -->
+                                <div class="pt-2 pb-1 border-t border-gray-200 dark:border-gray-600">
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="group-nature-toggle" class="sr-only peer">
+                                        <div class="relative w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-300 dark:peer-focus:ring-green-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-green-600"></div>
+                                        <span class="ms-2 text-xs font-medium text-gray-600 dark:text-gray-400">🌿💧 Group Nature</span>
+                                    </label>
+                                </div>
+
+                                <!-- Greenery (shown when NOT grouped) -->
+                                <div id="greenery-slider-group" class="slider-group">
                                     <div class="flex justify-between items-center mb-1">
                                         <label for="weight-greenness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
                                             <span class="mr-1">🌿</span> Greenery
@@ -200,8 +209,8 @@
                                         class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-green-500">
                                 </div>
                                 
-                                <!-- Water -->
-                                <div class="slider-group">
+                                <!-- Water (shown when NOT grouped) -->
+                                <div id="water-slider-group" class="slider-group">
                                     <div class="flex justify-between items-center mb-1">
                                         <label for="weight-water" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
                                             <span class="mr-1">💧</span> Near Water
@@ -211,34 +220,47 @@
                                     <input type="range" id="weight-water" min="0" max="5" value="0"
                                         class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500">
                                 </div>
-                                
-                                <!-- Social/POIs -->
-                                <div class="slider-group">
+
+                                <!-- Nature (shown when grouped, hidden by default) -->
+                                <div id="nature-slider-group" class="slider-group hidden">
                                     <div class="flex justify-between items-center mb-1">
-                                        <label for="weight-social" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
-                                            <span class="mr-1">🏛️</span> Social/POIs
+                                        <label for="weight-nature" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                            <span class="mr-1">🏞️</span> Nature
                                         </label>
-                                        <span id="weight-social-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
+                                        <span id="weight-nature-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
                                     </div>
-                                    <input type="range" id="weight-social" min="0" max="5" value="0"
-                                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                                    <input type="range" id="weight-nature" min="0" max="5" value="0"
+                                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-teal-500">
+                                </div>
+
+                                <!-- Social/POIs Toggle -->
+                                <div class="flex justify-between items-center py-1">
+                                    <label class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                        <span class="mr-1">🏛️</span> Prefer Social Areas
+                                    </label>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="weight-social" class="sr-only peer">
+                                        <div class="relative w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 dark:peer-focus:ring-amber-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-amber-500"></div>
+                                    </label>
                                 </div>
                                 
-                                <!-- Flatness (inverse of slope) -->
-                                <div class="slider-group">
-                                    <div class="flex justify-between items-center mb-1">
-                                        <label for="weight-flatness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
-                                            <span class="mr-1">🚶</span> Prefer Flat
-                                        </label>
-                                        <span id="weight-flatness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">0</span>
-                                    </div>
-                                    <input type="range" id="weight-flatness" min="0" max="5" value="0"
-                                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-red-500">
+                                <!-- Flatness Toggle -->
+                                <div class="flex justify-between items-center py-1">
+                                    <label class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                        <span class="mr-1">🚶</span> Prefer Flat
+                                    </label>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="weight-flatness" class="sr-only peer">
+                                        <div class="relative w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-300 dark:peer-focus:ring-red-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-red-500"></div>
+                                    </label>
                                 </div>
                             </div>
                             
                             <p class="text-xs text-gray-400 dark:text-gray-500 mt-3 italic">
-                                0 = off &nbsp;→&nbsp; 5 = strongly prefer. Route favours ANY active feature.
+                                0 = Lowest Priority → 5 = Strongly Prefer.
+                            </p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-3 italic">
+                                Toggles On = Strongly Prefer.
                             </p>
                         </div>
                     </form>

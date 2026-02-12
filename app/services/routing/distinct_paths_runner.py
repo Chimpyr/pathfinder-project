@@ -124,7 +124,8 @@ def find_distinct_paths(
     start_point: Tuple[float, float],
     end_point: Tuple[float, float],
     user_weights: Dict[str, float],
-    verbose: Optional[bool] = None
+    verbose: Optional[bool] = None,
+    combine_nature: bool = False
 ) -> Dict[str, Any]:
     """
     Execute three A* runs to find distinct route alternatives.
@@ -165,7 +166,8 @@ def find_distinct_paths(
     route_baseline, _, _, dist_baseline, time_baseline = route_finder.find_route(
         start_point, end_point,
         use_wsm=True,
-        weights=baseline_weights
+        weights=baseline_weights,
+        combine_nature=combine_nature
     )
     
     result['baseline'] = {
@@ -184,7 +186,8 @@ def find_distinct_paths(
     route_extremist, _, _, dist_extremist, time_extremist = route_finder.find_route(
         start_point, end_point,
         use_wsm=True,
-        weights=extremist_weights
+        weights=extremist_weights,
+        combine_nature=combine_nature
     )
     
     result['extremist'] = {
@@ -202,7 +205,8 @@ def find_distinct_paths(
     route_balanced, _, _, dist_balanced, time_balanced = route_finder.find_route(
         start_point, end_point,
         use_wsm=True,
-        weights=user_weights
+        weights=user_weights,
+        combine_nature=combine_nature
     )
     
     result['balanced'] = {

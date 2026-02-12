@@ -21,7 +21,7 @@ class RouteFinder:
         """
         self.graph = graph
 
-    def find_route(self, start_point, end_point, use_wsm=False, weights=None):
+    def find_route(self, start_point, end_point, use_wsm=False, weights=None, combine_nature=False):
         """
         Finds a path between two locations (coordinates).
         
@@ -34,6 +34,7 @@ class RouteFinder:
             end_point (tuple): (lat, lon) end location.
             use_wsm (bool): If True, use WSM cost function for scenic routing.
             weights (dict): Feature weights for WSM mode. Uses defaults if None.
+            combine_nature (bool): If True, combine greenness and water into single "nature" score.
 
         Returns:
             tuple: (route, start_point, end_point, distance, time_seconds)
@@ -62,10 +63,10 @@ class RouteFinder:
                 if weights is None:
                     weights = current_app.config.get('WSM_DEFAULT_WEIGHTS')
                 
-                astar_solver = WSMNetworkXAStar(self.graph, weights)
+                astar_solver = WSMNetworkXAStar(self.graph, weights, combine_nature=combine_nature)
                 
                 if current_app.config.get('VERBOSE_LOGGING'):
-                    print(f"[VERBOSE] WSM weights: {weights}")
+                    print(f"[VERBOSE] WSM weights: {weights}, combine_nature: {combine_nature}")
             else:
                 # Standard A* using distance only
                 astar_solver = OSMNetworkXAStar(self.graph)
