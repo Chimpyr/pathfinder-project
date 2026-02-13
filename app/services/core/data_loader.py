@@ -6,6 +6,11 @@ import pandas as pd
 from pyrosm import OSM
 from shapely.geometry import shape, Point
 
+from app.services.core.walking_filter import (
+    apply_walking_filter,
+    EXTRA_WALKING_ATTRIBUTES,
+)
+
 try:
     from flask import current_app, has_app_context
 except ImportError:
@@ -216,17 +221,26 @@ class OSMDataLoader:
                 osm = OSM(actual_pbf_path)
             
             # Custom filter for Weighted Sum Model
-            extra_attributes = [
-                'surface', 'lit', 'incline', 'smoothness', 'footway', 'sac_scale', 'amenity', 'shop'
-            ]
+            # We request extra OSM tags so they appear as edge columns.
+            # EXTRA_WALKING_ATTRIBUTES adds tags needed by the custom filter
+            # (e.g. 'designation') that pyrosm would not include by default.
+            extra_attributes = list(dict.fromkeys(
+                ['surface', 'lit', 'incline', 'smoothness', 'footway',
+                 'sac_scale', 'amenity', 'shop']
+                + EXTRA_WALKING_ATTRIBUTES
+            ))
             
-            self.log("[OSMDataLoader] Fetching 'walking' network...")
+            # Fetch ALL highway ways then apply our own walking filter.
+            # This replaces pyrosm's built-in walking filter which
+            # hard-excludes highway=cycleway even when foot=designated.
+            # See walking_filter.py and ADR-010 §2a for details.
+            self.log("[OSMDataLoader] Fetching road network (all highway types)...")
             try:
                 # We request nodes=True to ensure we get all data.
                 # Logic to handle tuple/graph return types from Pyrosm
                 # TODO: Currently walking is the only network type supported, in the future accept cycling and running (consider these as separate networks)
                 result = osm.get_network(
-                    network_type="walking",
+                    network_type="all",
                     extra_attributes=extra_attributes,
                     nodes=True
                 )
@@ -247,6 +261,15 @@ class OSMDataLoader:
                  # Retry fallback logic
                  # ...
                  raise
+
+            # Apply our custom walking filter to the raw edges
+            if graph is None and nodes is not None and edges is not None:
+                pre_filter = len(edges)
+                edges = apply_walking_filter(edges)
+                self.log(
+                    f"[OSMDataLoader] Walking filter: {pre_filter} → {len(edges)} edges "
+                    f"(removed {pre_filter - len(edges)})"
+                )
 
             # Convert to Graph if we got nodes/edges
             if graph is None and nodes is not None and edges is not None:
