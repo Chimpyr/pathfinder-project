@@ -92,9 +92,10 @@ _PEDESTRIAN_PENALTY: Dict[str, float] = {
 }
 _PEDESTRIAN_DEFAULT: float = 1.5  # Unknown highway tags
 
-# Frontier trimming thresholds (ADR-010 §6)
-MAX_FRONTIER_SIZE: int = 50_000
-TRIM_FRONTIER_TO: int = 25_000
+# Base frontier trimming thresholds (ADR-010 §6)
+# Scaled with target distance in the search function.
+BASE_FRONTIER_SIZE: int = 50_000
+BASE_FRONTIER_TRIM: int = 25_000
 
 # Surface-type penalty multipliers (ADR-010 §3)
 _SURFACE_PENALTY: Dict[str, float] = {
@@ -474,13 +475,23 @@ def _build_search_strategy(
         bearing, tolerance, time_budget, label
 
     Time budgets are split so their sum ≈ *max_search_time*.
+
+    Tolerance escalation ensures primary tiers search for routes CLOSE
+    to the target distance first (tight tolerance), then widen the
+    acceptable range if nothing is found.  Without this, all tiers use
+    the same tolerance and the search always returns the shortest loop
+    that clears the budget minimum.
     """
     strategies = []
+
+    # Tight tolerance = half of user tolerance — forces the primary
+    # search to find loops near the target, not just above the floor.
+    tight_tol = min(tolerance * 0.5, 0.15)
 
     # ── Tier 1: primary direction, tight tolerance ───────────────────────
     strategies.append({
         'bearing': directional_bias,
-        'tolerance': tolerance,
+        'tolerance': tight_tol,
         'time_budget': max_search_time * 0.30,
         'label': 'primary',
     })
@@ -493,7 +504,7 @@ def _build_search_strategy(
         opposite = 90.0  # arbitrary diversity bearing
     strategies.append({
         'bearing': opposite,
-        'tolerance': tolerance,
+        'tolerance': tight_tol,
         'time_budget': max_search_time * 0.20,
         'label': 'diversity',
     })
@@ -506,7 +517,7 @@ def _build_search_strategy(
         perp = 0.0  # north
     strategies.append({
         'bearing': perp,
-        'tolerance': tolerance,
+        'tolerance': tight_tol,
         'time_budget': max_search_time * 0.20,
         'label': 'perpendicular',
     })
@@ -514,7 +525,7 @@ def _build_search_strategy(
     # ── Tier 4: relaxed tolerance, user bearing ──────────────────────────
     strategies.append({
         'bearing': directional_bias,
-        'tolerance': 0.30,
+        'tolerance': tolerance,
         'time_budget': max_search_time * 0.20,
         'label': 'relaxed',
     })
@@ -598,6 +609,12 @@ def _budget_astar_search(
 
     min_dist = target_distance * (1 - distance_tolerance)
     max_dist = target_distance * (1 + distance_tolerance)
+
+    # Scale frontier with target distance — larger loops need more
+    # state-space capacity to push exploration past the 50% mark.
+    _dist_scale = max(1.0, target_distance / 5000.0)
+    max_frontier = int(BASE_FRONTIER_SIZE * _dist_scale)
+    trim_frontier = int(BASE_FRONTIER_TRIM * _dist_scale)
 
     # Pre-compute start node coordinates
     start_lat, start_lon = _node_coords(graph, start_node)
@@ -830,9 +847,11 @@ def _budget_astar_search(
 
             # ── Directional bias (multiplicative) ────────────────────
             # Must be multiplicative so the penalty scales with scenic
-            # cost: a scenic edge (cost 0.1) going the wrong way
-            # becomes 0.1 * 3.0 = 0.3, which can now lose to a
-            # non-scenic edge (cost 0.4) going the right way.
+            # cost.  Reduced from ×3 max to ×2 max — the old ×3
+            # multiplier was so aggressive that directional runs could
+            # not accumulate enough distance before exhausting the
+            # frontier (logs showed max_dist_reached = 60% of target
+            # for every directional run).
             if target_bearing is not None:
                 edge_bear = _bearing(c_lat, c_lon, n_lat, n_lon)
                 diff = abs(edge_bear - target_bearing)
@@ -840,7 +859,7 @@ def _budget_astar_search(
                     diff = 360 - diff
                 # Applied during outbound phase (first 65% of budget)
                 if current_dist < target_distance * 0.65:
-                    direction_factor = 1.0 + 2.0 * (diff / 180.0)
+                    direction_factor = 1.0 + 1.0 * (diff / 180.0)
                     wsm_cost *= direction_factor
 
             tentative_g = g_score.get(current_state, float('inf')) + wsm_cost
@@ -874,8 +893,8 @@ def _budget_astar_search(
             counter += 1
 
         # ── Frontier trimming (ADR-010 §3) ───────────────────────────
-        if len(open_set) > MAX_FRONTIER_SIZE:
-            trimmed = heapq.nsmallest(TRIM_FRONTIER_TO, open_set)
+        if len(open_set) > max_frontier:
+            trimmed = heapq.nsmallest(trim_frontier, open_set)
             open_set = []
             for item in trimmed:
                 heapq.heappush(open_set, item)
@@ -900,7 +919,7 @@ def _budget_heuristic(
     target_dist, max_dist, min_dist, max_length, weights, graph,
 ) -> float:
     """
-    Two-phase budget heuristic for loop routing.
+    Smoothly-blended budget heuristic for loop routing.
 
     Loop A* has a fundamental problem: purely admissible heuristics
     assign monotonically increasing f-scores as a walk progresses
@@ -909,16 +928,22 @@ def _budget_heuristic(
     ones, preventing the search from ever accumulating enough distance
     to enter the valid budget range.
 
-    Solution — two phases:
+    Solution — three-phase blend:
 
-    **Outbound phase** (current_dist < 60% of target):
+    **Outbound phase** (progress < 50%):
         h ≈ (target - dist - dist_to_start) / max_length
-        Drives expansion AWAY from start, as in the original
-        RouteSpinner design.  Slightly inadmissible but essential:
-        it keeps outbound states competitive with shallow states so
-        frontier trimming doesn't kill them.
+        Drives expansion AWAY from start.  Slightly inadmissible but
+        essential: it keeps outbound states competitive with shallow
+        states so frontier trimming doesn't kill them.
 
-    **Return phase** (current_dist ≥ 60% of target):
+    **Blend phase** (50% ≤ progress < 85%):
+        Linearly interpolates between outbound and return heuristics.
+        This avoids the sharp heuristic discontinuity that previously
+        caused ``max_dist_reached`` to plateau at exactly 60% of
+        target, creating an impenetrable barrier where the return
+        heuristic value suddenly tripled.
+
+    **Return phase** (progress ≥ 85%):
         h ≈ dist_to_start / max_length
         Guides the search HOME to close the loop.  Admissible
         (straight-line lower bound).
@@ -934,14 +959,26 @@ def _budget_heuristic(
 
     w_d = weights.get('distance', 0.5)
 
-    # Phase boundary at 60% of target distance
-    if current_dist < target_dist * 0.6:
-        # ── Outbound: push away from start ───────────────────────────
-        # "You still have this much budget to burn before heading home"
-        h_dist = max(0.0, target_dist - current_dist - dist_to_start)
+    # Progress through the target distance
+    progress = current_dist / target_dist if target_dist > 0 else 0.0
+
+    # Phase boundaries
+    OUTBOUND_END = 0.50   # pure outbound until 50%
+    RETURN_START = 0.85   # pure return from 85%
+
+    outbound_h = max(0.0, target_dist - current_dist - dist_to_start)
+    return_h = dist_to_start
+
+    if progress < OUTBOUND_END:
+        # ── Pure outbound: push away from start ─────────────────────
+        h_dist = outbound_h
+    elif progress >= RETURN_START:
+        # ── Pure return: pull toward start ───────────────────────────
+        h_dist = return_h
     else:
-        # ── Return: pull toward start ────────────────────────────────
-        h_dist = dist_to_start
+        # ── Blend: smooth transition avoids heuristic cliff ──────────
+        blend = (progress - OUTBOUND_END) / (RETURN_START - OUTBOUND_END)
+        h_dist = outbound_h * (1.0 - blend) + return_h * blend
 
     if max_length > 0:
         normalised = h_dist / max_length

@@ -127,6 +127,10 @@ iframe {
 
 .view-panel[data-active="true"] {
   display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ============================================================================
@@ -286,9 +290,11 @@ iframe {
    ============================================================================ */
 
 .sidebar-resizable {
+  position: relative;
   width: 320px;
   min-width: 280px;
   max-width: 600px;
+  min-height: 0;
   transition: width 0s; /* No transition during drag */
 }
 
@@ -388,6 +394,7 @@ body.resizing {
    ============================================================================ */
 
 #left-panel {
+  overflow: hidden;
   transition:
     transform 0.3s ease,
     opacity 0.3s ease;
