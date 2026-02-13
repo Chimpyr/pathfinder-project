@@ -76,10 +76,26 @@ const longLoopWarningText = document.getElementById("long-loop-warning-text");
 const directionalBiasControl = document.getElementById(
   "directional-bias-control",
 );
+const preferPedestrianToggle = document.getElementById(
+  "prefer-pedestrian-toggle",
+);
+const varietyLevelSlider = document.getElementById("variety-level-slider");
+const varietyLevelValue = document.getElementById("variety-level-value");
 
 // Routing mode state: 'standard' or 'loop'
 let routingMode = "standard";
 let selectedDirection = "none";
+
+// ============================================================================
+// Route Variety Slider Handler
+// ============================================================================
+if (varietyLevelSlider && varietyLevelValue) {
+  const varietyLabels = ["Off", "Low", "Med", "High"];
+  varietyLevelSlider.addEventListener("input", () => {
+    const level = parseInt(varietyLevelSlider.value);
+    varietyLevelValue.textContent = varietyLabels[level] || level;
+  });
+}
 
 // ============================================================================
 // Scenic Routing Toggle Handler
@@ -867,6 +883,10 @@ async function handleLoopSubmit() {
     start_lon: startState.lon,
     distance_km: distanceKm,
     directional_bias: selectedDirection,
+    variety_level: varietyLevelSlider ? parseInt(varietyLevelSlider.value) : 0,
+    prefer_pedestrian: preferPedestrianToggle
+      ? preferPedestrianToggle.checked
+      : false,
   };
 
   // Add scenic routing weights if enabled
@@ -1661,6 +1681,12 @@ window.retryWithSync = async function () {
       start_lon: startState.lon,
       distance_km: parseFloat(loopDistanceSlider.value),
       directional_bias: selectedDirection,
+      variety_level: varietyLevelSlider
+        ? parseInt(varietyLevelSlider.value)
+        : 0,
+      prefer_pedestrian: preferPedestrianToggle
+        ? preferPedestrianToggle.checked
+        : false,
       force_sync: true,
     };
 

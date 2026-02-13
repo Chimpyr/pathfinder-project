@@ -1084,6 +1084,284 @@ class TestCulDeSacIntegration:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Tests: ADR-010 Features — Road type penalty, Variety, Frontier, Way-name
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestRoadTypePenalty:
+    """Tests for _road_type_penalty helper (ADR-010 §2)."""
+
+    def test_footway_returns_one(self):
+        """Footway edges should have penalty 1.0 (no penalty)."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _road_type_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='footway', length=50)
+        assert _road_type_penalty(G, 1, 2) == 1.0
+
+    def test_primary_road_penalised(self):
+        """Primary roads should have penalty 2.5."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _road_type_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='primary', length=100)
+        assert _road_type_penalty(G, 1, 2) == 2.5
+
+    def test_residential_moderate_penalty(self):
+        """Residential roads should have moderate penalty 1.2."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _road_type_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='residential', length=80)
+        assert _road_type_penalty(G, 1, 2) == 1.2
+
+    def test_unknown_highway_gets_default(self):
+        """Unknown highway tags should get default penalty 1.5."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _road_type_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='some_weird_type', length=50)
+        assert _road_type_penalty(G, 1, 2) == 1.5
+
+    def test_no_highway_tag_gets_default(self):
+        """Edges without highway tag should get default penalty."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _road_type_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, length=50)
+        assert _road_type_penalty(G, 1, 2) == 1.5
+
+    def test_parallel_edges_picks_best(self):
+        """When multiple parallel edges exist, picks the lowest penalty."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _road_type_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='primary', length=100)   # 2.5
+        G.add_edge(1, 2, highway='footway', length=120)    # 1.0
+        assert _road_type_penalty(G, 1, 2) == 1.0
+
+    def test_list_highway_tag(self):
+        """Highway tag stored as list should be handled."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _road_type_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway=['cycleway', 'path'], length=50)
+        assert _road_type_penalty(G, 1, 2) == 1.0
+
+
+class TestGetEdgeName:
+    """Tests for _get_edge_name helper (ADR-010 §4)."""
+
+    def test_returns_name_when_present(self):
+        """Should return edge name attribute."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _get_edge_name
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, name='High Street', length=50)
+        assert _get_edge_name(G, 1, 2) == 'High Street'
+
+    def test_returns_none_when_missing(self):
+        """Should return None when no name tag."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _get_edge_name
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, length=50)
+        assert _get_edge_name(G, 1, 2) is None
+
+    def test_returns_none_for_missing_edge(self):
+        """Should return None when edge doesn't exist."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _get_edge_name
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        assert _get_edge_name(G, 1, 2) is None
+
+    def test_picks_shortest_edge_name(self):
+        """When parallel edges exist, picks name from shortest edge."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _get_edge_name
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, name='Long Road', length=200)
+        G.add_edge(1, 2, name='Short Cut', length=50)
+        assert _get_edge_name(G, 1, 2) == 'Short Cut'
+
+    def test_list_name_handled(self):
+        """Name stored as list should return first element."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _get_edge_name
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, name=['Park Lane', 'Other Name'], length=50)
+        assert _get_edge_name(G, 1, 2) == 'Park Lane'
+
+
+class TestVarietyLevel:
+    """Tests for variety level noise (ADR-010 §1)."""
+
+    def test_variety_noise_constants(self):
+        """Check VARIETY_NOISE dict has expected levels."""
+        from app.services.routing.loop_solvers.budget_astar_solver import VARIETY_NOISE
+        assert VARIETY_NOISE[0] == 0.0
+        assert VARIETY_NOISE[1] == 0.03
+        assert VARIETY_NOISE[2] == 0.06
+        assert VARIETY_NOISE[3] == 0.10
+
+    def test_variety_zero_is_deterministic(self, large_grid_graph, default_weights):
+        """Variety level 0 should produce the same results across runs."""
+        from app.services.routing.loop_solvers.budget_astar_solver import (
+            _budget_astar_search,
+        )
+        from app.services.routing.cost_calculator import find_length_range
+        import random
+
+        min_l, max_l = find_length_range(large_grid_graph)
+        random.seed(42)
+        results_a = _budget_astar_search(
+            large_grid_graph, start_node=44,
+            target_distance=500, weights=default_weights,
+            min_length=min_l, max_length=max_l,
+            max_search_time=5, variety_level=0,
+        )
+        random.seed(42)
+        results_b = _budget_astar_search(
+            large_grid_graph, start_node=44,
+            target_distance=500, weights=default_weights,
+            min_length=min_l, max_length=max_l,
+            max_search_time=5, variety_level=0,
+        )
+        # Same seed + no noise → same routes
+        routes_a = [r[0] for r in results_a]
+        routes_b = [r[0] for r in results_b]
+        assert routes_a == routes_b
+
+    def test_solver_accepts_variety_level(self, large_grid_graph, default_weights):
+        """BudgetAStarSolver.find_loops should accept variety_level param."""
+        from app.services.routing.loop_solvers.budget_astar_solver import BudgetAStarSolver
+        solver = BudgetAStarSolver()
+        candidates = solver.find_loops(
+            graph=large_grid_graph,
+            start_node=44,
+            target_distance=500,
+            weights=default_weights,
+            max_search_time=10,
+            distance_tolerance=0.50,
+            variety_level=2,
+        )
+        assert isinstance(candidates, list)
+
+
+class TestFrontierTrimming:
+    """Tests for heap frontier trimming (ADR-010 §3)."""
+
+    def test_constants_defined(self):
+        """MAX_FRONTIER_SIZE and TRIM_FRONTIER_TO should be defined."""
+        from app.services.routing.loop_solvers.budget_astar_solver import (
+            MAX_FRONTIER_SIZE, TRIM_FRONTIER_TO,
+        )
+        assert MAX_FRONTIER_SIZE == 50_000
+        assert TRIM_FRONTIER_TO == 25_000
+        assert TRIM_FRONTIER_TO < MAX_FRONTIER_SIZE
+
+    def test_search_completes_with_trimming(self, large_grid_graph, default_weights):
+        """Search should complete even on graphs that might generate >50K states."""
+        from app.services.routing.loop_solvers.budget_astar_solver import (
+            _budget_astar_search,
+        )
+        from app.services.routing.cost_calculator import find_length_range
+
+        min_l, max_l = find_length_range(large_grid_graph)
+        # Run with a generous state cap to exercise frontier trimming
+        results = _budget_astar_search(
+            large_grid_graph, start_node=44,
+            target_distance=500, weights=default_weights,
+            min_length=min_l, max_length=max_l,
+            max_search_time=5,
+            max_states=100_000,
+        )
+        assert isinstance(results, list)
+
+
+class TestPedestrianPreference:
+    """Tests for prefer_pedestrian toggle (ADR-010 §2)."""
+
+    def test_pedestrian_flag_accepted(self, large_grid_graph, default_weights):
+        """BudgetAStarSolver should accept prefer_pedestrian param."""
+        from app.services.routing.loop_solvers.budget_astar_solver import BudgetAStarSolver
+        solver = BudgetAStarSolver()
+        candidates = solver.find_loops(
+            graph=large_grid_graph,
+            start_node=44,
+            target_distance=500,
+            weights=default_weights,
+            max_search_time=10,
+            distance_tolerance=0.50,
+            prefer_pedestrian=True,
+        )
+        assert isinstance(candidates, list)
+
+    def test_pedestrian_prefers_footway(self):
+        """With prefer_pedestrian, footway edges should be cheaper than primary."""
+        from app.services.routing.loop_solvers.budget_astar_solver import (
+            _road_type_penalty, _edge_wsm_cost,
+        )
+        from app.services.routing.cost_calculator import find_length_range
+
+        G = nx.MultiDiGraph()
+        G.add_node(1, y=51.45, x=-2.58)
+        G.add_node(2, y=51.451, x=-2.58)
+        G.add_node(3, y=51.451, x=-2.579)
+
+        # Footway vs primary, same length
+        G.add_edge(1, 2, highway='footway', length=100,
+                   norm_green=0.5, norm_water=0.5, norm_social=0.5,
+                   norm_quiet=0.5, norm_slope=0.5)
+        G.add_edge(1, 3, highway='primary', length=100,
+                   norm_green=0.5, norm_water=0.5, norm_social=0.5,
+                   norm_quiet=0.5, norm_slope=0.5)
+
+        weights = {'distance': 0.5, 'greenness': 0.1, 'water': 0.1,
+                   'quietness': 0.1, 'social': 0.1, 'slope': 0.1}
+        min_l, max_l = find_length_range(G)
+
+        # Get WSM costs and apply road-type penalties
+        cost_footway, _ = _edge_wsm_cost(G, 1, 2, weights, min_l, max_l)
+        cost_primary, _ = _edge_wsm_cost(G, 1, 3, weights, min_l, max_l)
+
+        # After pedestrian penalty, footway should be cheaper
+        adjusted_footway = cost_footway * _road_type_penalty(G, 1, 2)
+        adjusted_primary = cost_primary * _road_type_penalty(G, 1, 3)
+
+        assert adjusted_footway < adjusted_primary
+
+
+class TestWayNamePenalty:
+    """Tests for way-name continuity penalty (ADR-010 §4)."""
+
+    def test_same_name_no_penalty(self):
+        """Continuing on the same named road should not add penalty."""
+        # The penalty is applied inside _budget_astar_search; this tests
+        # the helper function that fetches names for comparison.
+        from app.services.routing.loop_solvers.budget_astar_solver import _get_edge_name
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2); G.add_node(3)
+        G.add_edge(1, 2, name='High Street', length=50)
+        G.add_edge(2, 3, name='High Street', length=50)
+
+        name_in = _get_edge_name(G, 1, 2)
+        name_out = _get_edge_name(G, 2, 3)
+        assert name_in == name_out  # Same name → no penalty would be applied
+
+    def test_different_name_detected(self):
+        """Switching to a differently named road should be detectable."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _get_edge_name
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2); G.add_node(3)
+        G.add_edge(1, 2, name='High Street', length=50)
+        G.add_edge(2, 3, name='Park Lane', length=50)
+
+        name_in = _get_edge_name(G, 1, 2)
+        name_out = _get_edge_name(G, 2, 3)
+        assert name_in != name_out  # Different → penalty would be applied
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Tests: Legacy LoopAStar (existing tests still work)
 # ══════════════════════════════════════════════════════════════════════════════
 

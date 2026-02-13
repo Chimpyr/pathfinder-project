@@ -231,6 +231,8 @@ class LoopSolverBase(ABC):
         num_candidates: int = 3,
         distance_tolerance: float = 0.15,
         max_search_time: float = 120,
+        variety_level: int = 0,
+        prefer_pedestrian: bool = False,
     ) -> List[LoopCandidate]:
         """
         Find multiple loop route candidates.
@@ -245,6 +247,8 @@ class LoopSolverBase(ABC):
             num_candidates: Number of candidates to return.
             distance_tolerance: Acceptable deviation fraction (e.g. 0.15 = ±15%).
             max_search_time: Maximum search time in seconds.
+            variety_level: Route variety 0-3 (0 = deterministic, 3 = most varied).
+            prefer_pedestrian: If True, strongly favour footpaths/cycleways.
 
         Returns:
             List of LoopCandidate objects sorted by quality score.

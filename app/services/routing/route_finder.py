@@ -30,7 +30,9 @@ class RouteFinder:
         use_wsm=True, 
         weights=None, 
         combine_nature=False,
-        directional_bias="none"
+        directional_bias="none",
+        variety_level=0,
+        prefer_pedestrian=False,
     ):
         """
         Finds multiple circular (loop) route candidates.
@@ -49,6 +51,8 @@ class RouteFinder:
             weights (dict): Feature weights for WSM mode. Uses defaults if None.
             combine_nature (bool): If True, combine greenness and water scores.
             directional_bias (str): Direction preference ("north"/"east"/"south"/"west"/"none").
+            variety_level (int): Route variety 0-3 (0 = deterministic).
+            prefer_pedestrian (bool): If True, strongly favour footpaths/cycleways.
 
         Returns:
             list: List of LoopCandidate objects (may be empty if no loops found).
@@ -98,6 +102,8 @@ class RouteFinder:
                 num_candidates=num_candidates,
                 distance_tolerance=distance_tolerance,
                 max_search_time=max_search_time,
+                variety_level=variety_level,
+                prefer_pedestrian=prefer_pedestrian,
             )
             
             # Filter out loops below minimum distance

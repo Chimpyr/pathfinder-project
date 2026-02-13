@@ -74,6 +74,77 @@ BIAS_TO_BEARING: Dict[str, Optional[float]] = {
     'none': None,
 }
 
+# Variety-level noise magnitudes (ADR-010 §1)
+# Level 0 = deterministic, level 3 = most varied
+VARIETY_NOISE: Dict[int, float] = {0: 0.0, 1: 0.03, 2: 0.06, 3: 0.10}
+
+# Road-type penalty multipliers for pedestrian preference (ADR-010 §2)
+# Lower = more pedestrian-friendly.  Applied multiplicatively to WSM cost.
+_PEDESTRIAN_PENALTY: Dict[str, float] = {
+    'footway': 1.0, 'path': 1.0, 'pedestrian': 1.0, 'cycleway': 1.0,
+    'track': 1.0, 'bridleway': 1.0, 'steps': 1.0,
+    'residential': 1.2, 'living_street': 1.2, 'service': 1.2,
+    'unclassified': 1.5, 'tertiary': 1.5, 'tertiary_link': 1.5,
+    'secondary': 2.0, 'secondary_link': 2.0,
+    'primary': 2.5, 'primary_link': 2.5,
+    'trunk': 3.0, 'trunk_link': 3.0,
+    'motorway': 3.0, 'motorway_link': 3.0,
+}
+_PEDESTRIAN_DEFAULT: float = 1.5  # Unknown highway tags
+
+# Frontier trimming thresholds (ADR-010 §3)
+MAX_FRONTIER_SIZE: int = 50_000
+TRIM_FRONTIER_TO: int = 25_000
+
+
+def _road_type_penalty(graph, n1: int, n2: int) -> float:
+    """
+    Multiplicative penalty based on the highway tag of the edge n1→n2.
+
+    Returns a multiplier >= 1.0.  Pedestrian-friendly ways (footway,
+    path, cycleway) return 1.0; busy roads return up to 3.0.
+    Uses the best (lowest-penalty) parallel edge that has a highway tag.
+    Falls back to _PEDESTRIAN_DEFAULT if no edge has a highway tag.
+    """
+    edges = graph.get_edge_data(n1, n2)
+    if not edges:
+        return _PEDESTRIAN_DEFAULT
+    best = None
+    for data in edges.values():
+        tag = data.get('highway')
+        if isinstance(tag, list):
+            tag = tag[0] if tag else None
+        if tag is None:
+            continue
+        tag_lower = tag.lower() if isinstance(tag, str) else str(tag).lower()
+        penalty = _PEDESTRIAN_PENALTY.get(tag_lower, _PEDESTRIAN_DEFAULT)
+        if best is None or penalty < best:
+            best = penalty
+    return best if best is not None else _PEDESTRIAN_DEFAULT
+
+
+def _get_edge_name(graph, n1: int, n2: int) -> Optional[str]:
+    """
+    Return the 'name' tag for the best edge between n1 and n2.
+
+    Returns None if no name is set.  Picks the shortest edge's name
+    if multiple parallel edges exist.
+    """
+    edges = graph.get_edge_data(n1, n2)
+    if not edges:
+        return None
+    best_length = float('inf')
+    best_name = None
+    for data in edges.values():
+        length = data.get('length', float('inf'))
+        if length < best_length:
+            best_length = length
+            name = data.get('name')
+            if isinstance(name, list):
+                name = name[0] if name else None
+            best_name = name
+    return best_name
+
 
 def _edge_wsm_cost(
     graph, n1, n2, weights, min_length, max_length, combine_nature=False
@@ -363,6 +434,8 @@ def _budget_astar_search(
     distance_bin_size: float = 100.0,
     max_candidates: int = 10,
     max_states: int = 500_000,
+    variety_level: int = 0,
+    prefer_pedestrian: bool = False,
 ) -> List[Tuple[List[int], float, float]]:
     """
     Budget-constrained A* search for loop routes.
@@ -383,6 +456,9 @@ def _budget_astar_search(
         distance_bin_size: Distance discretization bin size in metres.
         max_candidates: Maximum candidates to collect before stopping.
         max_states: Maximum states to explore before termination.
+        variety_level: Route variety 0-3 (0 = deterministic).
+        prefer_pedestrian: If True, apply road-type penalty favouring
+            footpaths/cycleways over busy roads.
 
     Returns:
         List of (route, distance, scenic_cost) tuples.
@@ -400,6 +476,9 @@ def _budget_astar_search(
     # nodes to accumulate distance without extending outward).
     # For 5km loop (~100 edges), window of 50 blocks the last ~50%.
     recency_window_size = max(30, int(target_distance // 100))
+
+    # ── Variety noise (ADR-010 §1) ───────────────────────────────────
+    noise_mag = VARIETY_NOISE.get(variety_level, 0.0)
 
     # State: (node_id, distance_bin)
     initial_state = (start_node, 0)
@@ -506,6 +585,14 @@ def _budget_astar_search(
                 weights, min_length, max_length, combine_nature,
             )
 
+            # ── Pedestrian preference (ADR-010 §2) ───────────────────
+            if prefer_pedestrian:
+                wsm_cost *= _road_type_penalty(graph, current_node, neighbor_node)
+
+            # ── Variety noise (ADR-010 §1) ───────────────────────────
+            if noise_mag > 0:
+                wsm_cost *= 1.0 + random.uniform(-noise_mag, noise_mag)
+
             # Current node coords (needed for bearing calculations)
             c_lat, c_lon = _node_coords(graph, current_node)
 
@@ -533,6 +620,19 @@ def _budget_astar_search(
                     wsm_cost += 0.8   # heavy penalty for U-turns
                 elif turn > 120:
                     wsm_cost += 0.3   # moderate penalty for sharp turns
+
+            # ── Way-name continuity penalty (ADR-010 §4) ──────────
+            # Penalise switching to a differently-named street to
+            # discourage zigzagging between parallel roads.
+            if current_state in came_from:
+                prev_state = came_from[current_state]
+                prev_node_id = prev_state[0]
+                incoming_name = _get_edge_name(graph, prev_node_id, current_node)
+                outgoing_name = _get_edge_name(graph, current_node, neighbor_node)
+                if (incoming_name is not None
+                        and outgoing_name is not None
+                        and incoming_name != outgoing_name):
+                    wsm_cost += 0.05
 
             # ── Directional bias (multiplicative) ────────────────────
             # Must be multiplicative so the penalty scales with scenic
@@ -578,6 +678,13 @@ def _budget_astar_search(
                 f_new, counter, neighbor_state, new_dist, new_recent_nodes
             ))
             counter += 1
+
+        # ── Frontier trimming (ADR-010 §3) ───────────────────────────
+        if len(open_set) > MAX_FRONTIER_SIZE:
+            trimmed = heapq.nsmallest(TRIM_FRONTIER_TO, open_set)
+            open_set = []
+            for item in trimmed:
+                heapq.heappush(open_set, item)
 
     elapsed = time.time() - t0
     print(f"[BudgetA*] Search complete: {states_explored} states, "
@@ -665,6 +772,8 @@ class BudgetAStarSolver(LoopSolverBase):
         num_candidates: int = 3,
         distance_tolerance: float = 0.15,
         max_search_time: float = 120,
+        variety_level: int = 0,
+        prefer_pedestrian: bool = False,
     ) -> List[LoopCandidate]:
         """
         Find multiple diverse loop candidates using Budget A* search.
@@ -742,6 +851,8 @@ class BudgetAStarSolver(LoopSolverBase):
                 max_search_time=time_budget,
                 distance_bin_size=bin_size,
                 max_candidates=num_candidates,  # fewer per run → multiple directions explored
+                variety_level=variety_level,
+                prefer_pedestrian=prefer_pedestrian,
             )
             all_raw_loops.extend(run_loops)
             current_tolerance = strategy['tolerance']

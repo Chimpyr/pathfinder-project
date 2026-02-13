@@ -170,7 +170,9 @@ def calculate_loop_route():
             "directional_bias": "north" | "east" | "south" | "west" | "none",
             "use_wsm": bool,
             "weights": {...},
-            "combine_nature": bool
+            "combine_nature": bool,
+            "variety_level": int (0-3, default 0),
+            "prefer_pedestrian": bool (default false)
         }
     
     Response JSON (success):
@@ -218,6 +220,13 @@ def calculate_loop_route():
         valid_biases = {'north', 'east', 'south', 'west', 'none'}
         if directional_bias not in valid_biases:
             return jsonify({'error': f'Invalid directional_bias. Must be one of: {valid_biases}'}), 400
+        
+        # Validate variety level (0-3)
+        variety_level = int(data.get('variety_level', 0))
+        variety_level = max(0, min(3, variety_level))  # Clamp to [0, 3]
+        
+        # Pedestrian preference toggle
+        prefer_pedestrian = bool(data.get('prefer_pedestrian', False))
         
         # Log warning for long loops
         if target_distance_km > 15:
@@ -352,7 +361,9 @@ def calculate_loop_route():
             use_wsm=use_wsm,
             weights=weights,
             combine_nature=combine_nature,
-            directional_bias=directional_bias
+            directional_bias=directional_bias,
+            variety_level=variety_level,
+            prefer_pedestrian=prefer_pedestrian,
         )
         
         if not candidates:
