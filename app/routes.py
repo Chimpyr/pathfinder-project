@@ -255,9 +255,15 @@ def calculate_loop_route():
         tile_size_km = current_app.config.get('TILE_SIZE_KM', DEFAULT_TILE_SIZE_KM)
         tile_overlap_km = current_app.config.get('TILE_OVERLAP_KM', DEFAULT_TILE_OVERLAP_KM)
         
-        # Synthesize virtual "end points" by projecting target_distance/2 in diagonal directions
-        # This creates a bounding box that covers the area the loop might traverse
-        offset_km = target_distance_km * 0.6  # Slightly more than half for margin
+        # Synthesize virtual bounding box around the start point.
+        # A loop returns to start, so the relevant area is a circle of
+        # radius ≈ target_distance / (2π) for a circular loop, up to
+        # ≈ target_distance / 3 for an extremely elongated one.
+        # Using 0.35 × target gives generous coverage (with +30% budget
+        # tolerance → max displacement ≈ 0.43 × target) while avoiding
+        # the old 0.6 multiplier which requested 5 tiles for a 12km loop
+        # and caused OOM during merge.
+        offset_km = target_distance_km * 0.35
         offset_deg_lat = offset_km / 111.0  # 1 degree latitude ≈ 111 km
         offset_deg_lon = offset_km / (111.0 * math.cos(math.radians(start_point[0])))
         
@@ -267,6 +273,24 @@ def calculate_loop_route():
         
         # Get tiles for the bounding box
         tile_ids = get_tiles_for_route(virtual_sw, virtual_ne, tile_size_km)
+
+        # ── Tile cap for loop routes ─────────────────────────────────
+        # Merging many large tiles is memory-intensive (~300-500MB each).
+        # A loop route never needs more than 4 tiles — if more are
+        # computed it means the bounding box is too generous or the
+        # start sits at a multi-tile junction.  Keep only the tiles
+        # closest to the start point.
+        MAX_LOOP_TILES = 4
+        if len(tile_ids) > MAX_LOOP_TILES:
+            print(f"[API] Loop tile cap: reducing {len(tile_ids)} tiles "
+                  f"to {MAX_LOOP_TILES} nearest start")
+            # Sort tiles by distance from start to tile centre, keep closest
+            def _tile_dist(tid):
+                parts = tid.split('_')
+                t_lat, t_lon = float(parts[0]), float(parts[1])
+                return ((t_lat - start_point[0]) ** 2
+                        + (t_lon - start_point[1]) ** 2)
+            tile_ids = sorted(tile_ids, key=_tile_dist)[:MAX_LOOP_TILES]
         
         if current_app.config.get('VERBOSE_LOGGING'):
             print(f"[API] Loop requires {len(tile_ids)} tiles: {tile_ids}")

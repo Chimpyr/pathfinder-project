@@ -422,13 +422,16 @@ def _prune_dead_ends(graph, start_node: int, max_iterations: int = 3):
         if not to_remove:
             break  # No dead-ends left
 
-        # Safety cap: if this batch would exceed 5%, stop pruning
-        if total_removed + len(to_remove) > max_removable:
-            print(f"[BudgetA*] Pruning safety cap hit at iteration "
-                  f"{iteration + 1} ({total_removed + len(to_remove)} "
-                  f"> {max_removable} limit), stopping with "
-                  f"{total_removed} removed")
-            break
+        # Safety cap: if this batch would exceed the limit, trim it
+        # rather than discarding the entire round.
+        remaining_budget_prune = max_removable - total_removed
+        if len(to_remove) > remaining_budget_prune:
+            print(f"[BudgetA*] Pruning safety cap: trimming batch from "
+                  f"{len(to_remove)} to {remaining_budget_prune} "
+                  f"(total limit {max_removable})")
+            to_remove = to_remove[:remaining_budget_prune]
+            if not to_remove:
+                break
 
         for node in to_remove:
             pruned.remove_node(node)
@@ -599,11 +602,49 @@ def _budget_astar_search(
     # Pre-compute start node coordinates
     start_lat, start_lon = _node_coords(graph, start_node)
 
-    # Recency window size: scale with target distance.
-    # Must be large enough to prevent local zigzag (revisiting nearby
-    # nodes to accumulate distance without extending outward).
-    # For 5km loop (~100 edges), window of 50 blocks the last ~50%.
-    recency_window_size = max(30, int(target_distance // 100))
+    # Recency window size: prevents trivial A→B→A oscillation
+    # without blocking the return leg from crossing the outbound path.
+    #
+    # IMPORTANT: this must NOT scale with target distance.  A 12km loop
+    # has ~200 edges.  A window of 125 (the old formula) blocks the last
+    # 5-6 km of path, making loop closure impossible in real networks
+    # where streets inevitably intersect the outbound leg.
+    #
+    # A fixed window of 15-25 nodes (≈ 1-2km of walking) is sufficient
+    # to prevent zigzag while leaving the return leg unconstrained.
+    recency_window_size = 20
+
+    # ── Penalty scale ────────────────────────────────────────────────
+    # Additive penalties (exploration, turn-angle, way-name) must be
+    # proportional to the typical WSM edge cost.  When scenic weights
+    # are active (greenness, water, etc.) a typical edge costs ~0.05-0.15.
+    # With distance-only weights the per-edge cost drops to ~0.003,
+    # and absolute penalties of 0.12-0.8 dominate by 40-260×, making
+    # loop closure almost impossible because the return leg's exploration
+    # penalties dwarf the actual travel cost.
+    #
+    # We sample edges near the start to compute a representative cost,
+    # then express all additive penalties as multiples of this scale.
+    # Multipliers are chosen so that when penalty_scale ≈ 0.1 (typical
+    # scenic routing), the resulting penalties match the original values.
+    _sample_costs = []
+    for _nbr in list(graph.neighbors(start_node))[:20]:
+        _c, _ = _edge_wsm_cost(
+            graph, start_node, _nbr,
+            weights, min_length, max_length, combine_nature,
+        )
+        if _c < float('inf'):
+            _sample_costs.append(_c)
+    if _sample_costs:
+        penalty_scale = max(sum(_sample_costs) / len(_sample_costs), 0.005)
+    else:
+        penalty_scale = 0.1  # fallback
+    # Normalise so multipliers stay human-readable (1.2, 8.0, etc.)
+    # When penalty_scale ≈ 0.1 these multipliers reproduce the original
+    # absolute constants (0.12, 0.8, 0.3, 0.05).
+    ps = penalty_scale  # short alias used in the hot loop below
+    print(f"[BudgetA*] penalty_scale={ps:.6f} "
+          f"(sampled {len(_sample_costs)} edges near start)")
 
     # ── Variety noise (ADR-010 §1) ───────────────────────────────────
     noise_mag = VARIETY_NOISE.get(variety_level, 0.0)
@@ -627,6 +668,8 @@ def _budget_astar_search(
 
     found_loops = []
     states_explored = 0
+    max_dist_reached = 0.0
+    closest_to_start_in_budget = float('inf')  # diagnostic
 
     # Track how many times each physical node is popped from the heap.
     # Nodes visited often are in well-explored territory; gently penalising
@@ -651,6 +694,15 @@ def _budget_astar_search(
 
         states_explored += 1
         node_expansions[current_node] = node_expansions.get(current_node, 0) + 1
+
+        # Track diagnostic stats
+        if current_dist > max_dist_reached:
+            max_dist_reached = current_dist
+        if current_dist >= min_dist and current_node != start_node:
+            c_lat, c_lon = _node_coords(graph, current_node)
+            d2s = _haversine(c_lat, c_lon, start_lat, start_lon)
+            if d2s < closest_to_start_in_budget:
+                closest_to_start_in_budget = d2s
 
         # Periodic progress logging
         if states_explored % 10000 == 0:
@@ -740,9 +792,11 @@ def _budget_astar_search(
             # Nodes already expanded many times are in well-trodden
             # territory.  A mild penalty steers the return leg toward
             # parallel streets instead of retracing the outbound path.
+            # Scaled to penalty_scale so it stays proportional to WSM
+            # edge costs regardless of weight configuration.
             prior_visits = node_expansions.get(neighbor_node, 0)
             if prior_visits > 0:
-                wsm_cost += min(0.5, 0.12 * prior_visits)
+                wsm_cost += ps * min(3.0, 0.6 * prior_visits)
 
             # ── Turn-angle penalty: discourage sharp U-turns ─────────
             # Natural walking/cycling routes rarely reverse direction.
@@ -757,9 +811,9 @@ def _budget_astar_search(
                     turn = 360 - turn
                 # turn ∈ [0, 180]; 0 = straight, 180 = U-turn
                 if turn > 150:
-                    wsm_cost += 0.8   # heavy penalty for U-turns
+                    wsm_cost += ps * 8.0   # heavy penalty for U-turns
                 elif turn > 120:
-                    wsm_cost += 0.3   # moderate penalty for sharp turns
+                    wsm_cost += ps * 3.0   # moderate penalty for sharp turns
 
             # ── Way-name continuity penalty (ADR-010 §4) ──────────
             # Penalise switching to a differently-named street to
@@ -772,7 +826,7 @@ def _budget_astar_search(
                 if (incoming_name is not None
                         and outgoing_name is not None
                         and incoming_name != outgoing_name):
-                    wsm_cost += 0.05
+                    wsm_cost += ps * 0.5
 
             # ── Directional bias (multiplicative) ────────────────────
             # Must be multiplicative so the penalty scales with scenic
@@ -829,6 +883,14 @@ def _budget_astar_search(
     elapsed = time.time() - t0
     print(f"[BudgetA*] Search complete: {states_explored} states, "
           f"{len(found_loops)} loops found, {elapsed:.1f}s")
+    if not found_loops:
+        closest_str = (f"{closest_to_start_in_budget:.0f}m"
+                       if closest_to_start_in_budget < float('inf')
+                       else "never")
+        print(f"[BudgetA*] Diagnostics: max_dist_reached={max_dist_reached:.0f}m, "
+              f"closest_to_start_while_in_budget={closest_str}, "
+              f"budget=[{min_dist:.0f}, {max_dist:.0f}]m, "
+              f"recency_window={recency_window_size}")
 
     return found_loops
 
@@ -838,34 +900,55 @@ def _budget_heuristic(
     target_dist, max_dist, min_dist, max_length, weights, graph,
 ) -> float:
     """
-    Budget-based admissible heuristic for loop routing.
+    Two-phase budget heuristic for loop routing.
 
-    Key insight (RouteSpinner): drives exploration AWAY from start when
-    budget is large, pulls BACK toward start as budget shrinks.
+    Loop A* has a fundamental problem: purely admissible heuristics
+    assign monotonically increasing f-scores as a walk progresses
+    (g grows faster than h shrinks due to penalty inflation).
+    Frontier trimming then discards deep states in favour of shallow
+    ones, preventing the search from ever accumulating enough distance
+    to enter the valid budget range.
 
-    h(n) = max(0, target_dist - current_dist - dist_to_start)
+    Solution — two phases:
 
-    Returns infinity if the state is provably unreachable (can't return
-    to start within remaining budget).
+    **Outbound phase** (current_dist < 60% of target):
+        h ≈ (target - dist - dist_to_start) / max_length
+        Drives expansion AWAY from start, as in the original
+        RouteSpinner design.  Slightly inadmissible but essential:
+        it keeps outbound states competitive with shallow states so
+        frontier trimming doesn't kill them.
+
+    **Return phase** (current_dist ≥ 60% of target):
+        h ≈ dist_to_start / max_length
+        Guides the search HOME to close the loop.  Admissible
+        (straight-line lower bound).
+
+    Returns infinity if the state is provably infeasible.
     """
     n_lat, n_lon = _node_coords(graph, node)
     dist_to_start = _haversine(n_lat, n_lon, start_lat, start_lon)
-    remaining_budget = target_dist - current_dist
 
     # Pruning: can't return to start even in a straight line
     if dist_to_start > (max_dist - current_dist) * 1.2:
         return float('inf')
 
-    # Budget heuristic: encourage using remaining budget
-    heuristic_distance = max(0.0, remaining_budget - dist_to_start)
+    w_d = weights.get('distance', 0.5)
 
-    # Normalise to WSM cost scale
+    # Phase boundary at 60% of target distance
+    if current_dist < target_dist * 0.6:
+        # ── Outbound: push away from start ───────────────────────────
+        # "You still have this much budget to burn before heading home"
+        h_dist = max(0.0, target_dist - current_dist - dist_to_start)
+    else:
+        # ── Return: pull toward start ────────────────────────────────
+        h_dist = dist_to_start
+
     if max_length > 0:
-        normalised = heuristic_distance / max_length
+        normalised = h_dist / max_length
     else:
         normalised = 0.0
 
-    return weights.get('distance', 0.5) * normalised
+    return w_d * normalised
 
 
 def _reconstruct_path(came_from, state) -> List[int]:
@@ -940,12 +1023,15 @@ class BudgetAStarSolver(LoopSolverBase):
         pruned_graph = _prune_dead_ends(graph, start_node)
 
         # Determine bin size based on target distance
+        # 100m bins work well across all distances — at 12km that's 120
+        # bins per node, still manageable.  The old 200m bin for >10km
+        # was too coarse and caused many valid return-legs to be rejected
+        # because g_score for (start_node, bin_N) was already filled by
+        # a worse path that happened to land in the same wide bin.
         if target_distance <= 3000:
             bin_size = 50.0
-        elif target_distance <= 10000:
-            bin_size = 100.0
         else:
-            bin_size = 200.0
+            bin_size = 100.0
 
         # ── Build strategy list (Milestone 3) ────────────────────────────
         strategies = _build_search_strategy(

@@ -84,8 +84,16 @@ class RouteFinder:
             distance_tolerance = current_app.config.get('LOOP_DISTANCE_TOLERANCE', 0.15)
             min_loop_distance = current_app.config.get('LOOP_MIN_DISTANCE', 1000)
             
-            # Adjust search time based on distance
-            max_search_time = 30 if target_distance_m <= 15000 else 120
+            # Adjust search time based on distance — longer loops need
+            # proportionally more time to push states past the budget minimum.
+            if target_distance_m <= 5000:
+                max_search_time = 30
+            elif target_distance_m <= 10000:
+                max_search_time = 45
+            elif target_distance_m <= 15000:
+                max_search_time = 60
+            else:
+                max_search_time = 120
             
             # Create solver via factory (reads LOOP_SOLVER_ALGORITHM from config)
             from app.services.routing.loop_solvers import LoopSolverFactory

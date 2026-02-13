@@ -18,10 +18,10 @@ Steers the overall shape of the loop toward a compass direction. For
 example, clicking **North** biases the outbound leg northward, so the loop
 bulges in that direction before returning to the start.
 
-| Setting | Effect |
-|---------|--------|
+| Setting           | Effect                                                                |
+| ----------------- | --------------------------------------------------------------------- |
 | None (centre dot) | No directional preference — loop shape determined entirely by scenery |
-| N / S / E / W | Route is gently pushed in the chosen direction |
+| N / S / E / W     | Route is gently pushed in the chosen direction                        |
 
 **When to use:** You know the scenic area is to the west of your start point
 and want to ensure the loop heads that way rather than east.
@@ -38,14 +38,14 @@ over roads shared with motor traffic.
 
 Roads are penalised based on their OpenStreetMap `highway` tag:
 
-| Road type | Penalty |
-|-----------|---------|
+| Road type                                                    | Penalty            |
+| ------------------------------------------------------------ | ------------------ |
 | Footway, path, pedestrian, cycleway, track, bridleway, steps | × 1.0 (no penalty) |
-| Residential, living street, service road | × 1.2 |
-| Unclassified, tertiary | × 1.5 |
-| Secondary | × 2.0 |
-| Primary | × 2.5 |
-| Trunk, motorway | × 3.0 |
+| Residential, living street, service road                     | × 1.2              |
+| Unclassified, tertiary                                       | × 1.5              |
+| Secondary                                                    | × 2.0              |
+| Primary                                                      | × 2.5              |
+| Trunk, motorway                                              | × 3.0              |
 
 **When to use:** You are walking in a suburban or rural area and want the
 route to stick to off-road paths and quiet lanes rather than following main
@@ -60,13 +60,13 @@ roads, even if the main roads have higher scenic scores.
 When enabled, the solver penalises edges with soft or uneven surfaces,
 steering the route toward asphalt, concrete, and other hard surfaces.
 
-| Surface type | Examples | Penalty |
-|--------------|----------|---------|
-| Hard paved | Asphalt, concrete, paving stones | × 1.0 |
-| Firm | Sett, cobblestone, metal, wood | × 1.1 |
-| Compact unpaved | Compacted gravel, fine gravel | × 1.3 |
-| Soft / wet | Dirt, mud, sand, grass, woodchips | × 2.0 |
-| Unknown (no tag) | Many residential streets | × 1.2 |
+| Surface type     | Examples                          | Penalty |
+| ---------------- | --------------------------------- | ------- |
+| Hard paved       | Asphalt, concrete, paving stones  | × 1.0   |
+| Firm             | Sett, cobblestone, metal, wood    | × 1.1   |
+| Compact unpaved  | Compacted gravel, fine gravel     | × 1.3   |
+| Soft / wet       | Dirt, mud, sand, grass, woodchips | × 2.0   |
+| Unknown (no tag) | Many residential streets          | × 1.2   |
 
 **When to use:**
 
@@ -89,12 +89,12 @@ When enabled, the solver **actively rewards** well-lit streets and
 penalises unlit ones. This is particularly useful for evening or night-time
 walks.
 
-| Lighting status | Penalty |
-|-----------------|---------|
+| Lighting status                  | Penalty                                    |
+| -------------------------------- | ------------------------------------------ |
 | Lit (`yes`, `automatic`, `24/7`) | × 0.85 (**bonus** — cheaper than baseline) |
-| Limited / disused | × 1.3 |
-| Not lit (`no`) | × 1.8 |
-| Unknown (no tag) | × 1.2 |
+| Limited / disused                | × 1.3                                      |
+| Not lit (`no`)                   | × 1.8                                      |
+| Unknown (no tag)                 | × 1.2                                      |
 
 Unlike the other toggles, lit streets receive a **bonus** (multiplier less
 than 1.0) rather than just penalising unlit ones. This ensures
@@ -128,7 +128,7 @@ A road is considered **unsafe** when:
 3. It has **no** `foot` tag confirming pedestrian access (`yes` or
    `designated`).
 
-If a road *does* have a sidewalk or confirmed foot access, it keeps its
+If a road _does_ have a sidewalk or confirmed foot access, it keeps its
 normal cost — the toggle only targets roads that are genuinely dangerous
 for pedestrians.
 
@@ -156,12 +156,12 @@ Controls how much randomness the solver injects into its search costs.
 Running the same query multiple times with variety > 0 will produce
 **different routes** each time.
 
-| Level | Noise | Effect |
-|-------|-------|--------|
-| 0 (Off) | ± 0 % | Deterministic — same result every time |
-| 1 (Low) | ± 3 % | Slight variation, routes remain very scenic |
-| 2 (Medium) | ± 6 % | Noticeable variation, may trade a little scenery for novelty |
-| 3 (High) | ± 10 % | Strong variation, good for exploring new areas |
+| Level      | Noise  | Effect                                                       |
+| ---------- | ------ | ------------------------------------------------------------ |
+| 0 (Off)    | ± 0 %  | Deterministic — same result every time                       |
+| 1 (Low)    | ± 3 %  | Slight variation, routes remain very scenic                  |
+| 2 (Medium) | ± 6 %  | Noticeable variation, may trade a little scenery for novelty |
+| 3 (High)   | ± 10 % | Strong variation, good for exploring new areas               |
 
 **When to use:**
 
@@ -180,13 +180,13 @@ Running the same query multiple times with variety > 0 will produce
 The toggles are independent and can be mixed freely. Some useful
 combinations:
 
-| Profile | Controls |
-|---------|----------|
+| Profile          | Controls                                                        |
+| ---------------- | --------------------------------------------------------------- |
 | **Safety first** | Prefer paths & trails + Avoid unsafe roads + Prefer lit streets |
-| **Accessible** | Prefer paved surfaces + Avoid unsafe roads |
-| **Night walk** | Prefer lit streets + Avoid unsafe roads |
-| **Adventurous** | Route variety 3, all toggles off |
-| **Trail runner** | Prefer paths & trails, all others off |
+| **Accessible**   | Prefer paved surfaces + Avoid unsafe roads                      |
+| **Night walk**   | Prefer lit streets + Avoid unsafe roads                         |
+| **Adventurous**  | Route variety 3, all toggles off                                |
+| **Trail runner** | Prefer paths & trails, all others off                           |
 
 Each toggle multiplies the edge cost independently. When multiple toggles
 are enabled, their penalties **stack multiplicatively** — a dark, unsurfaced

@@ -1251,13 +1251,13 @@ class TestFrontierTrimming:
     """Tests for heap frontier trimming (ADR-010 §3)."""
 
     def test_constants_defined(self):
-        """MAX_FRONTIER_SIZE and TRIM_FRONTIER_TO should be defined."""
+        """BASE_FRONTIER_SIZE and BASE_FRONTIER_TRIM should be defined."""
         from app.services.routing.loop_solvers.budget_astar_solver import (
-            MAX_FRONTIER_SIZE, TRIM_FRONTIER_TO,
+            BASE_FRONTIER_SIZE, BASE_FRONTIER_TRIM,
         )
-        assert MAX_FRONTIER_SIZE == 50_000
-        assert TRIM_FRONTIER_TO == 25_000
-        assert TRIM_FRONTIER_TO < MAX_FRONTIER_SIZE
+        assert BASE_FRONTIER_SIZE == 50_000
+        assert BASE_FRONTIER_TRIM == 25_000
+        assert BASE_FRONTIER_TRIM < BASE_FRONTIER_SIZE
 
     def test_search_completes_with_trimming(self, large_grid_graph, default_weights):
         """Search should complete even on graphs that might generate >50K states."""
@@ -1622,3 +1622,112 @@ class TestLegacyLoopAStarImport:
         """Legacy LoopAStar can still be imported."""
         from app.services.routing.astar.loop_astar import LoopAStar
         assert LoopAStar is not None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tests: Penalty Scaling
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestPenaltyScaling:
+    """Tests that additive penalties scale with WSM edge cost magnitude."""
+
+    def _run_search(self, weights, graph, start_node, **kwargs):
+        """Run a short search and return found loops."""
+        from app.services.routing.loop_solvers.budget_astar_solver import (
+            _budget_astar_search,
+        )
+        from app.services.routing.cost_calculator import find_length_range
+
+        min_l, max_l = find_length_range(graph)
+        return _budget_astar_search(
+            graph, start_node,
+            target_distance=kwargs.get('target_distance', 500),
+            weights=weights,
+            min_length=min_l,
+            max_length=max_l,
+            distance_tolerance=0.50,
+            max_search_time=5,
+            max_states=50_000,
+            **{k: v for k, v in kwargs.items() if k != 'target_distance'},
+        )
+
+    def test_distance_only_weights_can_find_loop(self):
+        """With distance-only weights, solver should still find loops
+        rather than being choked by absolute penalties."""
+        # Build a simple grid graph that forms a rectangle
+        G = nx.MultiDiGraph()
+        # Create a rectangular loop: 1-2-3-4-5-6-7-8-1
+        coords = [
+            (51.45, -2.60),   # 1
+            (51.451, -2.60),  # 2
+            (51.452, -2.60),  # 3
+            (51.453, -2.60),  # 4
+            (51.453, -2.598), # 5
+            (51.452, -2.598), # 6
+            (51.451, -2.598), # 7
+            (51.45, -2.598),  # 8
+        ]
+        for i, (lat, lon) in enumerate(coords, 1):
+            G.add_node(i, y=lat, x=lon)
+
+        # Add edges forming a rectangular loop (~100m per edge = ~800m total)
+        for i in range(1, 8):
+            G.add_edge(i, i + 1, length=100,
+                       norm_green=0.5, norm_water=0.5, norm_social=0.5,
+                       norm_quiet=0.5, norm_slope=0.5, name=f'Street {i}')
+            G.add_edge(i + 1, i, length=100,
+                       norm_green=0.5, norm_water=0.5, norm_social=0.5,
+                       norm_quiet=0.5, norm_slope=0.5, name=f'Street {i}')
+        # Close the loop
+        G.add_edge(8, 1, length=100,
+                   norm_green=0.5, norm_water=0.5, norm_social=0.5,
+                   norm_quiet=0.5, norm_slope=0.5, name='Street 8')
+        G.add_edge(1, 8, length=100,
+                   norm_green=0.5, norm_water=0.5, norm_social=0.5,
+                   norm_quiet=0.5, norm_slope=0.5, name='Street 8')
+
+        # Distance-only weights (the problematic case)
+        distance_only = {
+            'distance': 1.0, 'greenness': 0.0, 'water': 0.0,
+            'quietness': 0.0, 'social': 0.0, 'slope': 0.0,
+        }
+        loops = self._run_search(
+            distance_only, G, start_node=1, target_distance=800,
+        )
+        assert len(loops) > 0, (
+            "Distance-only weights should still find loops; "
+            "penalties may be dominating edge costs"
+        )
+
+    def test_scenic_weights_also_find_loop(self):
+        """Verify scenic weights still work with the scaled penalties."""
+        G = nx.MultiDiGraph()
+        coords = [
+            (51.45, -2.60), (51.451, -2.60),
+            (51.452, -2.60), (51.452, -2.598),
+            (51.451, -2.598), (51.45, -2.598),
+        ]
+        for i, (lat, lon) in enumerate(coords, 1):
+            G.add_node(i, y=lat, x=lon)
+        for i in range(1, 6):
+            G.add_edge(i, i + 1, length=100,
+                       norm_green=0.3, norm_water=0.3, norm_social=0.5,
+                       norm_quiet=0.5, norm_slope=0.5)
+            G.add_edge(i + 1, i, length=100,
+                       norm_green=0.3, norm_water=0.3, norm_social=0.5,
+                       norm_quiet=0.5, norm_slope=0.5)
+        G.add_edge(6, 1, length=100,
+                   norm_green=0.3, norm_water=0.3, norm_social=0.5,
+                   norm_quiet=0.5, norm_slope=0.5)
+        G.add_edge(1, 6, length=100,
+                   norm_green=0.3, norm_water=0.3, norm_social=0.5,
+                   norm_quiet=0.5, norm_slope=0.5)
+
+        scenic = {
+            'distance': 0.4, 'greenness': 0.2, 'water': 0.1,
+            'quietness': 0.1, 'social': 0.1, 'slope': 0.1,
+        }
+        loops = self._run_search(
+            scenic, G, start_node=1, target_distance=600,
+        )
+        assert len(loops) > 0
