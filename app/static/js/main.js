@@ -79,6 +79,9 @@ const directionalBiasControl = document.getElementById(
 const preferPedestrianToggle = document.getElementById(
   "prefer-pedestrian-toggle",
 );
+const preferPavedToggle = document.getElementById("prefer-paved-toggle");
+const preferLitToggle = document.getElementById("prefer-lit-toggle");
+const avoidUnsafeToggle = document.getElementById("avoid-unsafe-toggle");
 const varietyLevelSlider = document.getElementById("variety-level-slider");
 const varietyLevelValue = document.getElementById("variety-level-value");
 
@@ -887,6 +890,9 @@ async function handleLoopSubmit() {
     prefer_pedestrian: preferPedestrianToggle
       ? preferPedestrianToggle.checked
       : false,
+    prefer_paved: preferPavedToggle ? preferPavedToggle.checked : false,
+    prefer_lit: preferLitToggle ? preferLitToggle.checked : false,
+    avoid_unsafe_roads: avoidUnsafeToggle ? avoidUnsafeToggle.checked : false,
   };
 
   // Add scenic routing weights if enabled
@@ -1687,6 +1693,9 @@ window.retryWithSync = async function () {
       prefer_pedestrian: preferPedestrianToggle
         ? preferPedestrianToggle.checked
         : false,
+      prefer_paved: preferPavedToggle ? preferPavedToggle.checked : false,
+      prefer_lit: preferLitToggle ? preferLitToggle.checked : false,
+      avoid_unsafe_roads: avoidUnsafeToggle ? avoidUnsafeToggle.checked : false,
       force_sync: true,
     };
 

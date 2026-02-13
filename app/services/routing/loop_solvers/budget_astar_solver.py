@@ -92,9 +92,42 @@ _PEDESTRIAN_PENALTY: Dict[str, float] = {
 }
 _PEDESTRIAN_DEFAULT: float = 1.5  # Unknown highway tags
 
-# Frontier trimming thresholds (ADR-010 §3)
+# Frontier trimming thresholds (ADR-010 §6)
 MAX_FRONTIER_SIZE: int = 50_000
 TRIM_FRONTIER_TO: int = 25_000
+
+# Surface-type penalty multipliers (ADR-010 §3)
+_SURFACE_PENALTY: Dict[str, float] = {
+    # Hard surfaces — no penalty
+    'paved': 1.0, 'asphalt': 1.0, 'concrete': 1.0,
+    'concrete:plates': 1.0, 'concrete:lanes': 1.0, 'paving_stones': 1.0,
+    # Firm surfaces — mild penalty
+    'sett': 1.1, 'cobblestone': 1.1, 'cobblestone:flattened': 1.1,
+    'metal': 1.1, 'wood': 1.1,
+    # Compacted surfaces — moderate penalty
+    'compacted': 1.3, 'fine_gravel': 1.3, 'gravel': 1.3,
+    # Soft/wet surfaces — heavy penalty
+    'dirt': 2.0, 'earth': 2.0, 'ground': 2.0, 'mud': 2.0,
+    'sand': 2.0, 'grass': 2.0, 'grass_paver': 2.0, 'woodchips': 2.0,
+}
+_SURFACE_DEFAULT: float = 1.2  # Unknown/missing surface tag
+
+# Lit-tag penalty multipliers (ADR-010 §4)
+_LIT_PENALTY: Dict[str, float] = {
+    'yes': 0.85, 'automatic': 0.85, '24/7': 0.85,  # Bonus for lit
+    'limited': 1.3, 'disused': 1.3,
+    'no': 1.8,
+}
+_LIT_DEFAULT: float = 1.2  # Unknown/missing lit tag
+
+# Unsafe road penalty (ADR-010 §5)
+_UNSAFE_HIGHWAY_TAGS = frozenset({
+    'primary', 'primary_link', 'secondary', 'secondary_link',
+    'tertiary', 'tertiary_link',
+})
+_SAFE_SIDEWALK_VALUES = frozenset({'both', 'left', 'right', 'yes', 'separate'})
+_SAFE_FOOT_VALUES = frozenset({'yes', 'designated'})
+_UNSAFE_ROAD_PENALTY: float = 3.5
 
 
 def _road_type_penalty(graph, n1: int, n2: int) -> float:
@@ -121,6 +154,94 @@ def _road_type_penalty(graph, n1: int, n2: int) -> float:
         if best is None or penalty < best:
             best = penalty
     return best if best is not None else _PEDESTRIAN_DEFAULT
+
+
+def _surface_penalty(graph, n1: int, n2: int) -> float:
+    """
+    Multiplicative penalty based on the surface tag of the edge n1→n2.
+
+    Returns a multiplier where 1.0 = paved (no penalty), up to 2.0 for
+    soft/unpaved surfaces.  Uses best (lowest-penalty) parallel edge.
+    Falls back to _SURFACE_DEFAULT if no surface tag is found.
+    """
+    edges = graph.get_edge_data(n1, n2)
+    if not edges:
+        return _SURFACE_DEFAULT
+    best = None
+    for data in edges.values():
+        tag = data.get('surface')
+        if isinstance(tag, list):
+            tag = tag[0] if tag else None
+        if tag is None:
+            continue
+        tag_lower = tag.lower() if isinstance(tag, str) else str(tag).lower()
+        penalty = _SURFACE_PENALTY.get(tag_lower, _SURFACE_DEFAULT)
+        if best is None or penalty < best:
+            best = penalty
+    return best if best is not None else _SURFACE_DEFAULT
+
+
+def _lit_penalty(graph, n1: int, n2: int) -> float:
+    """
+    Multiplicative penalty (or bonus) based on the lit tag of edge n1→n2.
+
+    Returns < 1.0 for lit streets (bonus), > 1.0 for unlit/unknown.
+    Uses best (lowest-penalty) parallel edge.
+    """
+    edges = graph.get_edge_data(n1, n2)
+    if not edges:
+        return _LIT_DEFAULT
+    best = None
+    for data in edges.values():
+        tag = data.get('lit')
+        if isinstance(tag, list):
+            tag = tag[0] if tag else None
+        if tag is None:
+            continue
+        tag_lower = tag.lower() if isinstance(tag, str) else str(tag).lower()
+        penalty = _LIT_PENALTY.get(tag_lower, _LIT_DEFAULT)
+        if best is None or penalty < best:
+            best = penalty
+    return best if best is not None else _LIT_DEFAULT
+
+
+def _unsafe_road_penalty(graph, n1: int, n2: int) -> float:
+    """
+    Heavy penalty for primary/secondary/tertiary roads lacking pedestrian
+    safety features (sidewalk or foot=yes/designated).
+
+    Returns 1.0 if the road is not a target highway type or has explicit
+    pedestrian provision.  Returns _UNSAFE_ROAD_PENALTY (3.5) otherwise.
+    """
+    edges = graph.get_edge_data(n1, n2)
+    if not edges:
+        return 1.0
+    # Check if ANY parallel edge is an unsafe highway
+    for data in edges.values():
+        tag = data.get('highway')
+        if isinstance(tag, list):
+            tag = tag[0] if tag else None
+        if tag is None:
+            continue
+        tag_lower = tag.lower() if isinstance(tag, str) else str(tag).lower()
+        if tag_lower not in _UNSAFE_HIGHWAY_TAGS:
+            continue
+        # This edge IS a primary/secondary/tertiary road.
+        # Check for pedestrian safety indicators.
+        sidewalk = data.get('sidewalk')
+        if isinstance(sidewalk, list):
+            sidewalk = sidewalk[0] if sidewalk else None
+        if sidewalk and str(sidewalk).lower() in _SAFE_SIDEWALK_VALUES:
+            return 1.0  # Has sidewalk — safe
+        foot = data.get('foot')
+        if isinstance(foot, list):
+            foot = foot[0] if foot else None
+        if foot and str(foot).lower() in _SAFE_FOOT_VALUES:
+            return 1.0  # Foot access confirmed — safe
+        # Unsafe: no sidewalk, no foot=yes
+        return _UNSAFE_ROAD_PENALTY
+    # Not a target highway type at all
+    return 1.0
 
 
 def _get_edge_name(graph, n1: int, n2: int) -> Optional[str]:
@@ -436,6 +557,9 @@ def _budget_astar_search(
     max_states: int = 500_000,
     variety_level: int = 0,
     prefer_pedestrian: bool = False,
+    prefer_paved: bool = False,
+    prefer_lit: bool = False,
+    avoid_unsafe_roads: bool = False,
 ) -> List[Tuple[List[int], float, float]]:
     """
     Budget-constrained A* search for loop routes.
@@ -459,6 +583,10 @@ def _budget_astar_search(
         variety_level: Route variety 0-3 (0 = deterministic).
         prefer_pedestrian: If True, apply road-type penalty favouring
             footpaths/cycleways over busy roads.
+        prefer_paved: If True, penalise unpaved/soft surfaces.
+        prefer_lit: If True, penalise unlit streets and bonus lit ones.
+        avoid_unsafe_roads: If True, heavily penalise primary/secondary/
+            tertiary roads without sidewalks or foot=yes.
 
     Returns:
         List of (route, distance, scenic_cost) tuples.
@@ -588,6 +716,18 @@ def _budget_astar_search(
             # ── Pedestrian preference (ADR-010 §2) ───────────────────
             if prefer_pedestrian:
                 wsm_cost *= _road_type_penalty(graph, current_node, neighbor_node)
+
+            # ── Surface preference (ADR-010 §3) ──────────────────────
+            if prefer_paved:
+                wsm_cost *= _surface_penalty(graph, current_node, neighbor_node)
+
+            # ── Lighting preference (ADR-010 §4) ─────────────────────
+            if prefer_lit:
+                wsm_cost *= _lit_penalty(graph, current_node, neighbor_node)
+
+            # ── Unsafe road avoidance (ADR-010 §5) ───────────────────
+            if avoid_unsafe_roads:
+                wsm_cost *= _unsafe_road_penalty(graph, current_node, neighbor_node)
 
             # ── Variety noise (ADR-010 §1) ───────────────────────────
             if noise_mag > 0:
@@ -774,6 +914,9 @@ class BudgetAStarSolver(LoopSolverBase):
         max_search_time: float = 120,
         variety_level: int = 0,
         prefer_pedestrian: bool = False,
+        prefer_paved: bool = False,
+        prefer_lit: bool = False,
+        avoid_unsafe_roads: bool = False,
     ) -> List[LoopCandidate]:
         """
         Find multiple diverse loop candidates using Budget A* search.
@@ -853,6 +996,9 @@ class BudgetAStarSolver(LoopSolverBase):
                 max_candidates=num_candidates,  # fewer per run → multiple directions explored
                 variety_level=variety_level,
                 prefer_pedestrian=prefer_pedestrian,
+                prefer_paved=prefer_paved,
+                prefer_lit=prefer_lit,
+                avoid_unsafe_roads=avoid_unsafe_roads,
             )
             all_raw_loops.extend(run_loops)
             current_tolerance = strategy['tolerance']

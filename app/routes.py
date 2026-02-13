@@ -172,7 +172,10 @@ def calculate_loop_route():
             "weights": {...},
             "combine_nature": bool,
             "variety_level": int (0-3, default 0),
-            "prefer_pedestrian": bool (default false)
+            "prefer_pedestrian": bool (default false),
+            "prefer_paved": bool (default false),
+            "prefer_lit": bool (default false),
+            "avoid_unsafe_roads": bool (default false)
         }
     
     Response JSON (success):
@@ -227,6 +230,11 @@ def calculate_loop_route():
         
         # Pedestrian preference toggle
         prefer_pedestrian = bool(data.get('prefer_pedestrian', False))
+        
+        # Surface, lighting, and safety toggles (ADR-010 §3–§5)
+        prefer_paved = bool(data.get('prefer_paved', False))
+        prefer_lit = bool(data.get('prefer_lit', False))
+        avoid_unsafe_roads = bool(data.get('avoid_unsafe_roads', False))
         
         # Log warning for long loops
         if target_distance_km > 15:
@@ -364,6 +372,9 @@ def calculate_loop_route():
             directional_bias=directional_bias,
             variety_level=variety_level,
             prefer_pedestrian=prefer_pedestrian,
+            prefer_paved=prefer_paved,
+            prefer_lit=prefer_lit,
+            avoid_unsafe_roads=avoid_unsafe_roads,
         )
         
         if not candidates:

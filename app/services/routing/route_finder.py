@@ -33,6 +33,9 @@ class RouteFinder:
         directional_bias="none",
         variety_level=0,
         prefer_pedestrian=False,
+        prefer_paved=False,
+        prefer_lit=False,
+        avoid_unsafe_roads=False,
     ):
         """
         Finds multiple circular (loop) route candidates.
@@ -53,6 +56,9 @@ class RouteFinder:
             directional_bias (str): Direction preference ("north"/"east"/"south"/"west"/"none").
             variety_level (int): Route variety 0-3 (0 = deterministic).
             prefer_pedestrian (bool): If True, strongly favour footpaths/cycleways.
+            prefer_paved (bool): If True, penalise unpaved/soft surfaces.
+            prefer_lit (bool): If True, penalise unlit streets, bonus lit ones.
+            avoid_unsafe_roads (bool): If True, heavily penalise main roads without sidewalks.
 
         Returns:
             list: List of LoopCandidate objects (may be empty if no loops found).
@@ -104,6 +110,9 @@ class RouteFinder:
                 max_search_time=max_search_time,
                 variety_level=variety_level,
                 prefer_pedestrian=prefer_pedestrian,
+                prefer_paved=prefer_paved,
+                prefer_lit=prefer_lit,
+                avoid_unsafe_roads=avoid_unsafe_roads,
             )
             
             # Filter out loops below minimum distance

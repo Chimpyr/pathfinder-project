@@ -1362,6 +1362,256 @@ class TestWayNamePenalty:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Tests: Surface Penalty (ADR-010 §3)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestSurfacePenalty:
+    """Tests for _surface_penalty helper (ADR-010 §3)."""
+
+    def test_asphalt_returns_one(self):
+        """Asphalt surfaces should have penalty 1.0 (no penalty)."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _surface_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, surface='asphalt', length=50)
+        assert _surface_penalty(G, 1, 2) == 1.0
+
+    def test_paving_stones_returns_one(self):
+        """Paving stones should have penalty 1.0."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _surface_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, surface='paving_stones', length=50)
+        assert _surface_penalty(G, 1, 2) == 1.0
+
+    def test_gravel_moderate_penalty(self):
+        """Gravel surfaces should have penalty 1.3."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _surface_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, surface='gravel', length=50)
+        assert _surface_penalty(G, 1, 2) == 1.3
+
+    def test_grass_heavy_penalty(self):
+        """Grass surfaces should have penalty 2.0."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _surface_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, surface='grass', length=50)
+        assert _surface_penalty(G, 1, 2) == 2.0
+
+    def test_mud_heavy_penalty(self):
+        """Mud surfaces should have penalty 2.0."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _surface_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, surface='mud', length=50)
+        assert _surface_penalty(G, 1, 2) == 2.0
+
+    def test_no_surface_tag_gets_default(self):
+        """Edges without surface tag should get default penalty 1.2."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _surface_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, length=50)
+        assert _surface_penalty(G, 1, 2) == 1.2
+
+    def test_cobblestone_mild_penalty(self):
+        """Cobblestone should have penalty 1.1."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _surface_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, surface='cobblestone', length=50)
+        assert _surface_penalty(G, 1, 2) == 1.1
+
+    def test_parallel_edges_picks_best(self):
+        """When multiple parallel edges exist, picks lowest penalty."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _surface_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, surface='mud', length=100)       # 2.0
+        G.add_edge(1, 2, surface='asphalt', length=120)    # 1.0
+        assert _surface_penalty(G, 1, 2) == 1.0
+
+    def test_list_surface_tag(self):
+        """Surface tag stored as list should be handled."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _surface_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, surface=['asphalt', 'concrete'], length=50)
+        assert _surface_penalty(G, 1, 2) == 1.0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tests: Lit Penalty (ADR-010 §4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestLitPenalty:
+    """Tests for _lit_penalty helper (ADR-010 §4)."""
+
+    def test_lit_yes_gives_bonus(self):
+        """lit=yes should give bonus (< 1.0)."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _lit_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, lit='yes', length=50)
+        assert _lit_penalty(G, 1, 2) == 0.85
+
+    def test_lit_automatic_gives_bonus(self):
+        """lit=automatic should give bonus."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _lit_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, lit='automatic', length=50)
+        assert _lit_penalty(G, 1, 2) == 0.85
+
+    def test_lit_no_penalised(self):
+        """lit=no should be penalised at 1.8."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _lit_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, lit='no', length=50)
+        assert _lit_penalty(G, 1, 2) == 1.8
+
+    def test_lit_limited_moderate_penalty(self):
+        """lit=limited should have moderate penalty 1.3."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _lit_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, lit='limited', length=50)
+        assert _lit_penalty(G, 1, 2) == 1.3
+
+    def test_no_lit_tag_gets_default(self):
+        """Edges without lit tag should get default penalty 1.2."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _lit_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, length=50)
+        assert _lit_penalty(G, 1, 2) == 1.2
+
+    def test_parallel_edges_picks_best(self):
+        """When multiple parallel edges exist, picks the best (lit bonus)."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _lit_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, lit='no', length=100)     # 1.8
+        G.add_edge(1, 2, lit='yes', length=120)     # 0.85
+        assert _lit_penalty(G, 1, 2) == 0.85
+
+    def test_list_lit_tag(self):
+        """Lit tag stored as list should be handled."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _lit_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, lit=['yes', 'no'], length=50)
+        assert _lit_penalty(G, 1, 2) == 0.85
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tests: Unsafe Road Penalty (ADR-010 §5)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestUnsafeRoadPenalty:
+    """Tests for _unsafe_road_penalty helper (ADR-010 §5)."""
+
+    def test_primary_no_sidewalk_penalised(self):
+        """Primary road without sidewalk gets heavy penalty."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='primary', length=100)
+        assert _unsafe_road_penalty(G, 1, 2) == 3.5
+
+    def test_secondary_no_sidewalk_penalised(self):
+        """Secondary road without sidewalk gets heavy penalty."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='secondary', length=100)
+        assert _unsafe_road_penalty(G, 1, 2) == 3.5
+
+    def test_tertiary_no_sidewalk_penalised(self):
+        """Tertiary road without sidewalk gets heavy penalty."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='tertiary', length=100)
+        assert _unsafe_road_penalty(G, 1, 2) == 3.5
+
+    def test_primary_with_sidewalk_both_safe(self):
+        """Primary road with sidewalk=both should be safe (1.0)."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='primary', sidewalk='both', length=100)
+        assert _unsafe_road_penalty(G, 1, 2) == 1.0
+
+    def test_primary_with_sidewalk_left_safe(self):
+        """Primary road with sidewalk=left should be safe."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='primary', sidewalk='left', length=100)
+        assert _unsafe_road_penalty(G, 1, 2) == 1.0
+
+    def test_primary_with_foot_yes_safe(self):
+        """Primary road with foot=yes should be safe."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='primary', foot='yes', length=100)
+        assert _unsafe_road_penalty(G, 1, 2) == 1.0
+
+    def test_primary_with_foot_designated_safe(self):
+        """Primary road with foot=designated should be safe."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='primary', foot='designated', length=100)
+        assert _unsafe_road_penalty(G, 1, 2) == 1.0
+
+    def test_residential_not_penalised(self):
+        """Residential roads are not targeted and should return 1.0."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='residential', length=80)
+        assert _unsafe_road_penalty(G, 1, 2) == 1.0
+
+    def test_footway_not_penalised(self):
+        """Footways should never be penalised."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='footway', length=50)
+        assert _unsafe_road_penalty(G, 1, 2) == 1.0
+
+    def test_no_highway_tag_not_penalised(self):
+        """Edges without highway tag should return 1.0."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, length=50)
+        assert _unsafe_road_penalty(G, 1, 2) == 1.0
+
+    def test_sidewalk_no_not_safe(self):
+        """sidewalk=no should NOT count as safe."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway='secondary', sidewalk='no', length=100)
+        assert _unsafe_road_penalty(G, 1, 2) == 3.5
+
+    def test_list_highway_handled(self):
+        """Highway tag stored as list should be handled."""
+        from app.services.routing.loop_solvers.budget_astar_solver import _unsafe_road_penalty
+        G = nx.MultiDiGraph()
+        G.add_node(1); G.add_node(2)
+        G.add_edge(1, 2, highway=['tertiary', 'residential'], length=50)
+        assert _unsafe_road_penalty(G, 1, 2) == 3.5
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Tests: Legacy LoopAStar (existing tests still work)
 # ══════════════════════════════════════════════════════════════════════════════
 
