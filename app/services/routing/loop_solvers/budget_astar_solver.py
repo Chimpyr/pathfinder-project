@@ -348,8 +348,11 @@ def _budget_astar_search(
     # Pre-compute start node coordinates
     start_lat, start_lon = _node_coords(graph, start_node)
 
-    # Recency window size: scale with target distance, minimum 5
-    recency_window_size = max(5, int(target_distance // 500))
+    # Recency window size: scale with target distance.
+    # Must be large enough to prevent local zigzag (revisiting nearby
+    # nodes to accumulate distance without extending outward).
+    # For 5km loop (~100 edges), window of 50 blocks the last ~50%.
+    recency_window_size = max(30, int(target_distance // 100))
 
     # State: (node_id, distance_bin)
     initial_state = (start_node, 0)
@@ -450,17 +453,37 @@ def _budget_astar_search(
                 weights, min_length, max_length, combine_nature,
             )
 
-            # Directional bonus/penalty
+            # Current node coords (needed for bearing calculations)
+            c_lat, c_lon = _node_coords(graph, current_node)
+
+            # ── Turn-angle penalty: discourage sharp U-turns ─────────
+            # Natural walking/cycling routes rarely reverse direction.
+            # Penalise edges that double back on the incoming bearing.
+            if current_state in came_from:
+                prev_node = came_from[current_state][0]
+                p_lat, p_lon = _node_coords(graph, prev_node)
+                incoming_bear = _bearing(p_lat, p_lon, c_lat, c_lon)
+                outgoing_bear = _bearing(c_lat, c_lon, n_lat, n_lon)
+                turn = abs(outgoing_bear - incoming_bear)
+                if turn > 180:
+                    turn = 360 - turn
+                # turn ∈ [0, 180]; 0 = straight, 180 = U-turn
+                if turn > 150:
+                    wsm_cost += 0.8   # heavy penalty for U-turns
+                elif turn > 120:
+                    wsm_cost += 0.3   # moderate penalty for sharp turns
+
+            # ── Directional bias ──────────────────────────────────────
             if target_bearing is not None:
-                c_lat, c_lon = _node_coords(graph, current_node)
                 edge_bear = _bearing(c_lat, c_lon, n_lat, n_lon)
                 diff = abs(edge_bear - target_bearing)
                 if diff > 180:
                     diff = 360 - diff
-                # Small penalty proportional to deviation from desired bearing
-                # Only apply in outbound phase (first half of budget)
-                if current_dist < target_distance * 0.5:
-                    wsm_cost += 0.3 * (diff / 180.0)
+                # Stronger penalty, applied during outbound phase (first
+                # 65% of budget) to steer the route in the user's
+                # chosen direction before it curves back.
+                if current_dist < target_distance * 0.65:
+                    wsm_cost += 1.0 * (diff / 180.0)
 
             tentative_g = g_score.get(current_state, float('inf')) + wsm_cost
 
@@ -624,8 +647,9 @@ class BudgetAStarSolver(LoopSolverBase):
             if remaining_time < 5:
                 break
 
-            # Early-exit: enough raw candidates for diversity selection
-            if len(all_raw_loops) >= num_candidates * 2:
+            # Early-exit: require candidates from multiple strategy
+            # tiers so directional diversity actually takes effect.
+            if len(all_raw_loops) >= num_candidates * 4:
                 break
 
             # ── Escalation: if the previous run at this tolerance found
@@ -653,7 +677,7 @@ class BudgetAStarSolver(LoopSolverBase):
                 distance_tolerance=strategy['tolerance'],
                 max_search_time=time_budget,
                 distance_bin_size=bin_size,
-                max_candidates=num_candidates * 2,
+                max_candidates=num_candidates,  # fewer per run → multiple directions explored
             )
             all_raw_loops.extend(run_loops)
             current_tolerance = strategy['tolerance']

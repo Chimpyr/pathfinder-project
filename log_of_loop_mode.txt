@@ -1,0 +1,1216 @@
+2026-02-12 21:42:53.742 |  * Serving Flask app 'app'
+2026-02-12 21:42:53.743 |  * Debug mode: on
+2026-02-12 21:42:53.758 | WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+2026-02-12 21:42:53.758 |  * Running on all addresses (0.0.0.0)
+2026-02-12 21:42:53.758 |  * Running on http://127.0.0.1:5000
+2026-02-12 21:42:53.758 |  * Running on http://172.18.0.4:5000
+2026-02-12 21:42:53.758 | Press CTRL+C to quit
+2026-02-12 21:42:53.759 |  * Restarting with stat
+2026-02-12 21:42:55.590 |  * Debugger is active!
+2026-02-12 21:42:55.591 |  * Debugger PIN: 720-920-752
+2026-02-12 21:48:36.182 | 172.18.0.1 - - [12/Feb/2026 21:48:36] "GET / HTTP/1.1" 200 -
+2026-02-12 21:48:36.214 | 172.18.0.1 - - [12/Feb/2026 21:48:36] "GET /static/css/style.css HTTP/1.1" 200 -
+2026-02-12 21:48:36.244 | 172.18.0.1 - - [12/Feb/2026 21:48:36] "GET /static/js/map.js HTTP/1.1" 200 -
+2026-02-12 21:48:36.253 | 172.18.0.1 - - [12/Feb/2026 21:48:36] "GET /static/js/main.js HTTP/1.1" 200 -
+2026-02-12 21:48:36.522 | 172.18.0.1 - - [12/Feb/2026 21:48:36] "GET /favicon.ico HTTP/1.1" 404 -
+2026-02-12 21:48:51.654 | [API] Loop route request: start=(51.494637234974235, -2.543506622314453), target=5.0km, bias=none
+2026-02-12 21:48:51.666 | [API] Loop requires 1 tiles: ['51.49_-2.57']
+2026-02-12 21:48:52.235 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 21:48:52.277 | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+2026-02-12 21:48:52.662 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 21:48:52.923 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 21:48:52.932 | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+2026-02-12 21:48:52.938 | [TileCache] DISK HIT: 51.49_-2.57 - loading...
+2026-02-12 21:48:52.941 | [CacheManager] Loading cached graph from /app/app/data/cache/england_edge_sampling_local_tile_51.49_-2.57_v1.5.0.pickle...
+2026-02-12 21:49:15.069 | [CacheManager] Cache loaded in 22.13s
+2026-02-12 21:49:15.069 | [TileCache] Loaded 51.49_-2.57 from disk in 22.1s
+2026-02-12 21:49:15.069 | [GraphManager] Single tile, no merge needed
+2026-02-12 21:49:15.069 | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 21:49:15.069 | [VERBOSE] Finding loop route: start=(51.494637234974235, -2.543506622314453), target=5.0km, bias=none
+2026-02-12 21:49:17.173 | [VERBOSE] Start Node ID: 4793653443
+2026-02-12 21:49:17.361 | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+2026-02-12 21:49:17.361 | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 21:49:18.107 | [BudgetA*] 10000 states explored, 0 candidates, 0.2s
+2026-02-12 21:49:18.328 | [BudgetA*] 20000 states explored, 0 candidates, 0.4s
+2026-02-12 21:49:18.586 | [BudgetA*] 30000 states explored, 0 candidates, 0.7s
+2026-02-12 21:49:18.794 | [BudgetA*] 40000 states explored, 0 candidates, 0.9s
+2026-02-12 21:49:18.965 | [BudgetA*] 50000 states explored, 0 candidates, 1.1s
+2026-02-12 21:49:19.130 | [BudgetA*] 60000 states explored, 0 candidates, 1.2s
+2026-02-12 21:49:19.312 | [BudgetA*] 70000 states explored, 0 candidates, 1.4s
+2026-02-12 21:49:19.497 | [BudgetA*] 80000 states explored, 0 candidates, 1.6s
+2026-02-12 21:49:19.695 | [BudgetA*] 90000 states explored, 0 candidates, 1.8s
+2026-02-12 21:49:19.882 | [BudgetA*] 100000 states explored, 0 candidates, 2.0s
+2026-02-12 21:49:20.066 | [BudgetA*] 110000 states explored, 0 candidates, 2.2s
+2026-02-12 21:49:20.248 | [BudgetA*] 120000 states explored, 1 candidates, 2.3s
+2026-02-12 21:49:20.446 | [BudgetA*] 130000 states explored, 5 candidates, 2.5s
+2026-02-12 21:49:20.647 | [BudgetA*] 140000 states explored, 5 candidates, 2.7s
+2026-02-12 21:49:20.705 | [BudgetA*] Search complete: 142879 states, 6 loops found, 2.8s
+2026-02-12 21:49:20.722 | [BudgetA*] Returning 3 candidates from 6 raw loops, 3.4s total
+2026-02-12 21:49:20.722 | [VERBOSE] Found 3 loop candidates:
+2026-02-12 21:49:20.722 |   [0] Conservative: 5061m (±1.2%), quality=0.585
+2026-02-12 21:49:20.722 |   [1] Scenic: 4446m (±11.1%), quality=0.491
+2026-02-12 21:49:20.722 |   [2] Exploratory: 4318m (±13.6%), quality=0.469
+2026-02-12 21:49:20.724 | 172.18.0.1 - - [12/Feb/2026 21:49:20] "POST /api/loop HTTP/1.1" 200 -
+2026-02-12 22:36:54.894 |  * Serving Flask app 'app'
+2026-02-12 22:36:54.895 |  * Debug mode: on
+2026-02-12 22:36:54.904 | WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+2026-02-12 22:36:54.904 |  * Running on all addresses (0.0.0.0)
+2026-02-12 22:36:54.904 |  * Running on http://127.0.0.1:5000
+2026-02-12 22:36:54.904 |  * Running on http://172.18.0.4:5000
+2026-02-12 22:36:54.904 | Press CTRL+C to quit
+2026-02-12 22:36:54.905 |  * Restarting with stat
+2026-02-12 22:36:56.407 |  * Debugger is active!
+2026-02-12 22:36:56.408 |  * Debugger PIN: 469-090-613
+2026-02-12 22:36:56.766 | 172.18.0.1 - - [12/Feb/2026 22:36:56] "GET / HTTP/1.1" 200 -
+2026-02-12 22:36:56.770 | 172.18.0.1 - - [12/Feb/2026 22:36:56] "GET / HTTP/1.1" 200 -
+2026-02-12 22:36:56.806 | 172.18.0.1 - - [12/Feb/2026 22:36:56] "GET /static/css/style.css HTTP/1.1" 200 -
+2026-02-12 22:36:56.815 | 172.18.0.1 - - [12/Feb/2026 22:36:56] "GET /static/js/map.js HTTP/1.1" 200 -
+2026-02-12 22:36:56.820 | 172.18.0.1 - - [12/Feb/2026 22:36:56] "GET /static/js/main.js HTTP/1.1" 200 -
+2026-02-12 22:36:57.375 | 172.18.0.1 - - [12/Feb/2026 22:36:57] "GET /favicon.ico HTTP/1.1" 404 -
+2026-02-12 22:37:04.825 | [API] Loop route request: start=(51.4937822326078, -2.544193267822266), target=5.0km, bias=none
+2026-02-12 22:37:04.830 | [API] Loop requires 1 tiles: ['51.49_-2.57']
+2026-02-12 22:37:05.131 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 22:37:05.155 | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+2026-02-12 22:37:05.340 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 22:37:05.496 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 22:37:05.502 | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+2026-02-12 22:37:05.507 | [TileCache] DISK HIT: 51.49_-2.57 - loading...
+2026-02-12 22:37:05.508 | [CacheManager] Loading cached graph from /app/app/data/cache/england_edge_sampling_local_tile_51.49_-2.57_v1.5.0.pickle...
+2026-02-12 22:37:22.049 | [CacheManager] Cache loaded in 16.54s
+2026-02-12 22:37:22.049 | [TileCache] Loaded 51.49_-2.57 from disk in 16.5s
+2026-02-12 22:37:22.049 | [GraphManager] Single tile, no merge needed
+2026-02-12 22:37:22.049 | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 22:37:22.049 | [VERBOSE] Finding loop route: start=(51.4937822326078, -2.544193267822266), target=5.0km, bias=none
+2026-02-12 22:37:23.633 | [VERBOSE] Start Node ID: 773945123
+2026-02-12 22:37:23.702 | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+2026-02-12 22:37:23.702 | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 22:37:24.222 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 22:37:24.340 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 22:37:24.477 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 22:37:24.605 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 22:37:24.734 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 22:37:24.857 | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+2026-02-12 22:37:24.991 | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+2026-02-12 22:37:25.121 | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+2026-02-12 22:37:25.290 | [BudgetA*] 90000 states explored, 0 candidates, 1.2s
+2026-02-12 22:37:25.441 | [BudgetA*] 100000 states explored, 0 candidates, 1.3s
+2026-02-12 22:37:25.577 | [BudgetA*] 110000 states explored, 0 candidates, 1.5s
+2026-02-12 22:37:25.735 | [BudgetA*] 120000 states explored, 0 candidates, 1.6s
+2026-02-12 22:37:25.879 | [BudgetA*] 130000 states explored, 0 candidates, 1.8s
+2026-02-12 22:37:26.033 | [BudgetA*] 140000 states explored, 0 candidates, 1.9s
+2026-02-12 22:37:26.184 | [BudgetA*] 150000 states explored, 1 candidates, 2.1s
+2026-02-12 22:37:26.337 | [BudgetA*] 160000 states explored, 1 candidates, 2.2s
+2026-02-12 22:37:26.513 | [BudgetA*] 170000 states explored, 3 candidates, 2.4s
+2026-02-12 22:37:26.673 | [BudgetA*] Search complete: 178803 states, 6 loops found, 2.6s
+2026-02-12 22:37:26.693 | [BudgetA*] Returning 3 candidates from 6 raw loops, 3.0s total
+2026-02-12 22:37:26.693 | [VERBOSE] Found 3 loop candidates:
+2026-02-12 22:37:26.693 |   [0] Conservative: 5036m (±0.7%), quality=0.596
+2026-02-12 22:37:26.693 |   [1] Scenic: 4731m (±5.4%), quality=0.545
+2026-02-12 22:37:26.693 |   [2] Exploratory: 4384m (±12.3%), quality=0.481
+2026-02-12 22:37:26.694 | 172.18.0.1 - - [12/Feb/2026 22:37:26] "POST /api/loop HTTP/1.1" 200 -
+2026-02-12 23:47:46.966 | 172.18.0.1 - - [12/Feb/2026 23:47:46] "GET / HTTP/1.1" 200 -
+2026-02-12 23:47:47.001 | 172.18.0.1 - - [12/Feb/2026 23:47:47] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-02-12 23:47:47.010 | 172.18.0.1 - - [12/Feb/2026 23:47:47] "GET /static/js/map.js HTTP/1.1" 304 -
+2026-02-12 23:47:47.014 | 172.18.0.1 - - [12/Feb/2026 23:47:47] "GET /static/js/main.js HTTP/1.1" 200 -
+2026-02-12 23:47:54.153 | [API] Loop route request: start=(51.49450364191158, -2.54359245300293), target=5.0km, bias=none
+2026-02-12 23:47:54.154 | [API] Loop requires 1 tiles: ['51.49_-2.57']
+2026-02-12 23:47:54.364 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:47:54.380 | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+2026-02-12 23:47:54.511 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:47:54.635 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:47:54.641 | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+2026-02-12 23:47:54.641 | [GraphManager] MERGED CACHE HIT: 1 tiles - instant return!
+2026-02-12 23:47:54.641 | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:47:54.641 | [VERBOSE] Finding loop route: start=(51.49450364191158, -2.54359245300293), target=5.0km, bias=none
+2026-02-12 23:47:57.934 | [VERBOSE] Start Node ID: 7462083672
+2026-02-12 23:47:57.934 | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+2026-02-12 23:47:57.934 | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:47:58.452 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:47:58.567 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:47:58.685 | [BudgetA*] 30000 states explored, 0 candidates, 0.3s
+2026-02-12 23:47:58.807 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:47:58.934 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:47:59.054 | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+2026-02-12 23:47:59.187 | [BudgetA*] 70000 states explored, 0 candidates, 0.8s
+2026-02-12 23:47:59.327 | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+2026-02-12 23:47:59.461 | [BudgetA*] 90000 states explored, 0 candidates, 1.1s
+2026-02-12 23:47:59.600 | [BudgetA*] 100000 states explored, 0 candidates, 1.3s
+2026-02-12 23:47:59.749 | [BudgetA*] 110000 states explored, 0 candidates, 1.4s
+2026-02-12 23:47:59.890 | [BudgetA*] 120000 states explored, 0 candidates, 1.6s
+2026-02-12 23:48:00.034 | [BudgetA*] 130000 states explored, 0 candidates, 1.7s
+2026-02-12 23:48:00.183 | [BudgetA*] 140000 states explored, 0 candidates, 1.8s
+2026-02-12 23:48:00.330 | [BudgetA*] 150000 states explored, 0 candidates, 2.0s
+2026-02-12 23:48:00.482 | [BudgetA*] 160000 states explored, 0 candidates, 2.1s
+2026-02-12 23:48:00.641 | [BudgetA*] 170000 states explored, 0 candidates, 2.3s
+2026-02-12 23:48:00.791 | [BudgetA*] 180000 states explored, 0 candidates, 2.5s
+2026-02-12 23:48:00.943 | [BudgetA*] 190000 states explored, 0 candidates, 2.6s
+2026-02-12 23:48:01.097 | [BudgetA*] 200000 states explored, 0 candidates, 2.8s
+2026-02-12 23:48:01.265 | [BudgetA*] 210000 states explored, 0 candidates, 2.9s
+2026-02-12 23:48:01.422 | [BudgetA*] 220000 states explored, 0 candidates, 3.1s
+2026-02-12 23:48:01.579 | [BudgetA*] 230000 states explored, 0 candidates, 3.2s
+2026-02-12 23:48:01.743 | [BudgetA*] 240000 states explored, 0 candidates, 3.4s
+2026-02-12 23:48:01.904 | [BudgetA*] 250000 states explored, 0 candidates, 3.6s
+2026-02-12 23:48:02.076 | [BudgetA*] 260000 states explored, 0 candidates, 3.7s
+2026-02-12 23:48:02.239 | [BudgetA*] 270000 states explored, 0 candidates, 3.9s
+2026-02-12 23:48:02.401 | [BudgetA*] 280000 states explored, 0 candidates, 4.1s
+2026-02-12 23:48:02.563 | [BudgetA*] 290000 states explored, 0 candidates, 4.2s
+2026-02-12 23:48:02.726 | [BudgetA*] 300000 states explored, 0 candidates, 4.4s
+2026-02-12 23:48:02.887 | [BudgetA*] 310000 states explored, 0 candidates, 4.5s
+2026-02-12 23:48:03.057 | [BudgetA*] 320000 states explored, 0 candidates, 4.7s
+2026-02-12 23:48:03.228 | [BudgetA*] 330000 states explored, 0 candidates, 4.9s
+2026-02-12 23:48:03.387 | [BudgetA*] 340000 states explored, 0 candidates, 5.0s
+2026-02-12 23:48:03.587 | [BudgetA*] 350000 states explored, 0 candidates, 5.2s
+2026-02-12 23:48:03.756 | [BudgetA*] 360000 states explored, 0 candidates, 5.4s
+2026-02-12 23:48:03.925 | [BudgetA*] 370000 states explored, 0 candidates, 5.6s
+2026-02-12 23:48:05.099 | [BudgetA*] 380000 states explored, 0 candidates, 6.8s
+2026-02-12 23:48:05.295 | [BudgetA*] 390000 states explored, 0 candidates, 7.0s
+2026-02-12 23:48:05.458 | [BudgetA*] 400000 states explored, 0 candidates, 7.1s
+2026-02-12 23:48:05.616 | [BudgetA*] 410000 states explored, 0 candidates, 7.3s
+2026-02-12 23:48:05.766 | [BudgetA*] 420000 states explored, 0 candidates, 7.4s
+2026-02-12 23:48:05.924 | [BudgetA*] 430000 states explored, 0 candidates, 7.6s
+2026-02-12 23:48:06.074 | [BudgetA*] 440000 states explored, 0 candidates, 7.7s
+2026-02-12 23:48:06.217 | [BudgetA*] 450000 states explored, 0 candidates, 7.9s
+2026-02-12 23:48:06.376 | [BudgetA*] 460000 states explored, 0 candidates, 8.0s
+2026-02-12 23:48:06.534 | [BudgetA*] 470000 states explored, 0 candidates, 8.2s
+2026-02-12 23:48:06.693 | [BudgetA*] 480000 states explored, 0 candidates, 8.4s
+2026-02-12 23:48:06.785 | [BudgetA*] Search complete: 487370 states, 0 loops found, 8.4s
+2026-02-12 23:48:06.952 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:48:07.093 | [BudgetA*] 20000 states explored, 0 candidates, 0.3s
+2026-02-12 23:48:07.238 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:48:07.389 | [BudgetA*] 40000 states explored, 0 candidates, 0.6s
+2026-02-12 23:48:07.548 | [BudgetA*] 50000 states explored, 0 candidates, 0.7s
+2026-02-12 23:48:07.690 | [BudgetA*] 60000 states explored, 0 candidates, 0.9s
+2026-02-12 23:48:07.827 | [BudgetA*] 70000 states explored, 0 candidates, 1.0s
+2026-02-12 23:48:07.974 | [BudgetA*] 80000 states explored, 0 candidates, 1.1s
+2026-02-12 23:48:08.126 | [BudgetA*] 90000 states explored, 0 candidates, 1.3s
+2026-02-12 23:48:08.269 | [BudgetA*] 100000 states explored, 0 candidates, 1.4s
+2026-02-12 23:48:08.415 | [BudgetA*] 110000 states explored, 0 candidates, 1.6s
+2026-02-12 23:48:08.564 | [BudgetA*] 120000 states explored, 0 candidates, 1.7s
+2026-02-12 23:48:08.718 | [BudgetA*] 130000 states explored, 0 candidates, 1.9s
+2026-02-12 23:48:08.879 | [BudgetA*] 140000 states explored, 0 candidates, 2.0s
+2026-02-12 23:48:09.038 | [BudgetA*] 150000 states explored, 0 candidates, 2.2s
+2026-02-12 23:48:09.194 | [BudgetA*] 160000 states explored, 0 candidates, 2.4s
+2026-02-12 23:48:09.355 | [BudgetA*] 170000 states explored, 0 candidates, 2.5s
+2026-02-12 23:48:09.521 | [BudgetA*] 180000 states explored, 0 candidates, 2.7s
+2026-02-12 23:48:09.687 | [BudgetA*] 190000 states explored, 0 candidates, 2.9s
+2026-02-12 23:48:09.853 | [BudgetA*] 200000 states explored, 0 candidates, 3.0s
+2026-02-12 23:48:10.022 | [BudgetA*] 210000 states explored, 0 candidates, 3.2s
+2026-02-12 23:48:10.193 | [BudgetA*] 220000 states explored, 0 candidates, 3.4s
+2026-02-12 23:48:10.360 | [BudgetA*] 230000 states explored, 0 candidates, 3.5s
+2026-02-12 23:48:10.527 | [BudgetA*] 240000 states explored, 0 candidates, 3.7s
+2026-02-12 23:48:10.693 | [BudgetA*] 250000 states explored, 0 candidates, 3.9s
+2026-02-12 23:48:10.860 | [BudgetA*] 260000 states explored, 0 candidates, 4.0s
+2026-02-12 23:48:11.031 | [BudgetA*] 270000 states explored, 0 candidates, 4.2s
+2026-02-12 23:48:11.197 | [BudgetA*] 280000 states explored, 0 candidates, 4.4s
+2026-02-12 23:48:11.357 | [BudgetA*] 290000 states explored, 0 candidates, 4.5s
+2026-02-12 23:48:11.522 | [BudgetA*] 300000 states explored, 0 candidates, 4.7s
+2026-02-12 23:48:11.685 | [BudgetA*] 310000 states explored, 0 candidates, 4.9s
+2026-02-12 23:48:11.854 | [BudgetA*] 320000 states explored, 0 candidates, 5.0s
+2026-02-12 23:48:12.013 | [BudgetA*] 330000 states explored, 0 candidates, 5.2s
+2026-02-12 23:48:12.185 | [BudgetA*] 340000 states explored, 0 candidates, 5.4s
+2026-02-12 23:48:12.381 | [BudgetA*] 350000 states explored, 0 candidates, 5.6s
+2026-02-12 23:48:12.535 | [BudgetA*] 360000 states explored, 0 candidates, 5.7s
+2026-02-12 23:48:12.692 | [BudgetA*] 370000 states explored, 0 candidates, 5.9s
+2026-02-12 23:48:12.850 | [BudgetA*] 380000 states explored, 0 candidates, 6.0s
+2026-02-12 23:48:13.012 | [BudgetA*] 390000 states explored, 0 candidates, 6.2s
+2026-02-12 23:48:13.170 | [BudgetA*] 400000 states explored, 0 candidates, 6.3s
+2026-02-12 23:48:13.318 | [BudgetA*] 410000 states explored, 0 candidates, 6.5s
+2026-02-12 23:48:13.467 | [BudgetA*] 420000 states explored, 0 candidates, 6.6s
+2026-02-12 23:48:13.612 | [BudgetA*] 430000 states explored, 0 candidates, 6.8s
+2026-02-12 23:48:13.756 | [BudgetA*] 440000 states explored, 0 candidates, 6.9s
+2026-02-12 23:48:13.899 | [BudgetA*] 450000 states explored, 0 candidates, 7.1s
+2026-02-12 23:48:14.046 | [BudgetA*] 460000 states explored, 0 candidates, 7.2s
+2026-02-12 23:48:14.192 | [BudgetA*] 470000 states explored, 0 candidates, 7.4s
+2026-02-12 23:48:14.301 | [BudgetA*] Search complete: 478634 states, 0 loops found, 7.5s
+2026-02-12 23:48:14.452 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:48:14.579 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:48:14.712 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:48:14.846 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:48:14.989 | [BudgetA*] 50000 states explored, 0 candidates, 0.7s
+2026-02-12 23:48:15.129 | [BudgetA*] 60000 states explored, 0 candidates, 0.8s
+2026-02-12 23:48:15.271 | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+2026-02-12 23:48:15.412 | [BudgetA*] 80000 states explored, 0 candidates, 1.1s
+2026-02-12 23:48:15.558 | [BudgetA*] 90000 states explored, 0 candidates, 1.2s
+2026-02-12 23:48:15.704 | [BudgetA*] 100000 states explored, 0 candidates, 1.4s
+2026-02-12 23:48:15.846 | [BudgetA*] 110000 states explored, 0 candidates, 1.5s
+2026-02-12 23:48:15.995 | [BudgetA*] 120000 states explored, 0 candidates, 1.7s
+2026-02-12 23:48:16.147 | [BudgetA*] 130000 states explored, 0 candidates, 1.8s
+2026-02-12 23:48:16.307 | [BudgetA*] 140000 states explored, 0 candidates, 2.0s
+2026-02-12 23:48:16.463 | [BudgetA*] 150000 states explored, 0 candidates, 2.1s
+2026-02-12 23:48:16.627 | [BudgetA*] 160000 states explored, 0 candidates, 2.3s
+2026-02-12 23:48:16.790 | [BudgetA*] 170000 states explored, 0 candidates, 2.5s
+2026-02-12 23:48:16.964 | [BudgetA*] 180000 states explored, 0 candidates, 2.6s
+2026-02-12 23:48:17.132 | [BudgetA*] 190000 states explored, 0 candidates, 2.8s
+2026-02-12 23:48:17.297 | [BudgetA*] 200000 states explored, 0 candidates, 3.0s
+2026-02-12 23:48:17.466 | [BudgetA*] 210000 states explored, 0 candidates, 3.1s
+2026-02-12 23:48:17.643 | [BudgetA*] 220000 states explored, 0 candidates, 3.3s
+2026-02-12 23:48:17.811 | [BudgetA*] 230000 states explored, 0 candidates, 3.5s
+2026-02-12 23:48:17.978 | [BudgetA*] 240000 states explored, 0 candidates, 3.6s
+2026-02-12 23:48:18.146 | [BudgetA*] 250000 states explored, 0 candidates, 3.8s
+2026-02-12 23:48:18.322 | [BudgetA*] 260000 states explored, 0 candidates, 4.0s
+2026-02-12 23:48:18.490 | [BudgetA*] 270000 states explored, 0 candidates, 4.2s
+2026-02-12 23:48:18.674 | [BudgetA*] 280000 states explored, 0 candidates, 4.3s
+2026-02-12 23:48:18.850 | [BudgetA*] 290000 states explored, 0 candidates, 4.5s
+2026-02-12 23:48:19.025 | [BudgetA*] 300000 states explored, 0 candidates, 4.7s
+2026-02-12 23:48:19.203 | [BudgetA*] 310000 states explored, 0 candidates, 4.9s
+2026-02-12 23:48:20.373 | [BudgetA*] 320000 states explored, 0 candidates, 6.0s
+2026-02-12 23:48:20.584 | [BudgetA*] 330000 states explored, 0 candidates, 6.2s
+2026-02-12 23:48:20.760 | [BudgetA*] 340000 states explored, 0 candidates, 6.4s
+2026-02-12 23:48:20.934 | [BudgetA*] 350000 states explored, 0 candidates, 6.6s
+2026-02-12 23:48:21.101 | [BudgetA*] 360000 states explored, 0 candidates, 6.8s
+2026-02-12 23:48:21.264 | [BudgetA*] 370000 states explored, 0 candidates, 6.9s
+2026-02-12 23:48:21.426 | [BudgetA*] 380000 states explored, 0 candidates, 7.1s
+2026-02-12 23:48:21.588 | [BudgetA*] 390000 states explored, 0 candidates, 7.3s
+2026-02-12 23:48:21.748 | [BudgetA*] 400000 states explored, 0 candidates, 7.4s
+2026-02-12 23:48:21.908 | [BudgetA*] 410000 states explored, 0 candidates, 7.6s
+2026-02-12 23:48:22.065 | [BudgetA*] 420000 states explored, 0 candidates, 7.7s
+2026-02-12 23:48:22.221 | [BudgetA*] 430000 states explored, 0 candidates, 7.9s
+2026-02-12 23:48:22.378 | [BudgetA*] 440000 states explored, 0 candidates, 8.0s
+2026-02-12 23:48:22.536 | [BudgetA*] 450000 states explored, 0 candidates, 8.2s
+2026-02-12 23:48:22.688 | [BudgetA*] 460000 states explored, 0 candidates, 8.4s
+2026-02-12 23:48:22.829 | [BudgetA*] 470000 states explored, 0 candidates, 8.5s
+2026-02-12 23:48:22.954 | [BudgetA*] 480000 states explored, 0 candidates, 8.6s
+2026-02-12 23:48:22.962 | [BudgetA*] Search complete: 480684 states, 0 loops found, 8.6s
+2026-02-12 23:48:22.999 | [BudgetA*] No loops found for 5.0km target
+2026-02-12 23:48:22.999 | [VERBOSE] No loop candidates found
+2026-02-12 23:48:22.999 | 172.18.0.1 - - [12/Feb/2026 23:48:22] "POST /api/loop HTTP/1.1" 404 -
+2026-02-12 23:48:38.208 | [API] Loop route request: start=(51.49652085547838, -2.543517351150513), target=5.0km, bias=none
+2026-02-12 23:48:38.208 | [API] Loop requires 1 tiles: ['51.49_-2.57']
+2026-02-12 23:48:38.314 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:48:38.324 | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+2026-02-12 23:48:38.432 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:48:38.535 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:48:38.541 | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+2026-02-12 23:48:38.541 | [GraphManager] MERGED CACHE HIT: 1 tiles - instant return!
+2026-02-12 23:48:38.541 | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:48:38.541 | [VERBOSE] Finding loop route: start=(51.49652085547838, -2.543517351150513), target=5.0km, bias=none
+2026-02-12 23:48:40.060 | [VERBOSE] Start Node ID: 12797400183
+2026-02-12 23:48:40.060 | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+2026-02-12 23:48:40.060 | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:48:40.550 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:48:40.681 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:48:40.803 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:48:40.928 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:48:41.056 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:48:41.184 | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+2026-02-12 23:48:41.316 | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+2026-02-12 23:48:41.446 | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+2026-02-12 23:48:41.586 | [BudgetA*] 90000 states explored, 0 candidates, 1.1s
+2026-02-12 23:48:41.734 | [BudgetA*] 100000 states explored, 0 candidates, 1.3s
+2026-02-12 23:48:41.875 | [BudgetA*] 110000 states explored, 0 candidates, 1.4s
+2026-02-12 23:48:42.015 | [BudgetA*] 120000 states explored, 0 candidates, 1.6s
+2026-02-12 23:48:42.156 | [BudgetA*] 130000 states explored, 0 candidates, 1.7s
+2026-02-12 23:48:42.303 | [BudgetA*] 140000 states explored, 0 candidates, 1.9s
+2026-02-12 23:48:42.450 | [BudgetA*] 150000 states explored, 0 candidates, 2.0s
+2026-02-12 23:48:42.602 | [BudgetA*] 160000 states explored, 0 candidates, 2.2s
+2026-02-12 23:48:42.761 | [BudgetA*] 170000 states explored, 0 candidates, 2.3s
+2026-02-12 23:48:42.929 | [BudgetA*] 180000 states explored, 0 candidates, 2.5s
+2026-02-12 23:48:43.080 | [BudgetA*] 190000 states explored, 0 candidates, 2.6s
+2026-02-12 23:48:43.230 | [BudgetA*] 200000 states explored, 0 candidates, 2.8s
+2026-02-12 23:48:43.391 | [BudgetA*] 210000 states explored, 0 candidates, 2.9s
+2026-02-12 23:48:43.543 | [BudgetA*] 220000 states explored, 0 candidates, 3.1s
+2026-02-12 23:48:43.698 | [BudgetA*] 230000 states explored, 0 candidates, 3.3s
+2026-02-12 23:48:43.859 | [BudgetA*] 240000 states explored, 1 candidates, 3.4s
+2026-02-12 23:48:44.016 | [BudgetA*] 250000 states explored, 2 candidates, 3.6s
+2026-02-12 23:48:44.184 | [BudgetA*] 260000 states explored, 2 candidates, 3.7s
+2026-02-12 23:48:44.344 | [BudgetA*] 270000 states explored, 4 candidates, 3.9s
+2026-02-12 23:48:44.501 | [BudgetA*] 280000 states explored, 5 candidates, 4.1s
+2026-02-12 23:48:44.627 | [BudgetA*] Search complete: 287809 states, 6 loops found, 4.2s
+2026-02-12 23:48:44.655 | [BudgetA*] Returning 3 candidates from 6 raw loops, 4.6s total
+2026-02-12 23:48:44.655 | [VERBOSE] Found 3 loop candidates:
+2026-02-12 23:48:44.655 |   [0] Conservative: 5022m (±0.4%), quality=0.608
+2026-02-12 23:48:44.655 |   [1] Scenic: 4465m (±10.7%), quality=0.497
+2026-02-12 23:48:44.655 |   [2] Exploratory: 4755m (±4.9%), quality=0.541
+2026-02-12 23:48:44.657 | 172.18.0.1 - - [12/Feb/2026 23:48:44] "POST /api/loop HTTP/1.1" 200 -
+2026-02-12 23:50:02.033 | [API] Loop route request: start=(51.495174943092024, -2.544214725494385), target=5.0km, bias=none
+2026-02-12 23:50:02.033 | [API] Loop requires 1 tiles: ['51.49_-2.57']
+2026-02-12 23:50:02.148 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:50:02.158 | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+2026-02-12 23:50:03.395 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:50:03.529 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:50:03.535 | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+2026-02-12 23:50:03.535 | [GraphManager] MERGED CACHE HIT: 1 tiles - instant return!
+2026-02-12 23:50:03.535 | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:50:03.535 | [VERBOSE] Finding loop route: start=(51.495174943092024, -2.544214725494385), target=5.0km, bias=none
+2026-02-12 23:50:05.091 | [VERBOSE] Start Node ID: 6735218222
+2026-02-12 23:50:05.091 | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+2026-02-12 23:50:05.091 | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:50:05.578 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:50:05.697 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:50:05.816 | [BudgetA*] 30000 states explored, 0 candidates, 0.3s
+2026-02-12 23:50:05.936 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:50:06.066 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:50:06.195 | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+2026-02-12 23:50:06.327 | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+2026-02-12 23:50:06.462 | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+2026-02-12 23:50:06.600 | [BudgetA*] 90000 states explored, 0 candidates, 1.1s
+2026-02-12 23:50:06.733 | [BudgetA*] 100000 states explored, 0 candidates, 1.3s
+2026-02-12 23:50:06.870 | [BudgetA*] 110000 states explored, 0 candidates, 1.4s
+2026-02-12 23:50:07.008 | [BudgetA*] 120000 states explored, 0 candidates, 1.5s
+2026-02-12 23:50:07.152 | [BudgetA*] 130000 states explored, 0 candidates, 1.7s
+2026-02-12 23:50:07.297 | [BudgetA*] 140000 states explored, 0 candidates, 1.8s
+2026-02-12 23:50:07.445 | [BudgetA*] 150000 states explored, 0 candidates, 2.0s
+2026-02-12 23:50:07.614 | [BudgetA*] 160000 states explored, 0 candidates, 2.1s
+2026-02-12 23:50:07.788 | [BudgetA*] 170000 states explored, 0 candidates, 2.3s
+2026-02-12 23:50:07.940 | [BudgetA*] 180000 states explored, 0 candidates, 2.5s
+2026-02-12 23:50:08.100 | [BudgetA*] 190000 states explored, 0 candidates, 2.6s
+2026-02-12 23:50:08.265 | [BudgetA*] 200000 states explored, 0 candidates, 2.8s
+2026-02-12 23:50:08.426 | [BudgetA*] 210000 states explored, 0 candidates, 3.0s
+2026-02-12 23:50:08.589 | [BudgetA*] 220000 states explored, 0 candidates, 3.1s
+2026-02-12 23:50:08.755 | [BudgetA*] 230000 states explored, 0 candidates, 3.3s
+2026-02-12 23:50:08.941 | [BudgetA*] 240000 states explored, 0 candidates, 3.5s
+2026-02-12 23:50:09.136 | [BudgetA*] 250000 states explored, 0 candidates, 3.7s
+2026-02-12 23:50:09.325 | [BudgetA*] 260000 states explored, 0 candidates, 3.9s
+2026-02-12 23:50:09.506 | [BudgetA*] 270000 states explored, 0 candidates, 4.0s
+2026-02-12 23:50:09.686 | [BudgetA*] 280000 states explored, 0 candidates, 4.2s
+2026-02-12 23:50:09.876 | [BudgetA*] 290000 states explored, 0 candidates, 4.4s
+2026-02-12 23:50:10.056 | [BudgetA*] 300000 states explored, 0 candidates, 4.6s
+2026-02-12 23:50:10.223 | [BudgetA*] 310000 states explored, 0 candidates, 4.8s
+2026-02-12 23:50:10.392 | [BudgetA*] 320000 states explored, 0 candidates, 4.9s
+2026-02-12 23:50:10.559 | [BudgetA*] 330000 states explored, 0 candidates, 5.1s
+2026-02-12 23:50:10.731 | [BudgetA*] 340000 states explored, 0 candidates, 5.3s
+2026-02-12 23:50:10.947 | [BudgetA*] 350000 states explored, 0 candidates, 5.5s
+2026-02-12 23:50:11.119 | [BudgetA*] 360000 states explored, 0 candidates, 5.6s
+2026-02-12 23:50:11.279 | [BudgetA*] 370000 states explored, 0 candidates, 5.8s
+2026-02-12 23:50:11.432 | [BudgetA*] 380000 states explored, 0 candidates, 6.0s
+2026-02-12 23:50:11.586 | [BudgetA*] 390000 states explored, 0 candidates, 6.1s
+2026-02-12 23:50:11.743 | [BudgetA*] 400000 states explored, 0 candidates, 6.3s
+2026-02-12 23:50:11.903 | [BudgetA*] 410000 states explored, 0 candidates, 6.4s
+2026-02-12 23:50:12.057 | [BudgetA*] 420000 states explored, 0 candidates, 6.6s
+2026-02-12 23:50:12.208 | [BudgetA*] 430000 states explored, 0 candidates, 6.7s
+2026-02-12 23:50:12.354 | [BudgetA*] 440000 states explored, 0 candidates, 6.9s
+2026-02-12 23:50:12.499 | [BudgetA*] 450000 states explored, 0 candidates, 7.0s
+2026-02-12 23:50:12.640 | [BudgetA*] 460000 states explored, 0 candidates, 7.2s
+2026-02-12 23:50:12.772 | [BudgetA*] 470000 states explored, 0 candidates, 7.3s
+2026-02-12 23:50:12.894 | [BudgetA*] 480000 states explored, 0 candidates, 7.4s
+2026-02-12 23:50:12.899 | [BudgetA*] Search complete: 480516 states, 0 loops found, 7.4s
+2026-02-12 23:50:13.058 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:50:13.186 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:50:13.313 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:50:13.446 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:50:13.590 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:50:13.730 | [BudgetA*] 60000 states explored, 0 candidates, 0.8s
+2026-02-12 23:50:13.870 | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+2026-02-12 23:50:14.024 | [BudgetA*] 80000 states explored, 0 candidates, 1.1s
+2026-02-12 23:50:14.174 | [BudgetA*] 90000 states explored, 0 candidates, 1.2s
+2026-02-12 23:50:14.324 | [BudgetA*] 100000 states explored, 0 candidates, 1.4s
+2026-02-12 23:50:14.479 | [BudgetA*] 110000 states explored, 0 candidates, 1.5s
+2026-02-12 23:50:14.635 | [BudgetA*] 120000 states explored, 0 candidates, 1.7s
+2026-02-12 23:50:14.788 | [BudgetA*] 130000 states explored, 0 candidates, 1.8s
+2026-02-12 23:50:14.946 | [BudgetA*] 140000 states explored, 0 candidates, 2.0s
+2026-02-12 23:50:15.103 | [BudgetA*] 150000 states explored, 0 candidates, 2.2s
+2026-02-12 23:50:15.271 | [BudgetA*] 160000 states explored, 0 candidates, 2.3s
+2026-02-12 23:50:15.431 | [BudgetA*] 170000 states explored, 0 candidates, 2.5s
+2026-02-12 23:50:15.599 | [BudgetA*] 180000 states explored, 0 candidates, 2.7s
+2026-02-12 23:50:15.758 | [BudgetA*] 190000 states explored, 0 candidates, 2.8s
+2026-02-12 23:50:15.928 | [BudgetA*] 200000 states explored, 0 candidates, 3.0s
+2026-02-12 23:50:16.100 | [BudgetA*] 210000 states explored, 0 candidates, 3.2s
+2026-02-12 23:50:16.266 | [BudgetA*] 220000 states explored, 0 candidates, 3.3s
+2026-02-12 23:50:16.433 | [BudgetA*] 230000 states explored, 0 candidates, 3.5s
+2026-02-12 23:50:16.600 | [BudgetA*] 240000 states explored, 0 candidates, 3.7s
+2026-02-12 23:50:16.779 | [BudgetA*] 250000 states explored, 0 candidates, 3.8s
+2026-02-12 23:50:16.947 | [BudgetA*] 260000 states explored, 0 candidates, 4.0s
+2026-02-12 23:50:17.112 | [BudgetA*] 270000 states explored, 0 candidates, 4.2s
+2026-02-12 23:50:17.275 | [BudgetA*] 280000 states explored, 0 candidates, 4.3s
+2026-02-12 23:50:17.443 | [BudgetA*] 290000 states explored, 0 candidates, 4.5s
+2026-02-12 23:50:17.613 | [BudgetA*] 300000 states explored, 0 candidates, 4.7s
+2026-02-12 23:50:17.786 | [BudgetA*] 310000 states explored, 0 candidates, 4.8s
+2026-02-12 23:50:17.961 | [BudgetA*] 320000 states explored, 0 candidates, 5.0s
+2026-02-12 23:50:18.140 | [BudgetA*] 330000 states explored, 0 candidates, 5.2s
+2026-02-12 23:50:18.307 | [BudgetA*] 340000 states explored, 0 candidates, 5.4s
+2026-02-12 23:50:18.531 | [BudgetA*] 350000 states explored, 0 candidates, 5.6s
+2026-02-12 23:50:18.692 | [BudgetA*] 360000 states explored, 0 candidates, 5.7s
+2026-02-12 23:50:18.851 | [BudgetA*] 370000 states explored, 0 candidates, 5.9s
+2026-02-12 23:50:19.007 | [BudgetA*] 380000 states explored, 0 candidates, 6.1s
+2026-02-12 23:50:19.163 | [BudgetA*] 390000 states explored, 0 candidates, 6.2s
+2026-02-12 23:50:19.313 | [BudgetA*] 400000 states explored, 0 candidates, 6.4s
+2026-02-12 23:50:19.459 | [BudgetA*] 410000 states explored, 0 candidates, 6.5s
+2026-02-12 23:50:19.613 | [BudgetA*] 420000 states explored, 0 candidates, 6.7s
+2026-02-12 23:50:19.761 | [BudgetA*] 430000 states explored, 0 candidates, 6.8s
+2026-02-12 23:50:19.907 | [BudgetA*] 440000 states explored, 0 candidates, 7.0s
+2026-02-12 23:50:20.053 | [BudgetA*] 450000 states explored, 0 candidates, 7.1s
+2026-02-12 23:50:20.197 | [BudgetA*] 460000 states explored, 0 candidates, 7.3s
+2026-02-12 23:50:20.292 | [BudgetA*] Search complete: 467605 states, 0 loops found, 7.3s
+2026-02-12 23:50:20.453 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:50:20.584 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:50:20.729 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:50:20.873 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:50:21.013 | [BudgetA*] 50000 states explored, 0 candidates, 0.7s
+2026-02-12 23:50:21.152 | [BudgetA*] 60000 states explored, 0 candidates, 0.8s
+2026-02-12 23:50:21.294 | [BudgetA*] 70000 states explored, 0 candidates, 1.0s
+2026-02-12 23:50:21.440 | [BudgetA*] 80000 states explored, 0 candidates, 1.1s
+2026-02-12 23:50:21.594 | [BudgetA*] 90000 states explored, 0 candidates, 1.3s
+2026-02-12 23:50:21.742 | [BudgetA*] 100000 states explored, 0 candidates, 1.4s
+2026-02-12 23:50:21.892 | [BudgetA*] 110000 states explored, 0 candidates, 1.6s
+2026-02-12 23:50:22.996 | [BudgetA*] 120000 states explored, 0 candidates, 2.7s
+2026-02-12 23:50:23.160 | [BudgetA*] 130000 states explored, 0 candidates, 2.8s
+2026-02-12 23:50:23.329 | [BudgetA*] 140000 states explored, 0 candidates, 3.0s
+2026-02-12 23:50:23.493 | [BudgetA*] 150000 states explored, 0 candidates, 3.2s
+2026-02-12 23:50:23.657 | [BudgetA*] 160000 states explored, 0 candidates, 3.3s
+2026-02-12 23:50:23.833 | [BudgetA*] 170000 states explored, 0 candidates, 3.5s
+2026-02-12 23:50:24.006 | [BudgetA*] 180000 states explored, 0 candidates, 3.7s
+2026-02-12 23:50:24.176 | [BudgetA*] 190000 states explored, 0 candidates, 3.8s
+2026-02-12 23:50:24.341 | [BudgetA*] 200000 states explored, 0 candidates, 4.0s
+2026-02-12 23:50:24.519 | [BudgetA*] 210000 states explored, 0 candidates, 4.2s
+2026-02-12 23:50:24.698 | [BudgetA*] 220000 states explored, 0 candidates, 4.4s
+2026-02-12 23:50:24.872 | [BudgetA*] 230000 states explored, 0 candidates, 4.5s
+2026-02-12 23:50:25.069 | [BudgetA*] 240000 states explored, 0 candidates, 4.7s
+2026-02-12 23:50:25.261 | [BudgetA*] 250000 states explored, 0 candidates, 4.9s
+2026-02-12 23:50:25.466 | [BudgetA*] 260000 states explored, 0 candidates, 5.1s
+2026-02-12 23:50:25.660 | [BudgetA*] 270000 states explored, 0 candidates, 5.3s
+2026-02-12 23:50:25.850 | [BudgetA*] 280000 states explored, 0 candidates, 5.5s
+2026-02-12 23:50:26.032 | [BudgetA*] 290000 states explored, 0 candidates, 5.7s
+2026-02-12 23:50:26.207 | [BudgetA*] 300000 states explored, 0 candidates, 5.9s
+2026-02-12 23:50:26.389 | [BudgetA*] 310000 states explored, 0 candidates, 6.1s
+2026-02-12 23:50:26.574 | [BudgetA*] 320000 states explored, 0 candidates, 6.2s
+2026-02-12 23:50:26.747 | [BudgetA*] 330000 states explored, 0 candidates, 6.4s
+2026-02-12 23:50:26.922 | [BudgetA*] 340000 states explored, 0 candidates, 6.6s
+2026-02-12 23:50:27.150 | [BudgetA*] 350000 states explored, 0 candidates, 6.8s
+2026-02-12 23:50:27.327 | [BudgetA*] 360000 states explored, 0 candidates, 7.0s
+2026-02-12 23:50:27.503 | [BudgetA*] 370000 states explored, 0 candidates, 7.2s
+2026-02-12 23:50:27.686 | [BudgetA*] 380000 states explored, 0 candidates, 7.3s
+2026-02-12 23:50:27.870 | [BudgetA*] 390000 states explored, 0 candidates, 7.5s
+2026-02-12 23:50:28.042 | [BudgetA*] 400000 states explored, 0 candidates, 7.7s
+2026-02-12 23:50:28.201 | [BudgetA*] 410000 states explored, 0 candidates, 7.9s
+2026-02-12 23:50:28.361 | [BudgetA*] 420000 states explored, 0 candidates, 8.0s
+2026-02-12 23:50:28.518 | [BudgetA*] 430000 states explored, 0 candidates, 8.2s
+2026-02-12 23:50:28.673 | [BudgetA*] 440000 states explored, 0 candidates, 8.3s
+2026-02-12 23:50:28.826 | [BudgetA*] 450000 states explored, 0 candidates, 8.5s
+2026-02-12 23:50:28.970 | [BudgetA*] 460000 states explored, 0 candidates, 8.6s
+2026-02-12 23:50:29.099 | [BudgetA*] 470000 states explored, 0 candidates, 8.8s
+2026-02-12 23:50:29.105 | [BudgetA*] Search complete: 470455 states, 0 loops found, 8.8s
+2026-02-12 23:50:29.150 | 172.18.0.1 - - [12/Feb/2026 23:50:29] "POST /api/loop HTTP/1.1" 404 -
+2026-02-12 23:50:29.149 | [BudgetA*] No loops found for 5.0km target
+2026-02-12 23:50:29.149 | [VERBOSE] No loop candidates found
+2026-02-12 23:50:34.001 | [API] Loop route request: start=(51.495171603309615, -2.544399797916413), target=5.0km, bias=none
+2026-02-12 23:50:34.001 | [API] Loop requires 1 tiles: ['51.49_-2.57']
+2026-02-12 23:50:34.109 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:50:34.120 | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+2026-02-12 23:50:34.222 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:50:34.331 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:50:34.339 | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+2026-02-12 23:50:34.339 | [GraphManager] MERGED CACHE HIT: 1 tiles - instant return!
+2026-02-12 23:50:34.339 | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:50:34.339 | [VERBOSE] Finding loop route: start=(51.495171603309615, -2.544399797916413), target=5.0km, bias=none
+2026-02-12 23:50:35.849 | [VERBOSE] Start Node ID: 6736815075
+2026-02-12 23:50:35.850 | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+2026-02-12 23:50:35.850 | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:50:36.341 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:50:36.458 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:50:36.584 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:50:36.718 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:50:36.846 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:50:36.978 | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+2026-02-12 23:50:37.111 | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+2026-02-12 23:50:37.241 | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+2026-02-12 23:50:37.380 | [BudgetA*] 90000 states explored, 0 candidates, 1.1s
+2026-02-12 23:50:37.523 | [BudgetA*] 100000 states explored, 0 candidates, 1.3s
+2026-02-12 23:50:37.658 | [BudgetA*] 110000 states explored, 0 candidates, 1.4s
+2026-02-12 23:50:37.801 | [BudgetA*] 120000 states explored, 0 candidates, 1.6s
+2026-02-12 23:50:37.940 | [BudgetA*] 130000 states explored, 0 candidates, 1.7s
+2026-02-12 23:50:38.089 | [BudgetA*] 140000 states explored, 0 candidates, 1.9s
+2026-02-12 23:50:38.233 | [BudgetA*] 150000 states explored, 0 candidates, 2.0s
+2026-02-12 23:50:38.383 | [BudgetA*] 160000 states explored, 0 candidates, 2.2s
+2026-02-12 23:50:38.537 | [BudgetA*] 170000 states explored, 0 candidates, 2.3s
+2026-02-12 23:50:38.705 | [BudgetA*] 180000 states explored, 0 candidates, 2.5s
+2026-02-12 23:50:38.861 | [BudgetA*] 190000 states explored, 0 candidates, 2.6s
+2026-02-12 23:50:39.010 | [BudgetA*] 200000 states explored, 0 candidates, 2.8s
+2026-02-12 23:50:39.170 | [BudgetA*] 210000 states explored, 0 candidates, 2.9s
+2026-02-12 23:50:40.309 | [BudgetA*] 220000 states explored, 0 candidates, 4.1s
+2026-02-12 23:50:40.471 | [BudgetA*] 230000 states explored, 0 candidates, 4.2s
+2026-02-12 23:50:40.647 | [BudgetA*] 240000 states explored, 0 candidates, 4.4s
+2026-02-12 23:50:40.807 | [BudgetA*] 250000 states explored, 0 candidates, 4.6s
+2026-02-12 23:50:40.987 | [BudgetA*] 260000 states explored, 0 candidates, 4.8s
+2026-02-12 23:50:41.148 | [BudgetA*] 270000 states explored, 0 candidates, 4.9s
+2026-02-12 23:50:41.313 | [BudgetA*] 280000 states explored, 0 candidates, 5.1s
+2026-02-12 23:50:41.475 | [BudgetA*] 290000 states explored, 0 candidates, 5.2s
+2026-02-12 23:50:41.636 | [BudgetA*] 300000 states explored, 0 candidates, 5.4s
+2026-02-12 23:50:41.797 | [BudgetA*] 310000 states explored, 0 candidates, 5.6s
+2026-02-12 23:50:41.968 | [BudgetA*] 320000 states explored, 0 candidates, 5.7s
+2026-02-12 23:50:42.130 | [BudgetA*] 330000 states explored, 0 candidates, 5.9s
+2026-02-12 23:50:42.289 | [BudgetA*] 340000 states explored, 0 candidates, 6.1s
+2026-02-12 23:50:42.495 | [BudgetA*] 350000 states explored, 0 candidates, 6.3s
+2026-02-12 23:50:42.656 | [BudgetA*] 360000 states explored, 0 candidates, 6.4s
+2026-02-12 23:50:42.814 | [BudgetA*] 370000 states explored, 0 candidates, 6.6s
+2026-02-12 23:50:42.968 | [BudgetA*] 380000 states explored, 0 candidates, 6.7s
+2026-02-12 23:50:43.120 | [BudgetA*] 390000 states explored, 0 candidates, 6.9s
+2026-02-12 23:50:43.277 | [BudgetA*] 400000 states explored, 0 candidates, 7.0s
+2026-02-12 23:50:43.441 | [BudgetA*] 410000 states explored, 0 candidates, 7.2s
+2026-02-12 23:50:43.599 | [BudgetA*] 420000 states explored, 0 candidates, 7.4s
+2026-02-12 23:50:43.803 | [BudgetA*] 430000 states explored, 0 candidates, 7.6s
+2026-02-12 23:50:43.955 | [BudgetA*] 440000 states explored, 0 candidates, 7.7s
+2026-02-12 23:50:44.099 | [BudgetA*] 450000 states explored, 0 candidates, 7.9s
+2026-02-12 23:50:44.246 | [BudgetA*] 460000 states explored, 0 candidates, 8.0s
+2026-02-12 23:50:44.389 | [BudgetA*] 470000 states explored, 0 candidates, 8.2s
+2026-02-12 23:50:44.518 | [BudgetA*] 480000 states explored, 0 candidates, 8.3s
+2026-02-12 23:50:44.551 | [BudgetA*] Search complete: 482971 states, 0 loops found, 8.3s
+2026-02-12 23:50:44.716 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:50:44.860 | [BudgetA*] 20000 states explored, 0 candidates, 0.3s
+2026-02-12 23:50:45.021 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:50:45.157 | [BudgetA*] 40000 states explored, 0 candidates, 0.6s
+2026-02-12 23:50:45.308 | [BudgetA*] 50000 states explored, 0 candidates, 0.7s
+2026-02-12 23:50:45.448 | [BudgetA*] 60000 states explored, 0 candidates, 0.9s
+2026-02-12 23:50:45.590 | [BudgetA*] 70000 states explored, 0 candidates, 1.0s
+2026-02-12 23:50:45.741 | [BudgetA*] 80000 states explored, 0 candidates, 1.1s
+2026-02-12 23:50:45.890 | [BudgetA*] 90000 states explored, 0 candidates, 1.3s
+2026-02-12 23:50:46.042 | [BudgetA*] 100000 states explored, 0 candidates, 1.4s
+2026-02-12 23:50:46.189 | [BudgetA*] 110000 states explored, 0 candidates, 1.6s
+2026-02-12 23:50:46.342 | [BudgetA*] 120000 states explored, 0 candidates, 1.7s
+2026-02-12 23:50:46.487 | [BudgetA*] 130000 states explored, 0 candidates, 1.9s
+2026-02-12 23:50:46.641 | [BudgetA*] 140000 states explored, 0 candidates, 2.0s
+2026-02-12 23:50:46.800 | [BudgetA*] 150000 states explored, 0 candidates, 2.2s
+2026-02-12 23:50:46.959 | [BudgetA*] 160000 states explored, 0 candidates, 2.4s
+2026-02-12 23:50:47.129 | [BudgetA*] 170000 states explored, 0 candidates, 2.5s
+2026-02-12 23:50:47.301 | [BudgetA*] 180000 states explored, 0 candidates, 2.7s
+2026-02-12 23:50:47.474 | [BudgetA*] 190000 states explored, 0 candidates, 2.9s
+2026-02-12 23:50:47.645 | [BudgetA*] 200000 states explored, 0 candidates, 3.1s
+2026-02-12 23:50:47.811 | [BudgetA*] 210000 states explored, 0 candidates, 3.2s
+2026-02-12 23:50:47.978 | [BudgetA*] 220000 states explored, 0 candidates, 3.4s
+2026-02-12 23:50:48.147 | [BudgetA*] 230000 states explored, 0 candidates, 3.6s
+2026-02-12 23:50:48.321 | [BudgetA*] 240000 states explored, 0 candidates, 3.7s
+2026-02-12 23:50:48.491 | [BudgetA*] 250000 states explored, 0 candidates, 3.9s
+2026-02-12 23:50:48.664 | [BudgetA*] 260000 states explored, 0 candidates, 4.1s
+2026-02-12 23:50:48.834 | [BudgetA*] 270000 states explored, 0 candidates, 4.2s
+2026-02-12 23:50:49.004 | [BudgetA*] 280000 states explored, 0 candidates, 4.4s
+2026-02-12 23:50:49.171 | [BudgetA*] 290000 states explored, 0 candidates, 4.6s
+2026-02-12 23:50:49.332 | [BudgetA*] 300000 states explored, 0 candidates, 4.7s
+2026-02-12 23:50:49.498 | [BudgetA*] 310000 states explored, 0 candidates, 4.9s
+2026-02-12 23:50:49.679 | [BudgetA*] 320000 states explored, 0 candidates, 5.1s
+2026-02-12 23:50:49.848 | [BudgetA*] 330000 states explored, 0 candidates, 5.3s
+2026-02-12 23:50:50.030 | [BudgetA*] 340000 states explored, 0 candidates, 5.4s
+2026-02-12 23:50:50.223 | [BudgetA*] 350000 states explored, 0 candidates, 5.6s
+2026-02-12 23:50:50.388 | [BudgetA*] 360000 states explored, 0 candidates, 5.8s
+2026-02-12 23:50:50.563 | [BudgetA*] 370000 states explored, 0 candidates, 6.0s
+2026-02-12 23:50:50.761 | [BudgetA*] 380000 states explored, 0 candidates, 6.2s
+2026-02-12 23:50:50.998 | [BudgetA*] 390000 states explored, 0 candidates, 6.4s
+2026-02-12 23:50:51.181 | [BudgetA*] 400000 states explored, 0 candidates, 6.6s
+2026-02-12 23:50:51.375 | [BudgetA*] 410000 states explored, 0 candidates, 6.8s
+2026-02-12 23:50:51.535 | [BudgetA*] 420000 states explored, 0 candidates, 6.9s
+2026-02-12 23:50:51.698 | [BudgetA*] 430000 states explored, 0 candidates, 7.1s
+2026-02-12 23:50:51.852 | [BudgetA*] 440000 states explored, 0 candidates, 7.3s
+2026-02-12 23:50:52.003 | [BudgetA*] 450000 states explored, 0 candidates, 7.4s
+2026-02-12 23:50:52.156 | [BudgetA*] 460000 states explored, 0 candidates, 7.6s
+2026-02-12 23:50:52.309 | [BudgetA*] 470000 states explored, 0 candidates, 7.7s
+2026-02-12 23:50:52.342 | [BudgetA*] Search complete: 472009 states, 0 loops found, 7.7s
+2026-02-12 23:50:52.523 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:50:52.654 | [BudgetA*] 20000 states explored, 0 candidates, 0.3s
+2026-02-12 23:50:52.787 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:50:52.926 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:50:53.069 | [BudgetA*] 50000 states explored, 0 candidates, 0.7s
+2026-02-12 23:50:53.212 | [BudgetA*] 60000 states explored, 0 candidates, 0.8s
+2026-02-12 23:50:53.355 | [BudgetA*] 70000 states explored, 0 candidates, 1.0s
+2026-02-12 23:50:53.504 | [BudgetA*] 80000 states explored, 0 candidates, 1.1s
+2026-02-12 23:50:53.650 | [BudgetA*] 90000 states explored, 0 candidates, 1.3s
+2026-02-12 23:50:53.820 | [BudgetA*] 100000 states explored, 0 candidates, 1.4s
+2026-02-12 23:50:53.994 | [BudgetA*] 110000 states explored, 0 candidates, 1.6s
+2026-02-12 23:50:54.161 | [BudgetA*] 120000 states explored, 0 candidates, 1.8s
+2026-02-12 23:50:54.329 | [BudgetA*] 130000 states explored, 0 candidates, 1.9s
+2026-02-12 23:50:54.494 | [BudgetA*] 140000 states explored, 0 candidates, 2.1s
+2026-02-12 23:50:54.666 | [BudgetA*] 150000 states explored, 0 candidates, 2.3s
+2026-02-12 23:50:54.825 | [BudgetA*] 160000 states explored, 0 candidates, 2.4s
+2026-02-12 23:50:54.994 | [BudgetA*] 170000 states explored, 0 candidates, 2.6s
+2026-02-12 23:50:56.154 | [BudgetA*] 180000 states explored, 0 candidates, 3.8s
+2026-02-12 23:50:56.332 | [BudgetA*] 190000 states explored, 0 candidates, 3.9s
+2026-02-12 23:50:56.500 | [BudgetA*] 200000 states explored, 0 candidates, 4.1s
+2026-02-12 23:50:56.659 | [BudgetA*] 210000 states explored, 0 candidates, 4.3s
+2026-02-12 23:50:56.827 | [BudgetA*] 220000 states explored, 0 candidates, 4.4s
+2026-02-12 23:50:57.009 | [BudgetA*] 230000 states explored, 0 candidates, 4.6s
+2026-02-12 23:50:57.173 | [BudgetA*] 240000 states explored, 0 candidates, 4.8s
+2026-02-12 23:50:57.359 | [BudgetA*] 250000 states explored, 0 candidates, 5.0s
+2026-02-12 23:50:57.537 | [BudgetA*] 260000 states explored, 0 candidates, 5.1s
+2026-02-12 23:50:57.708 | [BudgetA*] 270000 states explored, 0 candidates, 5.3s
+2026-02-12 23:50:57.887 | [BudgetA*] 280000 states explored, 0 candidates, 5.5s
+2026-02-12 23:50:58.067 | [BudgetA*] 290000 states explored, 0 candidates, 5.7s
+2026-02-12 23:50:58.252 | [BudgetA*] 300000 states explored, 0 candidates, 5.9s
+2026-02-12 23:50:58.430 | [BudgetA*] 310000 states explored, 0 candidates, 6.0s
+2026-02-12 23:50:58.607 | [BudgetA*] 320000 states explored, 0 candidates, 6.2s
+2026-02-12 23:50:58.797 | [BudgetA*] 330000 states explored, 0 candidates, 6.4s
+2026-02-12 23:50:58.978 | [BudgetA*] 340000 states explored, 0 candidates, 6.6s
+2026-02-12 23:50:59.183 | [BudgetA*] 350000 states explored, 0 candidates, 6.8s
+2026-02-12 23:50:59.364 | [BudgetA*] 360000 states explored, 0 candidates, 7.0s
+2026-02-12 23:50:59.538 | [BudgetA*] 370000 states explored, 0 candidates, 7.1s
+2026-02-12 23:50:59.713 | [BudgetA*] 380000 states explored, 0 candidates, 7.3s
+2026-02-12 23:50:59.878 | [BudgetA*] 390000 states explored, 0 candidates, 7.5s
+2026-02-12 23:51:00.045 | [BudgetA*] 400000 states explored, 0 candidates, 7.6s
+2026-02-12 23:51:00.206 | [BudgetA*] 410000 states explored, 0 candidates, 7.8s
+2026-02-12 23:51:00.366 | [BudgetA*] 420000 states explored, 0 candidates, 8.0s
+2026-02-12 23:51:00.524 | [BudgetA*] 430000 states explored, 0 candidates, 8.1s
+2026-02-12 23:51:00.685 | [BudgetA*] 440000 states explored, 0 candidates, 8.3s
+2026-02-12 23:51:00.836 | [BudgetA*] 450000 states explored, 0 candidates, 8.4s
+2026-02-12 23:51:00.992 | [BudgetA*] 460000 states explored, 0 candidates, 8.6s
+2026-02-12 23:51:01.131 | [BudgetA*] 470000 states explored, 0 candidates, 8.7s
+2026-02-12 23:51:01.192 | [BudgetA*] Search complete: 474995 states, 0 loops found, 8.8s
+2026-02-12 23:51:01.236 | 172.18.0.1 - - [12/Feb/2026 23:51:01] "POST /api/loop HTTP/1.1" 404 -
+2026-02-12 23:51:01.235 | [BudgetA*] No loops found for 5.0km target
+2026-02-12 23:51:01.235 | [VERBOSE] No loop candidates found
+2026-02-12 23:51:04.234 | [API] Loop route request: start=(51.49503133222797, -2.5440376996994023), target=5.0km, bias=none
+2026-02-12 23:51:04.234 | [API] Loop requires 1 tiles: ['51.49_-2.57']
+2026-02-12 23:51:04.344 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:51:04.359 | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+2026-02-12 23:51:04.469 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:51:04.594 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:51:04.602 | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+2026-02-12 23:51:04.602 | [GraphManager] MERGED CACHE HIT: 1 tiles - instant return!
+2026-02-12 23:51:04.602 | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:51:04.602 | [VERBOSE] Finding loop route: start=(51.49503133222797, -2.5440376996994023), target=5.0km, bias=none
+2026-02-12 23:51:06.138 | [VERBOSE] Start Node ID: 6736815075
+2026-02-12 23:51:06.139 | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+2026-02-12 23:51:06.139 | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:51:06.638 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:51:06.760 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:51:06.883 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:51:07.012 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:51:07.142 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:51:07.276 | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+2026-02-12 23:51:07.414 | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+2026-02-12 23:51:07.552 | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+2026-02-12 23:51:07.691 | [BudgetA*] 90000 states explored, 0 candidates, 1.2s
+2026-02-12 23:51:07.838 | [BudgetA*] 100000 states explored, 0 candidates, 1.3s
+2026-02-12 23:51:07.985 | [BudgetA*] 110000 states explored, 0 candidates, 1.5s
+2026-02-12 23:51:08.131 | [BudgetA*] 120000 states explored, 0 candidates, 1.6s
+2026-02-12 23:51:08.277 | [BudgetA*] 130000 states explored, 0 candidates, 1.7s
+2026-02-12 23:51:08.430 | [BudgetA*] 140000 states explored, 0 candidates, 1.9s
+2026-02-12 23:51:08.578 | [BudgetA*] 150000 states explored, 0 candidates, 2.0s
+2026-02-12 23:51:08.728 | [BudgetA*] 160000 states explored, 0 candidates, 2.2s
+2026-02-12 23:51:08.878 | [BudgetA*] 170000 states explored, 0 candidates, 2.3s
+2026-02-12 23:51:09.065 | [BudgetA*] 180000 states explored, 0 candidates, 2.5s
+2026-02-12 23:51:09.219 | [BudgetA*] 190000 states explored, 0 candidates, 2.7s
+2026-02-12 23:51:09.384 | [BudgetA*] 200000 states explored, 0 candidates, 2.9s
+2026-02-12 23:51:09.544 | [BudgetA*] 210000 states explored, 0 candidates, 3.0s
+2026-02-12 23:51:09.714 | [BudgetA*] 220000 states explored, 0 candidates, 3.2s
+2026-02-12 23:51:09.881 | [BudgetA*] 230000 states explored, 0 candidates, 3.3s
+2026-02-12 23:51:10.051 | [BudgetA*] 240000 states explored, 0 candidates, 3.5s
+2026-02-12 23:51:10.234 | [BudgetA*] 250000 states explored, 0 candidates, 3.7s
+2026-02-12 23:51:10.426 | [BudgetA*] 260000 states explored, 0 candidates, 3.9s
+2026-02-12 23:51:10.602 | [BudgetA*] 270000 states explored, 0 candidates, 4.1s
+2026-02-12 23:51:11.811 | [BudgetA*] 280000 states explored, 0 candidates, 5.3s
+2026-02-12 23:51:12.001 | [BudgetA*] 290000 states explored, 0 candidates, 5.5s
+2026-02-12 23:51:12.165 | [BudgetA*] 300000 states explored, 0 candidates, 5.6s
+2026-02-12 23:51:12.327 | [BudgetA*] 310000 states explored, 0 candidates, 5.8s
+2026-02-12 23:51:12.491 | [BudgetA*] 320000 states explored, 0 candidates, 6.0s
+2026-02-12 23:51:12.664 | [BudgetA*] 330000 states explored, 0 candidates, 6.1s
+2026-02-12 23:51:12.828 | [BudgetA*] 340000 states explored, 0 candidates, 6.3s
+2026-02-12 23:51:13.040 | [BudgetA*] 350000 states explored, 0 candidates, 6.5s
+2026-02-12 23:51:13.201 | [BudgetA*] 360000 states explored, 0 candidates, 6.7s
+2026-02-12 23:51:13.356 | [BudgetA*] 370000 states explored, 0 candidates, 6.8s
+2026-02-12 23:51:13.508 | [BudgetA*] 380000 states explored, 0 candidates, 7.0s
+2026-02-12 23:51:13.658 | [BudgetA*] 390000 states explored, 0 candidates, 7.1s
+2026-02-12 23:51:13.813 | [BudgetA*] 400000 states explored, 0 candidates, 7.3s
+2026-02-12 23:51:13.967 | [BudgetA*] 410000 states explored, 0 candidates, 7.4s
+2026-02-12 23:51:14.118 | [BudgetA*] 420000 states explored, 0 candidates, 7.6s
+2026-02-12 23:51:14.262 | [BudgetA*] 430000 states explored, 0 candidates, 7.7s
+2026-02-12 23:51:14.408 | [BudgetA*] 440000 states explored, 0 candidates, 7.9s
+2026-02-12 23:51:14.548 | [BudgetA*] 450000 states explored, 0 candidates, 8.0s
+2026-02-12 23:51:14.689 | [BudgetA*] 460000 states explored, 0 candidates, 8.2s
+2026-02-12 23:51:14.826 | [BudgetA*] 470000 states explored, 0 candidates, 8.3s
+2026-02-12 23:51:14.969 | [BudgetA*] 480000 states explored, 0 candidates, 8.4s
+2026-02-12 23:51:15.017 | [BudgetA*] Search complete: 482971 states, 0 loops found, 8.5s
+2026-02-12 23:51:15.195 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:51:15.324 | [BudgetA*] 20000 states explored, 0 candidates, 0.3s
+2026-02-12 23:51:15.462 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:51:15.609 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:51:15.746 | [BudgetA*] 50000 states explored, 0 candidates, 0.7s
+2026-02-12 23:51:15.887 | [BudgetA*] 60000 states explored, 0 candidates, 0.8s
+2026-02-12 23:51:16.043 | [BudgetA*] 70000 states explored, 0 candidates, 1.0s
+2026-02-12 23:51:16.188 | [BudgetA*] 80000 states explored, 0 candidates, 1.1s
+2026-02-12 23:51:16.347 | [BudgetA*] 90000 states explored, 0 candidates, 1.3s
+2026-02-12 23:51:16.505 | [BudgetA*] 100000 states explored, 0 candidates, 1.4s
+2026-02-12 23:51:16.660 | [BudgetA*] 110000 states explored, 0 candidates, 1.6s
+2026-02-12 23:51:16.835 | [BudgetA*] 120000 states explored, 0 candidates, 1.8s
+2026-02-12 23:51:16.993 | [BudgetA*] 130000 states explored, 0 candidates, 1.9s
+2026-02-12 23:51:17.163 | [BudgetA*] 140000 states explored, 0 candidates, 2.1s
+2026-02-12 23:51:17.328 | [BudgetA*] 150000 states explored, 0 candidates, 2.3s
+2026-02-12 23:51:17.493 | [BudgetA*] 160000 states explored, 0 candidates, 2.4s
+2026-02-12 23:51:17.665 | [BudgetA*] 170000 states explored, 0 candidates, 2.6s
+2026-02-12 23:51:17.847 | [BudgetA*] 180000 states explored, 0 candidates, 2.8s
+2026-02-12 23:51:18.012 | [BudgetA*] 190000 states explored, 0 candidates, 2.9s
+2026-02-12 23:51:18.178 | [BudgetA*] 200000 states explored, 0 candidates, 3.1s
+2026-02-12 23:51:18.364 | [BudgetA*] 210000 states explored, 0 candidates, 3.3s
+2026-02-12 23:51:18.540 | [BudgetA*] 220000 states explored, 0 candidates, 3.5s
+2026-02-12 23:51:18.704 | [BudgetA*] 230000 states explored, 0 candidates, 3.6s
+2026-02-12 23:51:18.879 | [BudgetA*] 240000 states explored, 0 candidates, 3.8s
+2026-02-12 23:51:19.049 | [BudgetA*] 250000 states explored, 0 candidates, 4.0s
+2026-02-12 23:51:19.227 | [BudgetA*] 260000 states explored, 0 candidates, 4.2s
+2026-02-12 23:51:19.400 | [BudgetA*] 270000 states explored, 0 candidates, 4.3s
+2026-02-12 23:51:19.575 | [BudgetA*] 280000 states explored, 0 candidates, 4.5s
+2026-02-12 23:51:19.745 | [BudgetA*] 290000 states explored, 0 candidates, 4.7s
+2026-02-12 23:51:19.911 | [BudgetA*] 300000 states explored, 0 candidates, 4.8s
+2026-02-12 23:51:20.077 | [BudgetA*] 310000 states explored, 0 candidates, 5.0s
+2026-02-12 23:51:20.247 | [BudgetA*] 320000 states explored, 0 candidates, 5.2s
+2026-02-12 23:51:20.427 | [BudgetA*] 330000 states explored, 0 candidates, 5.4s
+2026-02-12 23:51:20.592 | [BudgetA*] 340000 states explored, 0 candidates, 5.5s
+2026-02-12 23:51:20.784 | [BudgetA*] 350000 states explored, 0 candidates, 5.7s
+2026-02-12 23:51:20.947 | [BudgetA*] 360000 states explored, 0 candidates, 5.9s
+2026-02-12 23:51:21.116 | [BudgetA*] 370000 states explored, 0 candidates, 6.0s
+2026-02-12 23:51:21.280 | [BudgetA*] 380000 states explored, 0 candidates, 6.2s
+2026-02-12 23:51:21.440 | [BudgetA*] 390000 states explored, 0 candidates, 6.4s
+2026-02-12 23:51:21.592 | [BudgetA*] 400000 states explored, 0 candidates, 6.5s
+2026-02-12 23:51:21.741 | [BudgetA*] 410000 states explored, 0 candidates, 6.7s
+2026-02-12 23:51:21.890 | [BudgetA*] 420000 states explored, 0 candidates, 6.8s
+2026-02-12 23:51:22.034 | [BudgetA*] 430000 states explored, 0 candidates, 7.0s
+2026-02-12 23:51:22.184 | [BudgetA*] 440000 states explored, 0 candidates, 7.1s
+2026-02-12 23:51:22.336 | [BudgetA*] 450000 states explored, 0 candidates, 7.3s
+2026-02-12 23:51:22.479 | [BudgetA*] 460000 states explored, 0 candidates, 7.4s
+2026-02-12 23:51:22.607 | [BudgetA*] 470000 states explored, 0 candidates, 7.5s
+2026-02-12 23:51:22.632 | [BudgetA*] Search complete: 472009 states, 0 loops found, 7.6s
+2026-02-12 23:51:22.785 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:51:22.915 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:51:23.046 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:51:23.181 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:51:23.320 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:51:23.466 | [BudgetA*] 60000 states explored, 0 candidates, 0.8s
+2026-02-12 23:51:23.607 | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+2026-02-12 23:51:23.756 | [BudgetA*] 80000 states explored, 0 candidates, 1.1s
+2026-02-12 23:51:23.901 | [BudgetA*] 90000 states explored, 0 candidates, 1.2s
+2026-02-12 23:51:24.046 | [BudgetA*] 100000 states explored, 0 candidates, 1.4s
+2026-02-12 23:51:24.209 | [BudgetA*] 110000 states explored, 0 candidates, 1.5s
+2026-02-12 23:51:24.364 | [BudgetA*] 120000 states explored, 0 candidates, 1.7s
+2026-02-12 23:51:24.519 | [BudgetA*] 130000 states explored, 0 candidates, 1.8s
+2026-02-12 23:51:24.674 | [BudgetA*] 140000 states explored, 0 candidates, 2.0s
+2026-02-12 23:51:24.834 | [BudgetA*] 150000 states explored, 0 candidates, 2.2s
+2026-02-12 23:51:25.011 | [BudgetA*] 160000 states explored, 0 candidates, 2.3s
+2026-02-12 23:51:25.174 | [BudgetA*] 170000 states explored, 0 candidates, 2.5s
+2026-02-12 23:51:25.349 | [BudgetA*] 180000 states explored, 0 candidates, 2.7s
+2026-02-12 23:51:25.516 | [BudgetA*] 190000 states explored, 0 candidates, 2.8s
+2026-02-12 23:51:25.688 | [BudgetA*] 200000 states explored, 0 candidates, 3.0s
+2026-02-12 23:51:25.850 | [BudgetA*] 210000 states explored, 0 candidates, 3.2s
+2026-02-12 23:51:26.015 | [BudgetA*] 220000 states explored, 0 candidates, 3.3s
+2026-02-12 23:51:26.178 | [BudgetA*] 230000 states explored, 0 candidates, 3.5s
+2026-02-12 23:51:26.350 | [BudgetA*] 240000 states explored, 0 candidates, 3.7s
+2026-02-12 23:51:27.485 | [BudgetA*] 250000 states explored, 0 candidates, 4.8s
+2026-02-12 23:51:27.701 | [BudgetA*] 260000 states explored, 0 candidates, 5.0s
+2026-02-12 23:51:27.875 | [BudgetA*] 270000 states explored, 0 candidates, 5.2s
+2026-02-12 23:51:28.053 | [BudgetA*] 280000 states explored, 0 candidates, 5.4s
+2026-02-12 23:51:28.226 | [BudgetA*] 290000 states explored, 0 candidates, 5.6s
+2026-02-12 23:51:28.413 | [BudgetA*] 300000 states explored, 0 candidates, 5.7s
+2026-02-12 23:51:28.584 | [BudgetA*] 310000 states explored, 0 candidates, 5.9s
+2026-02-12 23:51:28.755 | [BudgetA*] 320000 states explored, 0 candidates, 6.1s
+2026-02-12 23:51:28.927 | [BudgetA*] 330000 states explored, 0 candidates, 6.3s
+2026-02-12 23:51:29.098 | [BudgetA*] 340000 states explored, 0 candidates, 6.4s
+2026-02-12 23:51:29.279 | [BudgetA*] 350000 states explored, 0 candidates, 6.6s
+2026-02-12 23:51:29.456 | [BudgetA*] 360000 states explored, 0 candidates, 6.8s
+2026-02-12 23:51:29.629 | [BudgetA*] 370000 states explored, 0 candidates, 7.0s
+2026-02-12 23:51:29.793 | [BudgetA*] 380000 states explored, 0 candidates, 7.1s
+2026-02-12 23:51:29.957 | [BudgetA*] 390000 states explored, 0 candidates, 7.3s
+2026-02-12 23:51:30.114 | [BudgetA*] 400000 states explored, 0 candidates, 7.4s
+2026-02-12 23:51:30.267 | [BudgetA*] 410000 states explored, 0 candidates, 7.6s
+2026-02-12 23:51:30.427 | [BudgetA*] 420000 states explored, 0 candidates, 7.8s
+2026-02-12 23:51:30.578 | [BudgetA*] 430000 states explored, 0 candidates, 7.9s
+2026-02-12 23:51:30.730 | [BudgetA*] 440000 states explored, 0 candidates, 8.1s
+2026-02-12 23:51:30.876 | [BudgetA*] 450000 states explored, 0 candidates, 8.2s
+2026-02-12 23:51:31.018 | [BudgetA*] 460000 states explored, 0 candidates, 8.3s
+2026-02-12 23:51:31.149 | [BudgetA*] 470000 states explored, 0 candidates, 8.5s
+2026-02-12 23:51:31.210 | [BudgetA*] Search complete: 474995 states, 0 loops found, 8.5s
+2026-02-12 23:51:31.248 | [BudgetA*] No loops found for 5.0km target
+2026-02-12 23:51:31.248 | [VERBOSE] No loop candidates found
+2026-02-12 23:51:31.249 | 172.18.0.1 - - [12/Feb/2026 23:51:31] "POST /api/loop HTTP/1.1" 404 -
+2026-02-12 23:51:48.423 | [API] Loop route request: start=(51.49627371821741, -2.5429809093475346), target=5.0km, bias=none
+2026-02-12 23:51:48.423 | [API] Loop requires 1 tiles: ['51.49_-2.57']
+2026-02-12 23:51:48.534 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:51:48.545 | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+2026-02-12 23:51:48.658 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:51:48.793 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:51:48.800 | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+2026-02-12 23:51:48.800 | [GraphManager] MERGED CACHE HIT: 1 tiles - instant return!
+2026-02-12 23:51:48.800 | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:51:48.800 | [VERBOSE] Finding loop route: start=(51.49627371821741, -2.5429809093475346), target=5.0km, bias=none
+2026-02-12 23:51:50.315 | [VERBOSE] Start Node ID: 13301983989
+2026-02-12 23:51:50.315 | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+2026-02-12 23:51:50.315 | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:51:50.800 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:51:50.913 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:51:51.032 | [BudgetA*] 30000 states explored, 0 candidates, 0.3s
+2026-02-12 23:51:51.159 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:51:51.282 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:51:51.416 | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+2026-02-12 23:51:51.542 | [BudgetA*] 70000 states explored, 0 candidates, 0.8s
+2026-02-12 23:51:51.670 | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+2026-02-12 23:51:51.802 | [BudgetA*] 90000 states explored, 0 candidates, 1.1s
+2026-02-12 23:51:51.937 | [BudgetA*] 100000 states explored, 0 candidates, 1.2s
+2026-02-12 23:51:52.072 | [BudgetA*] 110000 states explored, 0 candidates, 1.4s
+2026-02-12 23:51:52.214 | [BudgetA*] 120000 states explored, 0 candidates, 1.5s
+2026-02-12 23:51:52.352 | [BudgetA*] 130000 states explored, 0 candidates, 1.7s
+2026-02-12 23:51:52.502 | [BudgetA*] 140000 states explored, 0 candidates, 1.8s
+2026-02-12 23:51:52.646 | [BudgetA*] 150000 states explored, 0 candidates, 2.0s
+2026-02-12 23:51:52.793 | [BudgetA*] 160000 states explored, 0 candidates, 2.1s
+2026-02-12 23:51:52.939 | [BudgetA*] 170000 states explored, 0 candidates, 2.2s
+2026-02-12 23:51:53.101 | [BudgetA*] 180000 states explored, 0 candidates, 2.4s
+2026-02-12 23:51:53.253 | [BudgetA*] 190000 states explored, 0 candidates, 2.6s
+2026-02-12 23:51:53.403 | [BudgetA*] 200000 states explored, 0 candidates, 2.7s
+2026-02-12 23:51:53.555 | [BudgetA*] 210000 states explored, 0 candidates, 2.9s
+2026-02-12 23:51:53.721 | [BudgetA*] 220000 states explored, 0 candidates, 3.0s
+2026-02-12 23:51:53.878 | [BudgetA*] 230000 states explored, 0 candidates, 3.2s
+2026-02-12 23:51:54.034 | [BudgetA*] 240000 states explored, 2 candidates, 3.3s
+2026-02-12 23:51:54.190 | [BudgetA*] 250000 states explored, 3 candidates, 3.5s
+2026-02-12 23:51:54.345 | [BudgetA*] 260000 states explored, 3 candidates, 3.6s
+2026-02-12 23:51:54.462 | [BudgetA*] Search complete: 267118 states, 6 loops found, 3.8s
+2026-02-12 23:51:54.490 | [BudgetA*] Returning 3 candidates from 6 raw loops, 4.2s total
+2026-02-12 23:51:54.490 | [VERBOSE] Found 3 loop candidates:
+2026-02-12 23:51:54.490 |   [0] Conservative: 4930m (±1.4%), quality=0.587
+2026-02-12 23:51:54.490 |   [1] Scenic: 4260m (±14.8%), quality=0.445
+2026-02-12 23:51:54.490 |   [2] Exploratory: 4811m (±3.8%), quality=0.560
+2026-02-12 23:51:54.495 | 172.18.0.1 - - [12/Feb/2026 23:51:54] "POST /api/loop HTTP/1.1" 200 -
+2026-02-12 23:52:16.843 | [API] Loop route request: start=(51.4960365976965, -2.5440913450094964), target=5.0km, bias=none
+2026-02-12 23:52:16.843 | [API] Loop requires 1 tiles: ['51.49_-2.57']
+2026-02-12 23:52:16.980 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:52:16.992 | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+2026-02-12 23:52:18.087 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:52:18.223 | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+2026-02-12 23:52:18.230 | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+2026-02-12 23:52:18.230 | [GraphManager] MERGED CACHE HIT: 1 tiles - instant return!
+2026-02-12 23:52:18.230 | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:52:18.230 | [VERBOSE] Finding loop route: start=(51.4960365976965, -2.5440913450094964), target=5.0km, bias=none
+2026-02-12 23:52:19.809 | [VERBOSE] Start Node ID: 6783925529
+2026-02-12 23:52:19.809 | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+2026-02-12 23:52:19.809 | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+2026-02-12 23:52:20.316 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:52:20.430 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:52:20.548 | [BudgetA*] 30000 states explored, 0 candidates, 0.3s
+2026-02-12 23:52:20.671 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:52:20.793 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:52:20.916 | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+2026-02-12 23:52:21.047 | [BudgetA*] 70000 states explored, 0 candidates, 0.8s
+2026-02-12 23:52:21.180 | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+2026-02-12 23:52:21.311 | [BudgetA*] 90000 states explored, 0 candidates, 1.1s
+2026-02-12 23:52:21.444 | [BudgetA*] 100000 states explored, 0 candidates, 1.2s
+2026-02-12 23:52:21.592 | [BudgetA*] 110000 states explored, 0 candidates, 1.4s
+2026-02-12 23:52:21.730 | [BudgetA*] 120000 states explored, 0 candidates, 1.5s
+2026-02-12 23:52:21.869 | [BudgetA*] 130000 states explored, 0 candidates, 1.7s
+2026-02-12 23:52:22.019 | [BudgetA*] 140000 states explored, 0 candidates, 1.8s
+2026-02-12 23:52:22.166 | [BudgetA*] 150000 states explored, 0 candidates, 2.0s
+2026-02-12 23:52:22.320 | [BudgetA*] 160000 states explored, 0 candidates, 2.1s
+2026-02-12 23:52:22.485 | [BudgetA*] 170000 states explored, 0 candidates, 2.3s
+2026-02-12 23:52:22.645 | [BudgetA*] 180000 states explored, 0 candidates, 2.4s
+2026-02-12 23:52:22.798 | [BudgetA*] 190000 states explored, 0 candidates, 2.6s
+2026-02-12 23:52:22.954 | [BudgetA*] 200000 states explored, 0 candidates, 2.7s
+2026-02-12 23:52:23.113 | [BudgetA*] 210000 states explored, 0 candidates, 2.9s
+2026-02-12 23:52:23.268 | [BudgetA*] 220000 states explored, 0 candidates, 3.1s
+2026-02-12 23:52:23.437 | [BudgetA*] 230000 states explored, 0 candidates, 3.2s
+2026-02-12 23:52:23.595 | [BudgetA*] 240000 states explored, 0 candidates, 3.4s
+2026-02-12 23:52:23.753 | [BudgetA*] 250000 states explored, 0 candidates, 3.5s
+2026-02-12 23:52:23.914 | [BudgetA*] 260000 states explored, 0 candidates, 3.7s
+2026-02-12 23:52:24.088 | [BudgetA*] 270000 states explored, 0 candidates, 3.9s
+2026-02-12 23:52:24.246 | [BudgetA*] 280000 states explored, 0 candidates, 4.0s
+2026-02-12 23:52:24.408 | [BudgetA*] 290000 states explored, 0 candidates, 4.2s
+2026-02-12 23:52:24.573 | [BudgetA*] 300000 states explored, 0 candidates, 4.4s
+2026-02-12 23:52:24.736 | [BudgetA*] 310000 states explored, 0 candidates, 4.5s
+2026-02-12 23:52:24.891 | [BudgetA*] 320000 states explored, 0 candidates, 4.7s
+2026-02-12 23:52:25.062 | [BudgetA*] 330000 states explored, 0 candidates, 4.9s
+2026-02-12 23:52:25.221 | [BudgetA*] 340000 states explored, 0 candidates, 5.0s
+2026-02-12 23:52:25.429 | [BudgetA*] 350000 states explored, 0 candidates, 5.2s
+2026-02-12 23:52:25.585 | [BudgetA*] 360000 states explored, 0 candidates, 5.4s
+2026-02-12 23:52:25.742 | [BudgetA*] 370000 states explored, 0 candidates, 5.5s
+2026-02-12 23:52:25.900 | [BudgetA*] 380000 states explored, 0 candidates, 5.7s
+2026-02-12 23:52:26.065 | [BudgetA*] 390000 states explored, 0 candidates, 5.9s
+2026-02-12 23:52:26.224 | [BudgetA*] 400000 states explored, 0 candidates, 6.0s
+2026-02-12 23:52:26.379 | [BudgetA*] 410000 states explored, 0 candidates, 6.2s
+2026-02-12 23:52:26.536 | [BudgetA*] 420000 states explored, 0 candidates, 6.3s
+2026-02-12 23:52:26.687 | [BudgetA*] 430000 states explored, 0 candidates, 6.5s
+2026-02-12 23:52:26.835 | [BudgetA*] 440000 states explored, 0 candidates, 6.6s
+2026-02-12 23:52:26.976 | [BudgetA*] 450000 states explored, 0 candidates, 6.8s
+2026-02-12 23:52:27.117 | [BudgetA*] 460000 states explored, 0 candidates, 6.9s
+2026-02-12 23:52:27.253 | [BudgetA*] 470000 states explored, 0 candidates, 7.0s
+2026-02-12 23:52:27.387 | [BudgetA*] 480000 states explored, 0 candidates, 7.2s
+2026-02-12 23:52:27.499 | [BudgetA*] Search complete: 489422 states, 0 loops found, 7.3s
+2026-02-12 23:52:27.658 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:52:27.781 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:52:27.909 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:52:28.040 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:52:28.175 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:52:28.317 | [BudgetA*] 60000 states explored, 0 candidates, 0.8s
+2026-02-12 23:52:28.457 | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+2026-02-12 23:52:28.599 | [BudgetA*] 80000 states explored, 0 candidates, 1.1s
+2026-02-12 23:52:28.762 | [BudgetA*] 90000 states explored, 0 candidates, 1.2s
+2026-02-12 23:52:28.919 | [BudgetA*] 100000 states explored, 0 candidates, 1.4s
+2026-02-12 23:52:29.078 | [BudgetA*] 110000 states explored, 0 candidates, 1.5s
+2026-02-12 23:52:29.225 | [BudgetA*] 120000 states explored, 0 candidates, 1.7s
+2026-02-12 23:52:29.388 | [BudgetA*] 130000 states explored, 0 candidates, 1.8s
+2026-02-12 23:52:29.542 | [BudgetA*] 140000 states explored, 0 candidates, 2.0s
+2026-02-12 23:52:29.699 | [BudgetA*] 150000 states explored, 0 candidates, 2.2s
+2026-02-12 23:52:29.860 | [BudgetA*] 160000 states explored, 0 candidates, 2.3s
+2026-02-12 23:52:30.022 | [BudgetA*] 170000 states explored, 0 candidates, 2.5s
+2026-02-12 23:52:30.202 | [BudgetA*] 180000 states explored, 0 candidates, 2.7s
+2026-02-12 23:52:30.375 | [BudgetA*] 190000 states explored, 0 candidates, 2.8s
+2026-02-12 23:52:30.543 | [BudgetA*] 200000 states explored, 0 candidates, 3.0s
+2026-02-12 23:52:30.717 | [BudgetA*] 210000 states explored, 0 candidates, 3.2s
+2026-02-12 23:52:30.897 | [BudgetA*] 220000 states explored, 0 candidates, 3.4s
+2026-02-12 23:52:31.071 | [BudgetA*] 230000 states explored, 0 candidates, 3.5s
+2026-02-12 23:52:31.243 | [BudgetA*] 240000 states explored, 0 candidates, 3.7s
+2026-02-12 23:52:31.413 | [BudgetA*] 250000 states explored, 0 candidates, 3.9s
+2026-02-12 23:52:31.587 | [BudgetA*] 260000 states explored, 0 candidates, 4.0s
+2026-02-12 23:52:31.758 | [BudgetA*] 270000 states explored, 0 candidates, 4.2s
+2026-02-12 23:52:31.933 | [BudgetA*] 280000 states explored, 0 candidates, 4.4s
+2026-02-12 23:52:32.102 | [BudgetA*] 290000 states explored, 0 candidates, 4.6s
+2026-02-12 23:52:32.270 | [BudgetA*] 300000 states explored, 0 candidates, 4.7s
+2026-02-12 23:52:32.442 | [BudgetA*] 310000 states explored, 0 candidates, 4.9s
+2026-02-12 23:52:32.609 | [BudgetA*] 320000 states explored, 0 candidates, 5.1s
+2026-02-12 23:52:32.778 | [BudgetA*] 330000 states explored, 0 candidates, 5.2s
+2026-02-12 23:52:32.945 | [BudgetA*] 340000 states explored, 0 candidates, 5.4s
+2026-02-12 23:52:33.135 | [BudgetA*] 350000 states explored, 0 candidates, 5.6s
+2026-02-12 23:52:33.291 | [BudgetA*] 360000 states explored, 0 candidates, 5.7s
+2026-02-12 23:52:33.450 | [BudgetA*] 370000 states explored, 0 candidates, 5.9s
+2026-02-12 23:52:34.609 | [BudgetA*] 380000 states explored, 0 candidates, 7.1s
+2026-02-12 23:52:34.796 | [BudgetA*] 390000 states explored, 0 candidates, 7.3s
+2026-02-12 23:52:34.946 | [BudgetA*] 400000 states explored, 0 candidates, 7.4s
+2026-02-12 23:52:35.101 | [BudgetA*] 410000 states explored, 0 candidates, 7.6s
+2026-02-12 23:52:35.247 | [BudgetA*] 420000 states explored, 0 candidates, 7.7s
+2026-02-12 23:52:35.393 | [BudgetA*] 430000 states explored, 0 candidates, 7.8s
+2026-02-12 23:52:35.543 | [BudgetA*] 440000 states explored, 0 candidates, 8.0s
+2026-02-12 23:52:35.691 | [BudgetA*] 450000 states explored, 0 candidates, 8.1s
+2026-02-12 23:52:35.836 | [BudgetA*] 460000 states explored, 0 candidates, 8.3s
+2026-02-12 23:52:35.972 | [BudgetA*] 470000 states explored, 0 candidates, 8.4s
+2026-02-12 23:52:36.074 | [BudgetA*] Search complete: 478366 states, 0 loops found, 8.5s
+2026-02-12 23:52:36.225 | [BudgetA*] 10000 states explored, 0 candidates, 0.1s
+2026-02-12 23:52:36.350 | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+2026-02-12 23:52:36.480 | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+2026-02-12 23:52:36.614 | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+2026-02-12 23:52:36.749 | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+2026-02-12 23:52:36.889 | [BudgetA*] 60000 states explored, 0 candidates, 0.8s
+2026-02-12 23:52:37.033 | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+2026-02-12 23:52:37.178 | [BudgetA*] 80000 states explored, 0 candidates, 1.1s
+2026-02-12 23:52:37.333 | [BudgetA*] 90000 states explored, 0 candidates, 1.2s
+2026-02-12 23:52:37.484 | [BudgetA*] 100000 states explored, 0 candidates, 1.4s
+2026-02-12 23:52:37.634 | [BudgetA*] 110000 states explored, 0 candidates, 1.5s
+2026-02-12 23:52:37.781 | [BudgetA*] 120000 states explored, 0 candidates, 1.7s
+2026-02-12 23:52:37.946 | [BudgetA*] 130000 states explored, 0 candidates, 1.8s
+2026-02-12 23:52:38.096 | [BudgetA*] 140000 states explored, 0 candidates, 2.0s
+2026-02-12 23:52:38.254 | [BudgetA*] 150000 states explored, 0 candidates, 2.1s
+2026-02-12 23:52:38.410 | [BudgetA*] 160000 states explored, 0 candidates, 2.3s
+2026-02-12 23:52:38.584 | [BudgetA*] 170000 states explored, 0 candidates, 2.5s
+2026-02-12 23:52:38.753 | [BudgetA*] 180000 states explored, 0 candidates, 2.6s
+2026-02-12 23:52:38.919 | [BudgetA*] 190000 states explored, 0 candidates, 2.8s
+2026-02-12 23:52:39.086 | [BudgetA*] 200000 states explored, 0 candidates, 3.0s
+2026-02-12 23:52:39.266 | [BudgetA*] 210000 states explored, 0 candidates, 3.2s
+2026-02-12 23:52:39.439 | [BudgetA*] 220000 states explored, 0 candidates, 3.3s
+2026-02-12 23:52:39.611 | [BudgetA*] 230000 states explored, 0 candidates, 3.5s
+2026-02-12 23:52:39.782 | [BudgetA*] 240000 states explored, 0 candidates, 3.7s
+2026-02-12 23:52:39.958 | [BudgetA*] 250000 states explored, 0 candidates, 3.8s
+2026-02-12 23:52:40.135 | [BudgetA*] 260000 states explored, 0 candidates, 4.0s
+2026-02-12 23:52:40.305 | [BudgetA*] 270000 states explored, 0 candidates, 4.2s
+2026-02-12 23:52:40.479 | [BudgetA*] 280000 states explored, 0 candidates, 4.4s
+2026-02-12 23:52:40.655 | [BudgetA*] 290000 states explored, 0 candidates, 4.5s
+2026-02-12 23:52:40.828 | [BudgetA*] 300000 states explored, 0 candidates, 4.7s
+2026-02-12 23:52:41.014 | [BudgetA*] 310000 states explored, 0 candidates, 4.9s
+2026-02-12 23:52:41.190 | [BudgetA*] 320000 states explored, 0 candidates, 5.1s
+2026-02-12 23:52:41.367 | [BudgetA*] 330000 states explored, 0 candidates, 5.3s
+2026-02-12 23:52:41.541 | [BudgetA*] 340000 states explored, 0 candidates, 5.4s
+2026-02-12 23:52:41.724 | [BudgetA*] 350000 states explored, 0 candidates, 5.6s
+2026-02-12 23:52:41.901 | [BudgetA*] 360000 states explored, 0 candidates, 5.8s
+2026-02-12 23:52:42.065 | [BudgetA*] 370000 states explored, 0 candidates, 6.0s
+2026-02-12 23:52:42.223 | [BudgetA*] 380000 states explored, 0 candidates, 6.1s
+2026-02-12 23:52:42.399 | [BudgetA*] 390000 states explored, 0 candidates, 6.3s
+2026-02-12 23:52:42.561 | [BudgetA*] 400000 states explored, 0 candidates, 6.5s
+2026-02-12 23:52:42.727 | [BudgetA*] 410000 states explored, 0 candidates, 6.6s
+2026-02-12 23:52:42.889 | [BudgetA*] 420000 states explored, 0 candidates, 6.8s
+2026-02-12 23:52:43.048 | [BudgetA*] 430000 states explored, 0 candidates, 6.9s
+2026-02-12 23:52:43.204 | [BudgetA*] 440000 states explored, 0 candidates, 7.1s
+2026-02-12 23:52:43.357 | [BudgetA*] 450000 states explored, 0 candidates, 7.2s
+2026-02-12 23:52:43.505 | [BudgetA*] 460000 states explored, 0 candidates, 7.4s
+2026-02-12 23:52:43.654 | [BudgetA*] 470000 states explored, 0 candidates, 7.5s
+2026-02-12 23:52:43.786 | [BudgetA*] 480000 states explored, 0 candidates, 7.7s
+2026-02-12 23:52:43.810 | [BudgetA*] Search complete: 482073 states, 0 loops found, 7.7s
+2026-02-12 23:52:43.846 | 172.18.0.1 - - [12/Feb/2026 23:52:43] "POST /api/loop HTTP/1.1" 404 -
+2026-02-12 23:52:43.846 | [BudgetA*] No loops found for 5.0km target
+2026-02-12 23:52:43.846 | [VERBOSE] No loop candidates found
+
+
+--
+
+
+
+scenic-api     | 172.18.0.1 - - [13/Feb/2026 15:38:55] "GET / HTTP/1.1" 200 -
+scenic-api     | 172.18.0.1 - - [13/Feb/2026 15:38:55] "GET /static/js/map.js HTTP/1.1" 304 -
+scenic-api     | 172.18.0.1 - - [13/Feb/2026 15:38:55] "GET /static/js/main.js HTTP/1.1" 304 -
+scenic-api     | 172.18.0.1 - - [13/Feb/2026 15:38:55] "GET /static/css/style.css HTTP/1.1" 304 -
+scenic-api     | [API] Loop route request: start=(51.49652085547838, -2.543570995330811), target=5.0km, bias=none
+scenic-api     | [API] Loop requires 1 tiles: ['51.49_-2.57']
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+scenic-api     | [TileCache] DISK HIT: 51.49_-2.57 - loading...                                                                                                                                                            
+scenic-api     | [CacheManager] Loading cached graph from /app/app/data/cache/england_edge_sampling_local_tile_51.49_-2.57_v1.5.0.pickle...                                                                                
+scenic-api     | [CacheManager] Cache loaded in 16.01s                                                                                                                                                                     
+scenic-api     | [TileCache] Loaded 51.49_-2.57 from disk in 16.0s
+scenic-api     | [GraphManager] Single tile, no merge needed                                                                                                                                                               
+scenic-api     | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False                                                         
+scenic-api     | [VERBOSE] Finding loop route: start=(51.49652085547838, -2.543570995330811), target=5.0km, bias=none                                                                                                      
+scenic-api     | [VERBOSE] Start Node ID: 12797400183                                                                                                                                                                      
+scenic-api     | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+scenic-api     | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+scenic-api     | [BudgetA*] Pruned 76286 dead-end nodes                                                                                                                                                                    
+scenic-api     | [BudgetA*] No loops found for 5.0km target
+scenic-api     | [VERBOSE] No loop candidates found                                                                                                                                                                        
+scenic-api     | 172.18.0.1 - - [13/Feb/2026 15:40:07] "POST /api/loop HTTP/1.1" 404 -
+
+
+-- Prune fix:
+
+cenic-api     | [API] Loop route request: start=(51.4965609316647, -2.5435388088226323), target=5.0km, bias=none                                                                                                          
+scenic-api     | [API] Loop requires 1 tiles: ['51.49_-2.57']
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)                                                                                                                                   
+scenic-api     | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+scenic-api     | [TileCache] DISK HIT: 51.49_-2.57 - loading...                                                                                                                                                            
+scenic-api     | [CacheManager] Loading cached graph from /app/app/data/cache/england_edge_sampling_local_tile_51.49_-2.57_v1.5.0.pickle...                                                                                
+scenic-api     | [CacheManager] Cache loaded in 14.07s                                                                                                                                                                     
+scenic-api     | [TileCache] Loaded 51.49_-2.57 from disk in 14.1s
+scenic-api     | [GraphManager] Single tile, no merge needed                                                                                                                                                               
+scenic-api     | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False                                                         
+scenic-api     | [VERBOSE] Finding loop route: start=(51.4965609316647, -2.5435388088226323), target=5.0km, bias=none                                                                                                      
+scenic-api     | [VERBOSE] Start Node ID: 12797400183                                                                                                                                                                      
+scenic-api     | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±15%
+scenic-api     | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+scenic-api     | [BudgetA*] Pruning safety cap hit at iteration 1 (23758 > 16455 limit), stopping with 0 removed                                                                                                           
+scenic-api     | [BudgetA*] Run 'primary': bearing=None, tolerance=±15%, time=9s
+scenic-api     | [BudgetA*] 10000 states explored, 0 candidates, 0.1s                                                                                                                                                      
+scenic-api     | [BudgetA*] 20000 states explored, 0 candidates, 0.3s
+scenic-api     | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+scenic-api     | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+scenic-api     | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+scenic-api     | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+scenic-api     | [BudgetA*] 70000 states explored, 0 candidates, 0.8s
+scenic-api     | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+scenic-api     | [BudgetA*] 90000 states explored, 0 candidates, 1.1s
+scenic-api     | [BudgetA*] 100000 states explored, 0 candidates, 1.2s
+scenic-api     | [BudgetA*] 110000 states explored, 0 candidates, 1.3s
+scenic-api     | [BudgetA*] 120000 states explored, 0 candidates, 1.4s
+scenic-api     | [BudgetA*] 130000 states explored, 0 candidates, 1.5s
+scenic-api     | [BudgetA*] 140000 states explored, 0 candidates, 1.7s
+scenic-api     | [BudgetA*] 150000 states explored, 0 candidates, 1.8s
+scenic-api     | [BudgetA*] 160000 states explored, 2 candidates, 1.9s
+scenic-api     | [BudgetA*] 170000 states explored, 4 candidates, 2.0s
+scenic-api     | [BudgetA*] Search complete: 178411 states, 6 loops found, 2.1s
+scenic-api     | [BudgetA*] Returning 3 candidates from 6 raw loops, 10.1s total
+scenic-api     | [VERBOSE] Found 3 loop candidates:                                                                                                                                                                        
+scenic-api     |   [0] Conservative: 4988m (±0.2%), quality=0.597
+scenic-api     |   [1] Scenic: 4448m (±11.0%), quality=0.471                                                                                                                                                               
+scenic-api     |   [2] Exploratory: 4572m (±8.6%), quality=0.518                                                                                                                                                           
+scenic-api     | 172.18.0.1 - - [13/Feb/2026 15:54:13] "POST /api/loop HTTP/1.1" 200 -                                                                                                                                     
+scenic-api     |  * Detected change in '/app/config.py', reloading                                                                                                                                                         
+scenic-api     |  * Restarting with stat
+scenic-api     |  * Debugger is active!
+scenic-api     |  * Debugger PIN: 114-103-146
+scenic-api     | [API] Loop route request: start=(51.4965609316647, -2.5435388088226323), target=5.0km, bias=north                                                                                                         
+scenic-api     | [API] Loop requires 1 tiles: ['51.49_-2.57']
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)                                                                                                                                   
+scenic-api     | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+scenic-api     | [TileCache] DISK HIT: 51.49_-2.57 - loading...                                                                                                                                                            
+scenic-api     | [CacheManager] Loading cached graph from /app/app/data/cache/england_edge_sampling_local_tile_51.49_-2.57_v1.5.0.pickle...                                                                                
+scenic-api     | [CacheManager] Cache loaded in 13.75s                                                                                                                                                                     
+scenic-api     | [TileCache] Loaded 51.49_-2.57 from disk in 13.8s
+scenic-api     | [GraphManager] Single tile, no merge needed                                                                                                                                                               
+scenic-api     | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False                                                         
+scenic-api     | [VERBOSE] Finding loop route: start=(51.4965609316647, -2.5435388088226323), target=5.0km, bias=north                                                                                                     
+scenic-api     | [VERBOSE] Start Node ID: 12797400183                                                                                                                                                                      
+scenic-api     | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±30%
+scenic-api     | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False
+scenic-api     | [BudgetA*] Pruning safety cap hit at iteration 1 (23758 > 16455 limit), stopping with 0 removed                                                                                                           
+scenic-api     | [BudgetA*] Run 'primary': bearing=0.0, tolerance=±30%, time=9s
+scenic-api     | [BudgetA*] 10000 states explored, 0 candidates, 0.1s                                                                                                                                                      
+scenic-api     | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+scenic-api     | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+scenic-api     | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+scenic-api     | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+scenic-api     | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+scenic-api     | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+scenic-api     | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+scenic-api     | [BudgetA*] 90000 states explored, 0 candidates, 1.1s
+scenic-api     | [BudgetA*] 100000 states explored, 0 candidates, 1.3s
+scenic-api     | [BudgetA*] 110000 states explored, 0 candidates, 1.4s
+scenic-api     | [BudgetA*] 120000 states explored, 0 candidates, 1.5s
+scenic-api     | [BudgetA*] 130000 states explored, 0 candidates, 1.6s
+scenic-api     | [BudgetA*] 140000 states explored, 0 candidates, 1.8s
+scenic-api     | [BudgetA*] 150000 states explored, 1 candidates, 1.9s
+scenic-api     | [BudgetA*] 160000 states explored, 4 candidates, 2.0s
+scenic-api     | [BudgetA*] 170000 states explored, 4 candidates, 2.2s
+scenic-api     | [BudgetA*] Search complete: 171836 states, 6 loops found, 2.2s
+scenic-api     | [BudgetA*] Returning 3 candidates from 6 raw loops, 9.8s total
+scenic-api     | [VERBOSE] Found 3 loop candidates:
+scenic-api     |   [0] Conservative: 4402m (±12.0%), quality=0.457
+scenic-api     |   [1] Scenic: 3767m (±24.7%), quality=0.342                                                                                                                                                               
+scenic-api     |   [2] Exploratory: 3663m (±26.7%), quality=0.317                                                                                                                                                          
+scenic-api     | 172.18.0.1 - - [13/Feb/2026 15:55:27] "POST /api/loop HTTP/1.1" 200 -                                                                                                                                     
+scenic-api     | [API] Loop route request: start=(51.4965609316647, -2.5435388088226323), target=5.0km, bias=east                                                                                                          
+scenic-api     | [API] Loop requires 1 tiles: ['51.49_-2.57']
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)                                                                                                                                   
+scenic-api     | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+scenic-api     | [GraphManager] MERGED CACHE HIT: 1 tiles - instant return!                                                                                                                                                
+scenic-api     | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False                                                         
+scenic-api     | [VERBOSE] Finding loop route: start=(51.4965609316647, -2.5435388088226323), target=5.0km, bias=east                                                                                                      
+scenic-api     | [VERBOSE] Start Node ID: 12797400183                                                                                                                                                                      
+scenic-api     | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±30%
+scenic-api     | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False                                                              
+scenic-api     | [BudgetA*] Pruning safety cap hit at iteration 1 (23758 > 16455 limit), stopping with 0 removed                                                                                                           
+scenic-api     | [BudgetA*] Run 'primary': bearing=90.0, tolerance=±30%, time=9s
+scenic-api     | [BudgetA*] 10000 states explored, 0 candidates, 0.1s                                                                                                                                                      
+scenic-api     | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+scenic-api     | [BudgetA*] 30000 states explored, 0 candidates, 0.3s
+scenic-api     | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+scenic-api     | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+scenic-api     | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+scenic-api     | [BudgetA*] 70000 states explored, 0 candidates, 0.8s
+scenic-api     | [BudgetA*] 80000 states explored, 0 candidates, 0.9s
+scenic-api     | [BudgetA*] 90000 states explored, 0 candidates, 1.1s
+scenic-api     | [BudgetA*] 100000 states explored, 0 candidates, 1.2s
+scenic-api     | [BudgetA*] 110000 states explored, 0 candidates, 1.3s
+scenic-api     | [BudgetA*] 120000 states explored, 0 candidates, 1.4s
+scenic-api     | [BudgetA*] 130000 states explored, 0 candidates, 1.5s
+scenic-api     | [BudgetA*] 140000 states explored, 1 candidates, 1.7s
+scenic-api     | [BudgetA*] 150000 states explored, 3 candidates, 1.8s
+scenic-api     | [BudgetA*] 160000 states explored, 5 candidates, 1.9s
+scenic-api     | [BudgetA*] Search complete: 160671 states, 6 loops found, 1.9s
+scenic-api     | [BudgetA*] Returning 3 candidates from 6 raw loops, 8.8s total                                                                                                                                            
+scenic-api     | [VERBOSE] Found 3 loop candidates:
+scenic-api     |   [0] Conservative: 4369m (±12.6%), quality=0.448
+scenic-api     |   [1] Scenic: 3593m (±28.1%), quality=0.289                                                                                                                                                               
+scenic-api     |   [2] Exploratory: 4247m (±15.1%), quality=0.422                                                                                                                                                          
+scenic-api     | 172.18.0.1 - - [13/Feb/2026 15:56:00] "POST /api/loop HTTP/1.1" 200 -                                                                                                                                     
+scenic-api     | [API] Loop route request: start=(51.4965609316647, -2.5435388088226323), target=5.0km, bias=north                                                                                                         
+scenic-api     | [API] Loop requires 1 tiles: ['51.49_-2.57']
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)                                                                                                                                   
+scenic-api     | [GraphManager] Route requires 1 tile(s): ['51.49_-2.57']
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [OSMDataLoader] Identified best extract (bbox-cover): England (england)
+scenic-api     | [OSMDataLoader] Using existing valid PBF: /app/app/data/england.osm.pbf
+scenic-api     | [GraphManager] MERGED CACHE HIT: 1 tiles - instant return!                                                                                                                                                
+scenic-api     | [API] Loop WSM weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False                                                         
+scenic-api     | [VERBOSE] Finding loop route: start=(51.4965609316647, -2.5435388088226323), target=5.0km, bias=north                                                                                                     
+scenic-api     | [VERBOSE] Start Node ID: 12797400183
+scenic-api     | [VERBOSE] Loop solver: BUDGET_ASTAR, candidates=3, tolerance=±30%
+scenic-api     | [VERBOSE] Weights: {'distance': 0.5, 'greenness': 0.15, 'water': 0.1, 'quietness': 0.1, 'social': 0.1, 'slope': 0.05}, combine_nature: False                                                              
+scenic-api     | [BudgetA*] Pruning safety cap hit at iteration 1 (23758 > 16455 limit), stopping with 0 removed                                                                                                           
+scenic-api     | [BudgetA*] Run 'primary': bearing=0.0, tolerance=±30%, time=9s
+scenic-api     | [BudgetA*] 10000 states explored, 0 candidates, 0.1s                                                                                                                                                      
+scenic-api     | [BudgetA*] 20000 states explored, 0 candidates, 0.2s
+scenic-api     | [BudgetA*] 30000 states explored, 0 candidates, 0.4s
+scenic-api     | [BudgetA*] 40000 states explored, 0 candidates, 0.5s
+scenic-api     | [BudgetA*] 50000 states explored, 0 candidates, 0.6s
+scenic-api     | [BudgetA*] 60000 states explored, 0 candidates, 0.7s
+scenic-api     | [BudgetA*] 70000 states explored, 0 candidates, 0.9s
+scenic-api     | [BudgetA*] 80000 states explored, 0 candidates, 1.0s
+scenic-api     | [BudgetA*] 90000 states explored, 0 candidates, 1.1s
+scenic-api     | [BudgetA*] 100000 states explored, 0 candidates, 1.3s
+scenic-api     | [BudgetA*] 110000 states explored, 0 candidates, 1.4s
+scenic-api     | [BudgetA*] 120000 states explored, 0 candidates, 1.6s
+scenic-api     | [BudgetA*] 130000 states explored, 0 candidates, 1.8s
+scenic-api     | [BudgetA*] 140000 states explored, 0 candidates, 1.9s
+scenic-api     | [BudgetA*] 150000 states explored, 1 candidates, 2.1s
+scenic-api     | [BudgetA*] 160000 states explored, 4 candidates, 2.2s
+scenic-api     | [BudgetA*] 170000 states explored, 4 candidates, 2.3s
+scenic-api     | [BudgetA*] Search complete: 171836 states, 6 loops found, 2.4s
+scenic-api     | [BudgetA*] Returning 3 candidates from 6 raw loops, 9.9s total
+scenic-api     | [VERBOSE] Found 3 loop candidates:                                                                                                                                                                        
+scenic-api     |   [0] Conservative: 4402m (±12.0%), quality=0.457
+scenic-api     |   [1] Scenic: 3767m (±24.7%), quality=0.342                                                                                                                                                               
+scenic-api     |   [2] Exploratory: 3663m (±26.7%), quality=0.317                                                                                                                                                          
+scenic-api     | 172.18.0.1 - - [13/Feb/2026 15:56:36] "POST /api/loop HTTP/1.1" 200 -  
