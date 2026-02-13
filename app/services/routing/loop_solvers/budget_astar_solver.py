@@ -138,6 +138,156 @@ def _route_cost(graph, route, weights, min_length, max_length, combine_nature) -
     return total
 
 
+# ── Graph preprocessing ──────────────────────────────────────────────────────
+
+def _prune_dead_ends(graph, start_node: int, max_iterations: int = 3):
+    """
+    Remove short topological dead-ends from a graph copy.
+
+    Uses **batch** removal capped at *max_iterations* rounds.  Each round
+    collects all current degree-1 nodes and removes them simultaneously,
+    so one round = exactly one layer of dead-end depth.
+
+    Why the cap matters:
+        Tile-based OSM extracts sever roads at the tile boundary, creating
+        hundreds of artificial degree-1 nodes at the edge.  Unlimited
+        iterative pruning cascades inward from those severed ends,
+        potentially removing 50%+ of the graph.  Capping at 3 iterations
+        clips genuine cul-de-sac tips (typically 2-5 nodes deep) without
+        cascading to tile boundaries.
+
+    A **safety cap** of 5% of graph nodes provides an additional guard:
+    if any single round would push total removals above this threshold,
+    that round is skipped entirely.
+
+    The *start_node* is always preserved.
+    Returns a new graph; the original is never mutated.
+    """
+    pruned = graph.copy()
+    total_removed = 0
+    max_removable = max(graph.number_of_nodes() // 20, 50)  # 5% safety cap, min 50
+
+    for iteration in range(max_iterations):
+        # Batch-collect all current degree-1 nodes
+        to_remove = []
+        for node in pruned.nodes():
+            if node == start_node:
+                continue
+            # In a MultiDiGraph, degree() counts in+out edges, so a
+            # bidirectional dead-end street (A↔B) gives degree 2.
+            # Instead, count unique neighbours (successors ∪ predecessors).
+            unique_neighbours = set(pruned.successors(node)) | set(pruned.predecessors(node))
+            if len(unique_neighbours) <= 1:
+                to_remove.append(node)
+
+        if not to_remove:
+            break  # No dead-ends left
+
+        # Safety cap: if this batch would exceed 5%, stop pruning
+        if total_removed + len(to_remove) > max_removable:
+            print(f"[BudgetA*] Pruning safety cap hit at iteration "
+                  f"{iteration + 1} ({total_removed + len(to_remove)} "
+                  f"> {max_removable} limit), stopping with "
+                  f"{total_removed} removed")
+            break
+
+        for node in to_remove:
+            pruned.remove_node(node)
+        total_removed += len(to_remove)
+
+    if total_removed:
+        print(f"[BudgetA*] Pruned {total_removed} dead-end nodes "
+              f"(over {min(iteration + 1, max_iterations)} iterations)")
+    return pruned
+
+
+# ── Recency-window helper ───────────────────────────────────────────────────
+
+def _make_recency_window(
+    current_window: Tuple, new_node: int, max_size: int
+) -> Tuple:
+    """
+    Append *new_node* to the recency window and trim to *max_size*.
+
+    The recency window is a lightweight tuple of the last N visited nodes,
+    used to prevent trivial oscillation while still allowing backtracking
+    out of dead-ends (nodes that fell off the window are revisitable).
+    """
+    return (current_window + (new_node,))[-max_size:]
+
+
+# ── Search strategy builder ─────────────────────────────────────────────────
+
+def _build_search_strategy(
+    target_distance: float,
+    directional_bias: Optional[float],
+    tolerance: float = 0.15,
+    max_search_time: float = 60,
+) -> List[Dict]:
+    """
+    Build an ordered list of search-run configurations.
+
+    The strategy escalates tolerance and drops directional constraints when
+    earlier runs fail.  Each entry is a dict with keys:
+        bearing, tolerance, time_budget, label
+
+    Time budgets are split so their sum ≈ *max_search_time*.
+    """
+    strategies = []
+
+    # ── Tier 1: primary direction, tight tolerance ───────────────────────
+    strategies.append({
+        'bearing': directional_bias,
+        'tolerance': tolerance,
+        'time_budget': max_search_time * 0.30,
+        'label': 'primary',
+    })
+
+    # ── Tier 2: opposite direction (diversity) ───────────────────────────
+    opposite = None
+    if directional_bias is not None:
+        opposite = (directional_bias + 180) % 360
+    else:
+        opposite = 90.0  # arbitrary diversity bearing
+    strategies.append({
+        'bearing': opposite,
+        'tolerance': tolerance,
+        'time_budget': max_search_time * 0.20,
+        'label': 'diversity',
+    })
+
+    # ── Tier 3: perpendicular ────────────────────────────────────────────
+    perp = None
+    if directional_bias is not None:
+        perp = (directional_bias + 90) % 360
+    else:
+        perp = 0.0  # north
+    strategies.append({
+        'bearing': perp,
+        'tolerance': tolerance,
+        'time_budget': max_search_time * 0.20,
+        'label': 'perpendicular',
+    })
+
+    # ── Tier 4: relaxed tolerance, user bearing ──────────────────────────
+    strategies.append({
+        'bearing': directional_bias,
+        'tolerance': 0.30,
+        'time_budget': max_search_time * 0.20,
+        'label': 'relaxed',
+    })
+
+    # ── Tier 5: emergency — wide tolerance, no directional constraint ────
+    strategies.append({
+        'bearing': None,
+        'tolerance': 0.50,
+        'time_budget': max_search_time * 0.10,
+        'label': 'emergency',
+    })
+
+    return strategies
+
+
 # ── Distance discretization ─────────────────────────────────────────────────
 
 def _discretize_distance(distance: float, bin_size: float = 100.0) -> int:
@@ -165,6 +315,7 @@ def _budget_astar_search(
     max_search_time: float = 60,
     distance_bin_size: float = 100.0,
     max_candidates: int = 10,
+    max_states: int = 500_000,
 ) -> List[Tuple[List[int], float, float]]:
     """
     Budget-constrained A* search for loop routes.
@@ -184,6 +335,7 @@ def _budget_astar_search(
         max_search_time: Time limit in seconds.
         distance_bin_size: Distance discretization bin size in metres.
         max_candidates: Maximum candidates to collect before stopping.
+        max_states: Maximum states to explore before termination.
 
     Returns:
         List of (route, distance, scenic_cost) tuples.
@@ -196,10 +348,13 @@ def _budget_astar_search(
     # Pre-compute start node coordinates
     start_lat, start_lon = _node_coords(graph, start_node)
 
+    # Recency window size: scale with target distance, minimum 5
+    recency_window_size = max(5, int(target_distance // 500))
+
     # State: (node_id, distance_bin)
     initial_state = (start_node, 0)
 
-    # Priority queue: (f_score, counter, state, accumulated_distance, path_nodes_set)
+    # Priority queue: (f_score, counter, state, accumulated_distance, recent_nodes)
     counter = 0
     open_set = []
 
@@ -210,7 +365,7 @@ def _budget_astar_search(
     # actual accumulated distance per state
     actual_distance = {initial_state: 0.0}
 
-    heapq.heappush(open_set, (0.0, counter, initial_state, 0.0, frozenset()))
+    heapq.heappush(open_set, (0.0, counter, initial_state, 0.0, ()))
     counter += 1
 
     found_loops = []
@@ -221,11 +376,15 @@ def _budget_astar_search(
         if time.time() - t0 > max_search_time:
             break
 
+        # State cap
+        if states_explored >= max_states:
+            break
+
         # Enough candidates found
         if len(found_loops) >= max_candidates:
             break
 
-        f, _, current_state, current_dist, path_nodes = heapq.heappop(open_set)
+        f, _, current_state, current_dist, recent_nodes = heapq.heappop(open_set)
         current_node, current_dist_bin = current_state
 
         states_explored += 1
@@ -272,9 +431,10 @@ def _budget_astar_search(
                 # Can't possibly get back (with 50% slack for non-straight paths)
                 continue
 
-            # 3. Cycle prevention: don't revisit nodes in current path
-            #    (except start_node when distance is sufficient)
-            if neighbor_node in path_nodes and neighbor_node != start_node:
+            # 3. Recency-window cycle prevention: only ban nodes visited
+            #    within the last N steps (allows backtracking out of
+            #    dead-ends while preventing A→B→A oscillation).
+            if neighbor_node in recent_nodes and neighbor_node != start_node:
                 continue
             if neighbor_node == start_node and new_dist < min_dist:
                 # Too early to return to start
@@ -323,10 +483,12 @@ def _budget_astar_search(
             came_from[neighbor_state] = current_state
             actual_distance[neighbor_state] = new_dist
 
-            new_path_nodes = path_nodes | {current_node}
+            new_recent_nodes = _make_recency_window(
+                recent_nodes, current_node, recency_window_size
+            )
 
             heapq.heappush(open_set, (
-                f_new, counter, neighbor_state, new_dist, new_path_nodes
+                f_new, counter, neighbor_state, new_dist, new_recent_nodes
             ))
             counter += 1
 
@@ -420,11 +582,13 @@ class BudgetAStarSolver(LoopSolverBase):
         """
         Find multiple diverse loop candidates using Budget A* search.
 
-        Strategy for generating multiple candidates:
-            1. Run with user's directional bias (or no bias)
-            2. Run with perpendicular biases for diversity
-            3. Run with relaxed tolerance if needed
-            4. Select top-K diverse candidates
+        Strategy (Plan 003 — adaptive escalation):
+            1. Prune dead-end nodes from graph copy.
+            2. Build a strategy list with escalating tolerance.
+            3. Iterate runs; early-exit when enough candidates collected.
+            4. If a run finds 0 results, skip remaining same-tolerance
+               runs and escalate immediately.
+            5. Select top-K diverse candidates.
         """
         t0 = time.time()
 
@@ -433,8 +597,10 @@ class BudgetAStarSolver(LoopSolverBase):
 
         user_bearing = BIAS_TO_BEARING.get(directional_bias.lower(), None)
 
+        # ── Dead-end pruning (Milestone 1) ───────────────────────────────
+        pruned_graph = _prune_dead_ends(graph, start_node)
+
         # Determine bin size based on target distance
-        # Shorter loops need finer granularity
         if target_distance <= 3000:
             bin_size = 50.0
         elif target_distance <= 10000:
@@ -442,94 +608,64 @@ class BudgetAStarSolver(LoopSolverBase):
         else:
             bin_size = 200.0
 
-        all_raw_loops = []
-
-        # ── Run 1: User's preferred direction ────────────────────────────
-        time_per_run = max(10, max_search_time / 4)
-
-        run1_loops = _budget_astar_search(
-            graph, start_node, target_distance, weights,
-            min_length, max_length, combine_nature,
-            target_bearing=user_bearing,
-            distance_tolerance=distance_tolerance,
-            max_search_time=time_per_run,
-            distance_bin_size=bin_size,
-            max_candidates=num_candidates * 2,
+        # ── Build strategy list (Milestone 3) ────────────────────────────
+        strategies = _build_search_strategy(
+            target_distance, user_bearing, distance_tolerance, max_search_time,
         )
-        all_raw_loops.extend(run1_loops)
 
-        # ── Run 2: Opposite direction for diversity ──────────────────────
-        elapsed = time.time() - t0
-        remaining_time = max_search_time - elapsed
+        all_raw_loops = []
+        current_tolerance = None  # Track tolerance tier for escalation
 
-        if remaining_time > 10 and len(all_raw_loops) < num_candidates * 2:
-            opposite_bearing = None
-            if user_bearing is not None:
-                opposite_bearing = (user_bearing + 180) % 360
-            else:
-                # No user bias — try east
-                opposite_bearing = 90.0
+        for strategy in strategies:
+            elapsed = time.time() - t0
+            remaining_time = max_search_time - elapsed
 
-            run2_loops = _budget_astar_search(
-                graph, start_node, target_distance, weights,
+            # Global time guard
+            if remaining_time < 5:
+                break
+
+            # Early-exit: enough raw candidates for diversity selection
+            if len(all_raw_loops) >= num_candidates * 2:
+                break
+
+            # ── Escalation: if the previous run at this tolerance found
+            #    nothing and we've moved to the same tolerance tier,
+            #    skip it (directional diversity is pointless if primary
+            #    already exhausted the state space at this tolerance).
+            if (current_tolerance is not None
+                    and strategy['tolerance'] == current_tolerance
+                    and len(all_raw_loops) == 0):
+                print(f"[BudgetA*] Escalating past '{strategy['label']}' "
+                      f"(same tolerance, 0 results)")
+                continue
+
+            time_budget = min(strategy['time_budget'], remaining_time)
+
+            print(f"[BudgetA*] Run '{strategy['label']}': "
+                  f"bearing={strategy['bearing']}, "
+                  f"tolerance=±{strategy['tolerance']*100:.0f}%, "
+                  f"time={time_budget:.0f}s")
+
+            run_loops = _budget_astar_search(
+                pruned_graph, start_node, target_distance, weights,
                 min_length, max_length, combine_nature,
-                target_bearing=opposite_bearing,
-                distance_tolerance=distance_tolerance,
-                max_search_time=min(time_per_run, remaining_time),
+                target_bearing=strategy['bearing'],
+                distance_tolerance=strategy['tolerance'],
+                max_search_time=time_budget,
                 distance_bin_size=bin_size,
-                max_candidates=num_candidates,
+                max_candidates=num_candidates * 2,
             )
-            all_raw_loops.extend(run2_loops)
-
-        # ── Run 3: Perpendicular direction ───────────────────────────────
-        elapsed = time.time() - t0
-        remaining_time = max_search_time - elapsed
-
-        if remaining_time > 10 and len(all_raw_loops) < num_candidates * 2:
-            perp_bearing = None
-            if user_bearing is not None:
-                perp_bearing = (user_bearing + 90) % 360
-            else:
-                perp_bearing = 0.0  # North
-
-            run3_loops = _budget_astar_search(
-                graph, start_node, target_distance, weights,
-                min_length, max_length, combine_nature,
-                target_bearing=perp_bearing,
-                distance_tolerance=distance_tolerance,
-                max_search_time=min(time_per_run, remaining_time),
-                distance_bin_size=bin_size,
-                max_candidates=num_candidates,
-            )
-            all_raw_loops.extend(run3_loops)
-
-        # ── Fallback: Relax tolerance if no results ──────────────────────
-        elapsed = time.time() - t0
-        remaining_time = max_search_time - elapsed
-
-        if not all_raw_loops and remaining_time > 10:
-            print(f"[BudgetA*] No loops found at ±{distance_tolerance*100:.0f}%, "
-                  f"relaxing to ±40%")
-
-            relaxed_loops = _budget_astar_search(
-                graph, start_node, target_distance, weights,
-                min_length, max_length, combine_nature,
-                target_bearing=user_bearing,
-                distance_tolerance=0.40,
-                max_search_time=remaining_time,
-                distance_bin_size=bin_size,
-                max_candidates=num_candidates,
-            )
-            all_raw_loops.extend(relaxed_loops)
+            all_raw_loops.extend(run_loops)
+            current_tolerance = strategy['tolerance']
 
         # ── Convert to LoopCandidates ────────────────────────────────────
         if not all_raw_loops:
-            print(f"[BudgetA*] No loops found for {target_distance/1000:.1f}km target")
+            print(f"[BudgetA*] No loops found for "
+                  f"{target_distance/1000:.1f}km target")
             return []
 
-        # Find max scenic cost for quality normalisation
         max_cost = max(cost for _, _, cost in all_raw_loops) if all_raw_loops else 1.0
-        max_cost = max(max_cost, 0.001)  # Avoid division by zero
+        max_cost = max(max_cost, 0.001)
 
         candidates = []
         for route, distance, scenic_cost in all_raw_loops:

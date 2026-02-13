@@ -111,7 +111,7 @@ class Config:
     
     # Loop distance tolerance (±%)
     # Routes within this tolerance are considered successful
-    LOOP_DISTANCE_TOLERANCE = 0.15  # ±15%
+    LOOP_DISTANCE_TOLERANCE = 0.3  # ±30%
     
     # Minimum viable loop distance in metres (reject tiny loops)
     LOOP_MIN_DISTANCE = 1000  # 1km minimum
