@@ -138,6 +138,53 @@ def _route_cost(graph, route, weights, min_length, max_length, combine_nature) -
     return total
 
 
+# ── Route analysis helpers ───────────────────────────────────────────────────
+
+def _path_overlap_ratio(route: List[int]) -> float:
+    """
+    Fraction of path edges that retrace an already-walked street segment.
+
+    An edge (u, v) is direction-agnostic: walking A→B then later B→A
+    counts as overlap.  Values:
+        0.0 = perfectly unique (no edge repeated)
+        0.5 = half the route is out-and-back
+        1.0 = entirely doubled-back
+    """
+    edge_set: Set[Tuple[int, int]] = set()
+    duplicate_count = 0
+    for u, v in zip(route[:-1], route[1:]):
+        edge = (min(u, v), max(u, v))  # direction-agnostic
+        if edge in edge_set:
+            duplicate_count += 1
+        else:
+            edge_set.add(edge)
+    total_edges = len(route) - 1
+    return duplicate_count / total_edges if total_edges > 0 else 0.0
+
+
+def _route_dominant_bearing(
+    graph, route: List[int], start_node: int,
+) -> Optional[float]:
+    """
+    Bearing from *start_node* to the point on *route* farthest from start.
+
+    Returns None if the farthest point is closer than 10 m (degenerate).
+    This captures the general direction the loop "bulges" toward.
+    """
+    start_lat, start_lon = _node_coords(graph, start_node)
+    max_dist = 0.0
+    farthest_lat, farthest_lon = start_lat, start_lon
+    for node in route:
+        lat, lon = _node_coords(graph, node)
+        d = _haversine(lat, lon, start_lat, start_lon)
+        if d > max_dist:
+            max_dist = d
+            farthest_lat, farthest_lon = lat, lon
+    if max_dist < 10:
+        return None
+    return _bearing(start_lat, start_lon, farthest_lat, farthest_lon)
+
+
 # ── Graph preprocessing ──────────────────────────────────────────────────────
 
 def _prune_dead_ends(graph, start_node: int, max_iterations: int = 3):
@@ -374,6 +421,11 @@ def _budget_astar_search(
     found_loops = []
     states_explored = 0
 
+    # Track how many times each physical node is popped from the heap.
+    # Nodes visited often are in well-explored territory; gently penalising
+    # re-expansion encourages the return leg to use different streets.
+    node_expansions: Dict[int, int] = {}
+
     while open_set:
         # Time check
         if time.time() - t0 > max_search_time:
@@ -391,6 +443,7 @@ def _budget_astar_search(
         current_node, current_dist_bin = current_state
 
         states_explored += 1
+        node_expansions[current_node] = node_expansions.get(current_node, 0) + 1
 
         # Periodic progress logging
         if states_explored % 10000 == 0:
@@ -456,6 +509,14 @@ def _budget_astar_search(
             # Current node coords (needed for bearing calculations)
             c_lat, c_lon = _node_coords(graph, current_node)
 
+            # ── Exploration penalty: discourage retracing ────────────
+            # Nodes already expanded many times are in well-trodden
+            # territory.  A mild penalty steers the return leg toward
+            # parallel streets instead of retracing the outbound path.
+            prior_visits = node_expansions.get(neighbor_node, 0)
+            if prior_visits > 0:
+                wsm_cost += min(0.5, 0.12 * prior_visits)
+
             # ── Turn-angle penalty: discourage sharp U-turns ─────────
             # Natural walking/cycling routes rarely reverse direction.
             # Penalise edges that double back on the incoming bearing.
@@ -473,17 +534,20 @@ def _budget_astar_search(
                 elif turn > 120:
                     wsm_cost += 0.3   # moderate penalty for sharp turns
 
-            # ── Directional bias ──────────────────────────────────────
+            # ── Directional bias (multiplicative) ────────────────────
+            # Must be multiplicative so the penalty scales with scenic
+            # cost: a scenic edge (cost 0.1) going the wrong way
+            # becomes 0.1 * 3.0 = 0.3, which can now lose to a
+            # non-scenic edge (cost 0.4) going the right way.
             if target_bearing is not None:
                 edge_bear = _bearing(c_lat, c_lon, n_lat, n_lon)
                 diff = abs(edge_bear - target_bearing)
                 if diff > 180:
                     diff = 360 - diff
-                # Stronger penalty, applied during outbound phase (first
-                # 65% of budget) to steer the route in the user's
-                # chosen direction before it curves back.
+                # Applied during outbound phase (first 65% of budget)
                 if current_dist < target_distance * 0.65:
-                    wsm_cost += 1.0 * (diff / 180.0)
+                    direction_factor = 1.0 + 2.0 * (diff / 180.0)
+                    wsm_cost *= direction_factor
 
             tentative_g = g_score.get(current_state, float('inf')) + wsm_cost
 
@@ -697,6 +761,25 @@ class BudgetAStarSolver(LoopSolverBase):
             quality = calculate_quality_score(
                 deviation, scenic_cost, max_scenic_cost=max_cost
             )
+
+            # ── Penalise out-and-back routes ─────────────────────────
+            overlap = _path_overlap_ratio(route)
+            if overlap > 0.15:
+                quality *= max(0.1, 1.0 - overlap)
+
+            # ── Penalise routes that ignore the user's direction ─────
+            if user_bearing is not None:
+                route_bear = _route_dominant_bearing(
+                    graph, route, start_node,
+                )
+                if route_bear is not None:
+                    diff = abs(route_bear - user_bearing)
+                    if diff > 180:
+                        diff = 360 - diff
+                    # 0° diff → ×1.0, 180° diff → ×0.3
+                    direction_match = 1.0 - (diff / 180.0)
+                    quality *= 0.3 + 0.7 * direction_match
+
             candidates.append(LoopCandidate(
                 route=route,
                 distance=distance,
@@ -708,6 +791,7 @@ class BudgetAStarSolver(LoopSolverBase):
                     'directional_bias': directional_bias,
                     'target_distance': target_distance,
                     'distance_bin_size': bin_size,
+                    'path_overlap': round(overlap, 3),
                 },
             ))
 
