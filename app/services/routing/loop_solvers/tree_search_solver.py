@@ -752,6 +752,7 @@ def _simplify_graph(graph, start_node: int):
                         from_node, initial_nbr, **dict(edge_data[best_key]),
                     )
                     expansion_map.setdefault((from_node, initial_nbr), [])
+                    expansion_map.setdefault((initial_nbr, from_node), [])
                 continue
 
             # ── Walk along degree-2 chain ─────────────────────────
@@ -821,6 +822,8 @@ def _simplify_graph(graph, start_node: int):
                 )
                 if (from_node, current) not in expansion_map:
                     expansion_map[(from_node, current)] = chain
+                if (current, from_node) not in expansion_map:
+                    expansion_map[(current, from_node)] = chain[::-1]
 
     return simplified, expansion_map
 
@@ -847,6 +850,153 @@ def _expand_route(
     return expanded
 
 
+def _restore_original_detail(
+    expanded_route: List[int],
+    original_graph,
+    gap_threshold_m: float = 150.0,
+) -> List[int]:
+    """
+    Second-pass expansion: fill in original-graph road geometry for
+    segments where the clustered representatives are far apart.
+
+    Only processes consecutive pairs whose straight-line distance
+    exceeds ``gap_threshold_m``.  Uses a **bounded** Dijkstra on the
+    original graph — the search radius is capped at 2× the straight-
+    line distance and path length at 3×.  This prevents the search
+    from wandering through side streets (the issue with the original
+    unbounded ``nx.shortest_path`` approach).
+    """
+    import heapq
+
+    if len(expanded_route) < 2:
+        return list(expanded_route)
+
+    # Pre-compute lat_cos for distance calculations
+    d0 = original_graph.nodes.get(expanded_route[0], {})
+    start_lat = d0.get('y', d0.get('lat', 51.0))
+    lat_cos = math.cos(math.radians(start_lat))
+
+    full: List[int] = [expanded_route[0]]
+    filled_count = 0
+
+    for i in range(len(expanded_route) - 1):
+        u, v = expanded_route[i], expanded_route[i + 1]
+        if u == v:
+            continue
+
+        # Check if both nodes exist in the original graph
+        if u not in original_graph.nodes or v not in original_graph.nodes:
+            full.append(v)
+            continue
+
+        u_lat, u_lon = _node_coords(original_graph, u)
+        v_lat, v_lon = _node_coords(original_graph, v)
+        straight_dist = _equirectangular_dist(
+            u_lat, u_lon, v_lat, v_lon, lat_cos,
+        )
+
+        # Short segment — no infill needed
+        if straight_dist <= gap_threshold_m:
+            full.append(v)
+            continue
+
+        # Bounded Dijkstra: only search nodes within spatial radius
+        # and give up if path length exceeds cutoff
+        search_radius = straight_dist * 2.0
+        path_cutoff = straight_dist * 3.0
+
+        # Midpoint for radius check
+        mid_lat = (u_lat + v_lat) / 2.0
+        mid_lon = (u_lon + v_lon) / 2.0
+
+        # Dijkstra with distance cutoff
+        dist_so_far = {u: 0.0}
+        prev = {u: None}
+        heap = [(0.0, u)]
+        found = False
+
+        while heap:
+            d, node = heapq.heappop(heap)
+            if d > dist_so_far.get(node, float('inf')):
+                continue
+            if node == v:
+                found = True
+                break
+            if d > path_cutoff:
+                break
+
+            # Expand neighbours (bidirectional)
+            neighbours = set()
+            try:
+                neighbours.update(original_graph.successors(node))
+            except Exception:
+                pass
+            try:
+                neighbours.update(original_graph.predecessors(node))
+            except Exception:
+                pass
+
+            for nbr in neighbours:
+                if nbr not in original_graph.nodes:
+                    continue
+                # Spatial radius check — skip nodes far from midpoint
+                n_lat, n_lon = _node_coords(original_graph, nbr)
+                if abs(n_lat - mid_lat) * 111_000 > search_radius:
+                    continue
+                if abs(n_lon - mid_lon) * 111_000 * lat_cos > search_radius:
+                    continue
+
+                # Edge length
+                edge_data = original_graph.get_edge_data(node, nbr)
+                if edge_data:
+                    edge_len = min(
+                        ed.get('length', 50.0)
+                        for ed in (edge_data.values()
+                                   if hasattr(edge_data, 'values')
+                                   else [edge_data])
+                    )
+                else:
+                    # Try reverse edge
+                    edge_data_rev = original_graph.get_edge_data(nbr, node)
+                    if edge_data_rev:
+                        edge_len = min(
+                            ed.get('length', 50.0)
+                            for ed in (edge_data_rev.values()
+                                       if hasattr(edge_data_rev, 'values')
+                                       else [edge_data_rev])
+                        )
+                    else:
+                        edge_len = _equirectangular_dist(
+                            _node_coords(original_graph, node)[0],
+                            _node_coords(original_graph, node)[1],
+                            n_lat, n_lon, lat_cos,
+                        )
+
+                new_dist = d + edge_len
+                if new_dist < dist_so_far.get(nbr, float('inf')):
+                    dist_so_far[nbr] = new_dist
+                    prev[nbr] = node
+                    heapq.heappush(heap, (new_dist, nbr))
+
+        if found:
+            # Reconstruct path
+            path = []
+            node = v
+            while node is not None and node != u:
+                path.append(node)
+                node = prev.get(node)
+            path.reverse()
+            full.extend(path)
+            filled_count += 1
+        else:
+            full.append(v)  # fallback: direct connection
+
+    if filled_count > 0:
+        print(f"[TreeSearch] Detail restoration: filled {filled_count} "
+              f"large gaps (>{gap_threshold_m:.0f}m)")
+
+    return full
+
 # ── Core tree search ─────────────────────────────────────────────────────────
 
 def _tree_search(
@@ -866,6 +1016,7 @@ def _tree_search(
     prefer_pedestrian: bool = False,
     depth_limit: int = 1000,
     random_seed: Optional[int] = None,
+    allowed_turns: Optional[int] = 10,
 ) -> List[Tuple[List[int], float, float]]:
     """
     OTHER ALG-style tree-search A* for loop routes.
@@ -1080,6 +1231,10 @@ def _tree_search(
         )
         remaining_budget = max_distance - state.distance
         if dist_to_start > remaining_budget:
+            continue
+
+        # Too many turns (OTHER ALG's shouldPrune: turnCount > allowedTurns)
+        if allowed_turns is not None and state.turn_count > allowed_turns:
             continue
 
         # U-turn detection (OTHER ALG prunes 170-190° reversals)
@@ -1357,6 +1512,7 @@ class TreeSearchSolver(LoopSolverBase):
             prefer_pedestrian=prefer_pedestrian,
             depth_limit=depth_limit,
             random_seed=None,
+            allowed_turns=10,            # RS default 8-10; hard prune
         )
 
         if not raw_loops:
@@ -1372,18 +1528,79 @@ class TreeSearchSolver(LoopSolverBase):
         expanded_loops: List[Tuple[List[int], float, float]] = []
         start_lat_exp, _ = _node_coords(graph, start_node)
         lat_cos_exp = math.cos(math.radians(start_lat_exp))
-        for route, distance, _ in raw_loops:
+
+        # Log expansion map stats
+        print(f"[TreeSearch] Expansion map has {len(expansion_map)} entries")
+
+        for idx, (route, distance, _) in enumerate(raw_loops):
+            # Only log detail for first route to avoid spam
+            verbose = (idx == 0)
+            print(f"[TreeSearch]   Route {idx}: {len(route)} simplified nodes, "
+                  f"search dist={distance:.0f}m")
+
+            # Count expansion map hits vs misses on the simplified route
+            hits = misses = 0
+            for i in range(len(route) - 1):
+                a, b = route[i], route[i + 1]
+                if (a, b) in expansion_map:
+                    hits += 1
+                else:
+                    misses += 1
+            print(f"[TreeSearch]   Route {idx}: expansion map: "
+                  f"{hits} hits, {misses} misses out of {len(route)-1} edges")
+
             full_route = _expand_route(route, expansion_map)
-            # Compute actual distance as sum of equirectangular segments
-            # between consecutive original nodes (matching RS's Ue()
-            # function applied to expanded routes).
+            full_route = _restore_original_detail(full_route, graph)
+            print(f"[TreeSearch]   Route {idx}: {len(full_route)} nodes after "
+                  f"expansion + detail restoration")
+
+            # Gap analysis: find segments with large straight-line jumps
             actual_dist = 0.0
-            for u, v in zip(full_route[:-1], full_route[1:]):
-                u_lat, u_lon = _node_coords(graph, u)
-                v_lat, v_lon = _node_coords(graph, v)
-                actual_dist += _equirectangular_dist(
-                    u_lat, u_lon, v_lat, v_lon, lat_cos_exp,
-                )
+            gaps = []  # (segment_idx, u, v, dist_m)
+            missing_nodes = 0
+            for seg_i, (u, v) in enumerate(zip(full_route[:-1], full_route[1:])):
+                u_in = u in graph.nodes
+                v_in = v in graph.nodes
+                if not u_in:
+                    missing_nodes += 1
+                if not v_in and seg_i == len(full_route) - 2:
+                    missing_nodes += 1  # last node
+
+                if u_in and v_in:
+                    u_lat, u_lon = _node_coords(graph, u)
+                    v_lat, v_lon = _node_coords(graph, v)
+                    seg_dist = _equirectangular_dist(
+                        u_lat, u_lon, v_lat, v_lon, lat_cos_exp,
+                    )
+                    actual_dist += seg_dist
+                    if seg_dist > 200:
+                        gaps.append((seg_i, u, v, seg_dist))
+                else:
+                    # Node not in graph — this is a coordinate lookup failure
+                    if verbose:
+                        print(f"[TreeSearch]     WARN seg {seg_i}: "
+                              f"node(s) not in graph: u={u}({u_in}) v={v}({v_in})")
+
+            print(f"[TreeSearch]   Route {idx}: actual_dist={actual_dist:.0f}m "
+                  f"(search said {distance:.0f}m, "
+                  f"delta={actual_dist - distance:+.0f}m)")
+            if missing_nodes > 0:
+                print(f"[TreeSearch]   Route {idx}: {missing_nodes} nodes "
+                      f"NOT found in original graph!")
+
+            if gaps:
+                gaps.sort(key=lambda x: -x[3])
+                print(f"[TreeSearch]   Route {idx}: {len(gaps)} segments > 200m "
+                      f"(top 5 largest):")
+                for gap_i, (si, u, v, d) in enumerate(gaps[:5]):
+                    # Check if u→v has a direct edge in the original graph
+                    has_edge = graph.has_edge(u, v) or graph.has_edge(v, u)
+                    print(f"[TreeSearch]     #{gap_i}: seg {si}, "
+                          f"{u}→{v}, {d:.0f}m, "
+                          f"direct_edge={has_edge}")
+            else:
+                print(f"[TreeSearch]   Route {idx}: all segments ≤ 200m ✓")
+
             # Compute scenic cost on full route (uses original edge attrs)
             scenic_cost = _route_scenic_cost(
                 graph, full_route, weights,
