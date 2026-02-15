@@ -523,7 +523,7 @@ class GeometricLoopSolver(LoopSolverBase):
         weights: Dict[str, float],
         combine_nature: bool = False,
         directional_bias: str = "none",
-        num_candidates: int = 3,
+        num_candidates: int = 7,
         distance_tolerance: float = 0.15,
         max_search_time: float = 120,
         variety_level: int = 0,

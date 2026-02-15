@@ -109,7 +109,9 @@ class Config:
     LOOP_SOLVER_ALGORITHM = 'GEOMETRIC'
     
     # Number of loop candidates to return (like multi-route mode)
-    LOOP_NUM_CANDIDATES = 3
+    # Geometric solver can efficiently generate 5-10 diverse routes
+    # Higher values provide more variety but increase computation time
+    LOOP_NUM_CANDIDATES = 7
     
     # Loop distance tolerance (±%)
     # Routes within this tolerance are considered successful

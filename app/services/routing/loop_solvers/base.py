@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 # ── Colour palette for multi-loop display ────────────────────────────────────
+# Supports up to 10 distinct loop candidates
 
 LOOP_COLOURS = [
     '#3B82F6',   # Blue   - primary / conservative
@@ -24,6 +25,10 @@ LOOP_COLOURS = [
     '#F97316',   # Orange - fallback
     '#EF4444',   # Red    - additional
     '#06B6D4',   # Cyan   - additional
+    '#F59E0B',   # Amber  - additional
+    '#EC4899',   # Pink   - additional
+    '#10B981',   # Emerald - additional
+    '#8B5CF6',   # Violet - additional
 ]
 
 LOOP_LABELS = [
@@ -33,6 +38,10 @@ LOOP_LABELS = [
     'Alternative',
     'Route 5',
     'Route 6',
+    'Route 7',
+    'Route 8',
+    'Route 9',
+    'Route 10',
 ]
 
 
