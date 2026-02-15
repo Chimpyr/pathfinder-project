@@ -54,7 +54,9 @@ TOLERANCE_UNDER = 0.05   # -5 %
 TOLERANCE_OVER  = 0.15   # +15 %
 
 # Bridge-leg abort threshold: if routed distance > 1.5× air distance
-BRIDGE_LEG_DETOUR_FACTOR = 1.5
+# Bridge-leg abort threshold: if routed distance > 3.0× air distance
+# Relaxed from 1.5 to 3.0 to allow for scenic detours (e.g. parks, river crossings)
+BRIDGE_LEG_DETOUR_FACTOR = 3.0
 
 # Number of nearest graph nodes to consider when snapping a waypoint
 SNAP_K = 10
