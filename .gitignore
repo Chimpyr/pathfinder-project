@@ -17,6 +17,7 @@ env/
 POSTER FILES/
 docs/poster_diagrams/*.jar
 docs/poster_diagrams/*.png
+docs/local
 
 # OS
 .DS_Store

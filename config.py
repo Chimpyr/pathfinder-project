@@ -104,7 +104,7 @@ class Config:
     # Options: 'BUDGET_ASTAR', 'RANDOM_WALK' (legacy)
     # - BUDGET_ASTAR: State-augmented A* with budget heuristic (recommended)
     # - RANDOM_WALK: Two-phase random walk + A* return (deprecated)
-    LOOP_SOLVER_ALGORITHM = 'BUDGET_ASTAR'
+    LOOP_SOLVER_ALGORITHM = 'TREE_SEARCH'
     
     # Number of loop candidates to return (like multi-route mode)
     LOOP_NUM_CANDIDATES = 3

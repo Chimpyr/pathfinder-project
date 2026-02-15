@@ -9,7 +9,8 @@ Provides:
     - LoopSolverFactory: Config-based solver instantiation
 
 Available solvers:
-    - BudgetAStarSolver: Budget-constrained A* with state augmentation (primary)
+    - BudgetAStarSolver: Budget-constrained A* with state augmentation
+    - TreeSearchSolver: Tree search (single run, many routes)
     - (Legacy) LoopAStar: Two-phase random walk + A* return (deprecated)
 
 Usage:
