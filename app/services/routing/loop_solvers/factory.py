@@ -18,7 +18,8 @@ class LoopSolverFactory:
     Factory for creating loop solver instances based on configuration.
 
     Supported algorithms:
-        - BUDGET_ASTAR: Budget-constrained A* with state augmentation (default)
+        - BUDGET_ASTAR: Budget-constrained A* with state augmentation
+        - GEOMETRIC: Triangle-plateau geometric skeleton + WSM A* legs
         - TREE_SEARCH: Tree search (single run, many routes)
         - RANDOM_WALK: Legacy two-phase random walk + A* return (deprecated)
     """
@@ -51,6 +52,10 @@ class LoopSolverFactory:
             from app.services.routing.loop_solvers.budget_astar_solver import BudgetAStarSolver
             return BudgetAStarSolver()
 
+        elif algorithm == 'GEOMETRIC':
+            from app.services.routing.loop_solvers.geometric_solver import GeometricLoopSolver
+            return GeometricLoopSolver()
+
         elif algorithm == 'TREE_SEARCH':
             from app.services.routing.loop_solvers.tree_search_solver import TreeSearchSolver
             return TreeSearchSolver()
@@ -60,7 +65,7 @@ class LoopSolverFactory:
             return RandomWalkSolver()
 
         else:
-            available = ['BUDGET_ASTAR', 'TREE_SEARCH', 'RANDOM_WALK']
+            available = ['BUDGET_ASTAR', 'GEOMETRIC', 'TREE_SEARCH', 'RANDOM_WALK']
             raise ValueError(
                 f"Unknown loop solver algorithm: '{algorithm}'. "
                 f"Available: {available}"
@@ -92,4 +97,4 @@ class LoopSolverFactory:
     @classmethod
     def available_algorithms(cls) -> list:
         """Return list of available algorithm names."""
-        return ['BUDGET_ASTAR', 'TREE_SEARCH', 'RANDOM_WALK']
+        return ['BUDGET_ASTAR', 'GEOMETRIC', 'TREE_SEARCH', 'RANDOM_WALK']

@@ -101,10 +101,12 @@ class Config:
     # =========================================================================
     
     # Loop solver algorithm selection (plug-and-play)
-    # Options: 'BUDGET_ASTAR', 'RANDOM_WALK' (legacy)
-    # - BUDGET_ASTAR: State-augmented A* with budget heuristic (recommended)
-    # - RANDOM_WALK: Two-phase random walk + A* return (deprecated)
-    LOOP_SOLVER_ALGORITHM = 'TREE_SEARCH'
+    # Options: 'BUDGET_ASTAR', 'GEOMETRIC', 'TREE_SEARCH', 'RANDOM_WALK'
+    # - BUDGET_ASTAR: State-augmented A* with budget heuristic
+    # - GEOMETRIC: Triangle-plateau skeleton + WSM A* legs (recommended)
+    # - TREE_SEARCH: Full-path tree search (single run, many routes)
+    # - RANDOM_WALK: Legacy two-phase random walk + A* return (deprecated)
+    LOOP_SOLVER_ALGORITHM = 'GEOMETRIC'
     
     # Number of loop candidates to return (like multi-route mode)
     LOOP_NUM_CANDIDATES = 3
