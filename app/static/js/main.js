@@ -49,8 +49,8 @@ const statTime = document.getElementById("stat-time");
 const statPace = document.getElementById("stat-pace");
 const debugInfo = document.getElementById("debug-info");
 const debugContent = document.getElementById("debug-content");
-const instructionBanner = document.getElementById("instruction-banner");
-const instructionText = document.getElementById("instruction-text");
+const instructionBanner = null; // Removed
+const instructionText = null; // Removed
 
 // Scenic routing preferences
 const useScenicToggle = document.getElementById("use-scenic-routing");
@@ -104,14 +104,34 @@ if (varietyLevelSlider && varietyLevelValue) {
 // ============================================================================
 // Scenic Routing Toggle Handler
 // ============================================================================
-useScenicToggle.addEventListener("change", () => {
-  const enabled = useScenicToggle.checked;
-  if (enabled) {
-    scenicSliders.classList.remove("opacity-50", "pointer-events-none");
-  } else {
-    scenicSliders.classList.add("opacity-50", "pointer-events-none");
-  }
-});
+// ============================================================================
+// Scenic Routing Toggle Handler (Collapsible)
+// ============================================================================
+function updateScenicCollapseState() {
+    const enabled = useScenicToggle.checked;
+    if (enabled) {
+        // Expand
+        scenicSliders.classList.remove("max-h-0", "opacity-0");
+        scenicSliders.classList.add("max-h-[800px]", "opacity-100"); // Use arbitrary large height
+    } else {
+        // Collapse
+        scenicSliders.classList.remove("max-h-[800px]", "opacity-100");
+        scenicSliders.classList.add("max-h-0", "opacity-0");
+    }
+}
+
+useScenicToggle.addEventListener("change", updateScenicCollapseState);
+
+// Also toggle on header click (optional UX enhancement)
+const scenicHeader = document.getElementById("scenic-preferences-header");
+if (scenicHeader) {
+    scenicHeader.addEventListener("click", () => {
+        // Toggle the checkbox state
+        useScenicToggle.checked = !useScenicToggle.checked;
+        // Trigger the update
+        updateScenicCollapseState();
+    });
+}
 
 // Slider value display updates (only for range inputs)
 [
@@ -181,8 +201,7 @@ function setRoutingMode(mode) {
     btnText.textContent = "Find Loop";
   }
 
-  // Update instruction banner for the mode
-  updateInstructions();
+  // No instruction banner to update
 
   console.log(`[App] Routing mode: ${mode}`);
 }
@@ -217,13 +236,13 @@ function updateLoopDistanceWarning(distanceKm) {
     longLoopWarning.className =
       "p-3 rounded-lg border transition-all loop-warning-orange";
     longLoopWarningText.innerHTML =
-      "<strong>Long route.</strong> Distances over 20 km may take longer to calculate.";
+      "<strong>Long route.</strong> Distances over 20 km may take a moment to calculate.";
   } else if (distanceKm > 15) {
     longLoopWarning.classList.remove("hidden");
     longLoopWarning.className =
       "p-3 rounded-lg border transition-all loop-warning-amber";
     longLoopWarningText.textContent =
-      "Routes over 15 km may take longer to calculate.";
+      "Routes over 15 km may take a moment to calculate.";
   } else {
     longLoopWarning.classList.add("hidden");
   }
@@ -236,6 +255,19 @@ if (loopDistanceSlider) {
     updateLoopDistanceWarning(val);
   });
 }
+
+// Preset Distance Buttons
+const presetDistBtns = document.querySelectorAll(".preset-dist-btn");
+presetDistBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+        const dist = parseFloat(btn.dataset.dist);
+        if (loopDistanceSlider) {
+            loopDistanceSlider.value = dist;
+            // Trigger input event to update UI strings
+            loopDistanceSlider.dispatchEvent(new Event('input'));
+        }
+    });
+});
 
 // ============================================================================
 // Directional Bias Compass Handlers
@@ -379,20 +411,20 @@ let loopState = {
 // Route display names and colours
 const ROUTE_CONFIG = {
   baseline: {
-    name: "Baseline",
-    subtitle: "Shortest",
+    name: "Direct",
+    subtitle: "Shortest Route",
     colour: "#6B7280",
     icon: "📏",
   },
   extremist: {
-    name: "Extremist",
-    subtitle: "Max Scenic",
+    name: "Scenic",
+    subtitle: "Maximum Scenery",
     colour: "#EF4444",
     icon: "🌿",
   },
   balanced: {
     name: "Balanced",
-    subtitle: "Your Mix",
+    subtitle: "Custom Mix",
     colour: "#3B82F6",
     icon: "⚖️",
   },
@@ -412,55 +444,10 @@ function formatCoords(lat, lon) {
 
 /**
  * Update instruction banner based on current state and routing mode.
+ * (Deprecated/Removed feature)
  */
 function updateInstructions() {
-  const hasStart = startState.lat !== null;
-  const hasEnd = endState.lat !== null;
-
-  if (startState.isGeocoding || endState.isGeocoding) {
-    instructionBanner.classList.remove("hidden");
-    instructionText.innerHTML =
-      '<i class="fas fa-spinner fa-spin mr-1"></i> Looking up address...';
-    instructionBanner.className =
-      "mx-6 mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg";
-  } else if (routingMode === "loop") {
-    // Loop mode: only need start point
-    if (!hasStart) {
-      instructionBanner.classList.remove("hidden");
-      instructionText.innerHTML =
-        '<i class="fas fa-sync-alt mr-1"></i> Set your <strong>starting point</strong> for the loop (type or click map)';
-      instructionBanner.className =
-        "mx-6 mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg";
-    } else {
-      instructionBanner.classList.remove("hidden");
-      instructionText.innerHTML =
-        '<i class="fas fa-check-circle mr-1 text-green-500"></i> Start set! Adjust distance & direction, then click <strong>Find Loop</strong>';
-      instructionBanner.className =
-        "mx-6 mt-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg";
-    }
-  } else if (!hasStart && !hasEnd) {
-    instructionBanner.classList.remove("hidden");
-    instructionText.innerHTML =
-      "Type addresses below or click the map to set points";
-    instructionBanner.className =
-      "mx-6 mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg";
-  } else if (hasStart && !hasEnd) {
-    instructionBanner.classList.remove("hidden");
-    instructionText.innerHTML =
-      "Now set your <strong>end point</strong> (type or click)";
-    instructionBanner.className =
-      "mx-6 mt-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg";
-  } else if (!hasStart && hasEnd) {
-    instructionBanner.classList.remove("hidden");
-    instructionText.innerHTML =
-      "Now set your <strong>start point</strong> (type or click)";
-    instructionBanner.className =
-      "mx-6 mt-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg";
-  } else {
-    // Both points set - hide banner as it's no longer needed
-    instructionBanner.classList.add("hidden");
-    return;
-  }
+  // Function body removed as UI element was deleted
 }
 
 /**
@@ -542,7 +529,7 @@ function renderEdgePreview(edges) {
                             <span class="text-green-600 dark:text-green-400">🌿</span>
                             <div class="font-mono ${edge.norm_green !== null && edge.norm_green < 0.3 ? "text-green-600 font-bold" : ""}">${edge.norm_green ?? "-"}</div>
                         </div>
-                        <div class="text-center" title="Water proximity (0=near)">
+                        <div class="text-center" title="Proximity to Water (0=near)">
                             <span class="text-blue-600 dark:text-blue-400">💧</span>
                             <div class="font-mono ${edge.norm_water !== null && edge.norm_water < 0.3 ? "text-blue-600 font-bold" : ""}">${edge.norm_water ?? "-"}</div>
                         </div>
@@ -554,7 +541,7 @@ function renderEdgePreview(edges) {
                             <span class="text-purple-600 dark:text-purple-400">🔇</span>
                             <div class="font-mono ${edge.norm_quiet !== null && edge.norm_quiet < 0.3 ? "text-purple-600 font-bold" : ""}">${edge.norm_quiet ?? "-"}</div>
                         </div>
-                        <div class="text-center" title="Slope difficulty (0=easy)">
+                        <div class="text-center" title="Gradient Difficulty (0=easy)">
                             <span class="text-red-600 dark:text-red-400">⛰️</span>
                             <div class="font-mono ${edge.norm_slope !== null && edge.norm_slope < 0.3 ? "text-red-600 font-bold" : ""}">${edge.norm_slope ?? "-"}</div>
                         </div>
@@ -569,7 +556,7 @@ function renderEdgePreview(edges) {
                             ${gradientIcon} ${edge.from_elevation ?? "?"}m → ${edge.to_elevation ?? "?"}m
                             ${elevChange !== null ? `<span class="${elevChange > 0 ? "text-red-500" : "text-green-500"}">(${elevSign}${elevChange}m)</span>` : ""}
                         </span>
-                        <span title="Tobler cost (1.0=flat, >1=slower)" class="font-mono ${edge.slope_time_cost > 1.2 ? "text-red-500 font-bold" : edge.slope_time_cost < 0.95 ? "text-green-500 font-bold" : ""}">
+                        <span title="Tobler Cost (1.0=flat, >1=slower)" class="font-mono ${edge.slope_time_cost > 1.2 ? "text-red-500 font-bold" : edge.slope_time_cost < 0.95 ? "text-green-500 font-bold" : ""}">
                             ⏱️ ${edge.slope_time_cost ?? "1.0"}×
                         </span>
                     </div>
@@ -798,7 +785,7 @@ routeForm.addEventListener("submit", async (e) => {
 async function handleStandardSubmit() {
   // Validate that we have coordinates for both points
   if (!startState.lat || !endState.lat) {
-    errorMsg.textContent = "Please set both start and end locations.";
+    errorMsg.textContent = "Please select both a start and end location.";
     errorMsg.classList.remove("hidden");
     return;
   }
@@ -831,7 +818,7 @@ async function handleStandardSubmit() {
   }
 
   // UI Loading State
-  setLoadingState("Calculating...");
+  setLoadingState("Calculating route...");
 
   try {
     const response = await fetch("/api/route", {
@@ -1210,7 +1197,7 @@ async function pollForLoopTaskCompletion(taskId, originalPayload) {
     const elapsed = Date.now() - startTime;
 
     if (elapsed > MAX_POLL_TIME_MS) {
-      errorMsg.textContent = "Loop route calculation timed out.";
+      errorMsg.textContent = "Loop calculation timed out.";
       errorMsg.classList.remove("hidden");
       clearLoadingState();
       return;
@@ -1302,7 +1289,7 @@ async function pollForTaskCompletion(taskId, originalPayload) {
     if (elapsed > MAX_POLL_TIME_MS) {
       console.error("[App] Task polling timeout");
       errorMsg.innerHTML = `
-                Graph building timed out after 5 minutes. 
+                Building the graph is taking longer than expected (5 mins). 
                 <button onclick="retryWithSync()" class="underline text-blue-600">Retry with sync mode</button>
             `;
       errorMsg.classList.remove("hidden");
@@ -1977,3 +1964,44 @@ updateInstructions();
 
 console.log("[App] PathFinder initialised with instant geocoding");
 console.log("[Nav] Navigation rail ready with collapse and resize support");
+
+// ============================================================================
+// Advanced Options Modal Handler
+// ============================================================================
+document.addEventListener("DOMContentLoaded", () => {
+    const advancedHelpBtn = document.getElementById("advanced-help-btn");
+    const advancedModal = document.getElementById("advanced-options-modal");
+    const closeAdvancedModal = document.getElementById("close-advanced-modal");
+    const closeAdvancedModalBtn = document.getElementById("close-advanced-modal-btn");
+
+    function toggleAdvancedModal(show) {
+        if (!advancedModal) return;
+        if (show) {
+            advancedModal.classList.remove("hidden");
+        } else {
+            advancedModal.classList.add("hidden");
+        }
+    }
+
+    if (advancedHelpBtn) {
+        advancedHelpBtn.addEventListener("click", () => toggleAdvancedModal(true));
+    }
+
+    if (closeAdvancedModal) {
+        closeAdvancedModal.addEventListener("click", () => toggleAdvancedModal(false));
+    }
+
+    if (closeAdvancedModalBtn) {
+        closeAdvancedModalBtn.addEventListener("click", () => toggleAdvancedModal(false));
+    }
+
+    // Close on click outside
+    if (advancedModal) {
+        advancedModal.addEventListener("click", (e) => {
+            if (e.target === advancedModal) {
+                toggleAdvancedModal(false);
+            }
+        });
+    }
+});
+

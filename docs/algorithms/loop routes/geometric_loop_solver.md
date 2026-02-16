@@ -3,7 +3,7 @@
 ## 1. High-Level Summary (Simply)
 The **Geometric Loop Solver** creates a round-trip route by virtually placing "waypoints" (checkpoints) in a shape around your start location—like drawing a triangle or square on a map.
 
--   **Smart Bearing**: Instead of guessing where to go, the solver looks at the map to find the "greenest" direction (parks, water, forests) and points the loop that way.
+-   **Scenic Bearings**: Instead of guessing where to go, the solver looks at the map to find the "greenest" direction (parks, water, forests) and points the loop that way.
 -   **Natural Shapes**: To avoid boring, rigid triangles, it uses flexible shapes (Quadrilaterals, Pentagons) and slightly "wiggles" the points so the route looks organic rather than robotic.
 -   **No U-Turns**: The solver is smart enough to avoid sending you down a street just to make you turn around immediately. It looks for "through" streets and intersections.
 -   **Flow Awareness**: It tries to predict where you are going next and snaps waypoints to roads that align with that direction, ensuring a smooth run or walk without awkward zig-zags.
@@ -21,7 +21,7 @@ The previous loop generation algorithm ("v1") had several flaws:
 
 ## 3. The Solution (v2 Features)
 
-### 3.1 Smart Bearing & Sector Analysis
+### 3.1 Scenic Bearings & Sector Analysis
 Before plotting the loop, the solver scans the map around the start node (approx. 5km radius).
 -   **Sector Analysis**: It divides the area into 12 "sectors" (like a clock face).
 -   **Scoring**: Each sector is scored based on the density of "Green" (Parks, Woods) and "Blue" (Water) features.
@@ -68,8 +68,8 @@ It is important to distinguish between **Shape Generation** (where the waypoints
 | Frontend Control | Affects Shape / Bearing? | Affects Path / Routing? | Notes |
 | :--- | :--- | :--- | :--- |
 | **Target Distance** | **YES** | **YES** | Determines loop radius (Shape) and A* heuristic (Routing). |
-| **Greenness Weight** | No (Hardcoded*) | **YES** | *Smart Bearing assumes "Green + Water" is always good. <br>The Router actively detours to parks if weight is High. |
-| **Water Weight** | No (Hardcoded*) | **YES** | *Smart Bearing treats Water bodies as scenic targets. <br>The Router actively detours to rivers/canals if weight is High. |
+| **Greenness Weight** | No (Hardcoded*) | **YES** | *Scenic Bearings assumes "Green + Water" is always good. <br>The Router actively detours to parks if weight is High. |
+| **Water Weight** | No (Hardcoded*) | **YES** | *Scenic Bearings treats Water bodies as scenic targets. <br>The Router actively detours to rivers/canals if weight is High. |
 | **Quietness / Social**| No | **YES** | Only affects the A* cost function (preferring secondary roads or social hubs). |
 | **Avoid Unsafe** | **Indirectly** | **YES** | Snapper penalizes main roads. Router heavily penalizes them. |
 | **Prefer Paths** | **Indirectly** | **YES** | Snapper prefers valid paths. Router lowers cost for paths. |
@@ -78,14 +78,14 @@ It is important to distinguish between **Shape Generation** (where the waypoints
 | **Prefer Flat** | No | **YES** | Router penalizes edges with high gradient (`slope` weight). |
 | **Shortest Path** | No | **YES** | Increases `Distance` weight relative to scenic weights. |
 | **Route Variety** | **YES** | No | **Low**: Triangles only. <br>**High**: Adds Quads & Pentagons + high irregularity. |
-| **Directional Bias** | **YES (Overrides)** | No | If user selects "North", Smart Bearing is disabled/constrained to North. |
+| **Directional Bias** | **YES (Overrides)** | No | If user selects "North", Scenic Bearings is disabled/constrained to North. |
 
-* **Note on Smart Bearing**: The "Smart Bearing" analysis currently aggregates *all* scenic features (Green and Water) into a single "Scenic Score". It *does not* currently adjust this score based on the user's specific sliders (e.g. if you set Water=0, it might still point you towards a lake, though the *Router* will try not to run alongside it).
+* **Note on Scenic Bearings**: The "Scenic Bearings" analysis currently aggregates *all* scenic features (Green and Water) into a single "Scenic Score". It *does not* currently adjust this score based on the user's specific sliders (e.g. if you set Water=0, it might still point you towards a lake, though the *Router* will try not to run alongside it).
 
 ### 4.1 "Layman's" Explanation of Interaction
 Think of the **Loop Solver** as a "Travel Agent" and the **Router** as the "Driver".
 
-1.  **The Agent (Geometric Solver)** looks at the map and says: *"The nicest area is to the West (Smart Bearing), so I'll book you three stops in that direction."*
+1.  **The Agent (Geometric Solver)** looks at the map and says: *"The nicest area is to the West (Scenic Bearings), so I'll book you three stops in that direction."*
     -   It cares about general "niceness" (Parks, Water) but doesn't look at the tiny details of every road.
     -   It ensures the *shape* of the trip lands in a good neighborhood.
 
