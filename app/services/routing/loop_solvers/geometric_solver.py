@@ -63,7 +63,7 @@ TOLERANCE_OVER  = 0.15   # +15 %
 BRIDGE_LEG_DETOUR_FACTOR = 3.0
 
 # Number of nearest graph nodes to consider when snapping a waypoint
-SNAP_K = 10
+SNAP_K = 50
 
 # Highway tags considered "highway-only" (undesirable for waypoints)
 _HIGHWAY_ONLY_TAGS = frozenset({
@@ -290,17 +290,24 @@ def _analyze_scenic_sectors(graph, start_node: int, radius_m: float) -> List[Tup
 
 # ── Smart-snap logic ────────────────────────────────────────────────────────
 
-def _smart_snap(graph, target_lat: float, target_lon: float,
-                k: int = SNAP_K) -> Optional[int]:
+def _smart_snap(
+    graph, 
+    target_lat: float, 
+    target_lon: float,
+    k: int = SNAP_K,
+    prev_point: Optional[Tuple[float, float]] = None,
+    next_point: Optional[Tuple[float, float]] = None
+) -> Optional[int]:
     """
     Snap a theoretical point to the best nearby graph node.
 
-    Strategy (§2.2 of design doc):
+    Strategy (§2.2 of design doc) + Flow Awareness:
         1. Query the K nearest nodes to (target_lat, target_lon).
         2. Filter out nodes connected *only* to major highways.
-        3. Score by distance (closer is better), connectivity (degree > 2),
-           and average scenic quality of incident edges.
-        4. Return the best node, or None if nothing suitable.
+        3. Score by distance, connectivity, greenness.
+        4. **Flow Awareness**: Usage vectors P->Candidate and Candidate->Next.
+           If the angle implies a sharp turn (> 120°), penalize heavily.
+           This prevents "backtracking" at corners.
     """
     import osmnx as ox
 
@@ -315,26 +322,40 @@ def _smart_snap(graph, target_lat: float, target_lon: float,
             return None
 
         # Compute distances for all nodes and take top-K
-        scored: List[Tuple[float, int, dict]] = []
+        scored: List[Tuple[float, int]] = [] # Store (distance, nid)
         for nid, data in nodes:
             nlat = data.get('y', data.get('lat', 0.0))
             nlon = data.get('x', data.get('lon', 0.0))
             dist = _haversine(target_lat, target_lon, nlat, nlon)
-            scored.append((dist, nid, data))
+            scored.append((dist, nid))
 
-        scored.sort(key=lambda t: t[0])
-        candidates = scored[:k]
-
-        if not candidates:
+        if not scored:
             print(f"[GeometricSolver]     Smart-snap: no candidates found")
             return None
 
-        print(f"[GeometricSolver]     Smart-snap: evaluating {len(candidates)} candidates")
+        if not scored:
+            print(f"[GeometricSolver]     Smart-snap: no candidates found")
+            return None
+
+        # Sort by distance so we check closest nodes first
+        scored.sort(key=lambda x: x[0])
+
+        # EXPANDING SEARCH (Flat Loop):
+        # Iterate through candidates sorted by distance.
+        # We process at least 'min_search' (K) candidates.
+        # If we find a good one within K, we pick the best.
+        # If not, we keep searching up to 'max_search' (500).
+        
+        min_search = k
+        max_search = 500
+        
+        candidates_pool = scored
         best_node = None
         best_score = float('inf')
-        evaluated = 0
+        
+        for i, (dist, nid) in enumerate(candidates_pool):
+            data = graph.nodes[nid]
 
-        for dist, nid, data in candidates:
             # --- Filter: skip highway-only nodes ---
             incident_highways = set()
             for _, _, edata in graph.edges(nid, data=True):
@@ -349,7 +370,14 @@ def _smart_snap(graph, target_lat: float, target_lon: float,
 
             # --- Score ---
             degree = graph.degree(nid)
-            degree_bonus = 0.0 if degree > 2 else 200.0  # penalty for dead-ends
+            
+            # STRICT BAN: Dead ends (Degree 1) guarantee a U-turn / Backtrack.
+            if degree < 2: 
+                continue
+
+            # Small bonus for junctions (deg > 2), small penalty for simple corners (deg=2)
+            # JUNCTION PRIORITY: Heavily penalize degree 2 nodes (mid-block) to force turns at junctions.
+            degree_bonus = 0.0 if degree > 2 else 500.0
 
             # Average scenic quality of incident edges (lower norm = greener)
             scenic_costs = []
@@ -358,16 +386,158 @@ def _smart_snap(graph, target_lat: float, target_lon: float,
                 scenic_costs.append(sc)
             avg_scenic = sum(scenic_costs) / len(scenic_costs) if scenic_costs else 0.5
             scenic_penalty = avg_scenic * 100  # 0-100 range
+            
+            # --- Flow Awareness (Anti-Backtracking) ---
+            flow_penalty = 0.0
+            if prev_point and next_point:
+                nlat = data.get('y', data.get('lat', 0.0))
+                nlon = data.get('x', data.get('lon', 0.0))
+                
+                # Vector In: Prev -> Node
+                # Vector Out: Node -> Next
+                
+                # Calculate bearings
+                bearing_in = _bearing_between(prev_point[0], prev_point[1], nlat, nlon)
+                bearing_out = _bearing_between(nlat, nlon, next_point[0], next_point[1])
+                
+                # Turn Angle: Difference between In and Out?
+                # No, standard deviation from straight line.
+                # If we continue expanding the loop, In and Out should differ by ~60-120 deg (positive turn).
+                # A U-turn means they differ by ~180 deg relative to forward direction.
+                
+                # Angle difference
+                diff = abs(bearing_in - bearing_out)
+                diff = min(diff, 360 - diff)
+                
+                # "Good" turn for a loop is roughly 30-150 degrees.
+                # "Bad" turn ("Sharp U-Turn/Spike") is > 150 deg (Backtracking) or < 20 deg (Straight line? No straight is fine).
+                # Wait:
+                # If Prev->Node is North (0), Node->Next is South (180). Diff = 180. That's a spike.
+                # If Prev->Node is North (0), Node->Next is North (0). Diff = 0. That's straight.
+                # 
+                # Ideally, for a loop, we want "some turn" but not "reverse turn".
+                # Actually, in a geometric skeleton, the *theoretical* locations already form the shape.
+                # So we just want the snapped node to RESPECT that flow.
+                # The theoretical turn is already ~60-120deg.
+                # So we penalize deviation from THEORETICAL flow?
+                # OR simpler: Penalize U-turns (Diff > 135).
+                
+                if diff > 135: # Sharp turn / U-turn
+                     flow_penalty = 500.0 # Huge penalty (500m equivalent)
+                elif diff > 100: # Mild sharp turn
+                     flow_penalty = 50.0
 
-            score = dist + degree_bonus + scenic_penalty
-            evaluated += 1
+            # --- Junction Awareness (Edge Alignment) ---
+            # Does this node have an edge that actually points to 'next_point'?
+            alignment_penalty = 0.0
+            if next_point:
+                nlat = data.get('y', data.get('lat', 0.0))
+                nlon = data.get('x', data.get('lon', 0.0))
+                
+                # We need the bearing from Node -> Next (Already calculated as bearing_out above? 
+                # If not, calculate it)
+                if 'bearing_out' not in locals():
+                     bearing_out = _bearing_between(nlat, nlon, next_point[0], next_point[1])
+                
+                has_aligned_edge = False
+                
+                # Check all outgoing edges (Junction Awareness)
+                # Ensure we have a valid exit that matches the target bearing
+                # AND is not a motorway/trunk/primary road.
+                
+                # Added 'primary' to forbidden to favor quieter roads for waypoints
+                forbidden_exits = {'motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link'}
+                
+                debug_edge_checks = [] # Store logs to print only if needed (or verbose)
+                
+                for _, neighbor, edge_data in graph.edges(nid, data=True):
+                    hw = edge_data.get('highway', '')
+                    
+                    # Log snippet
+                    hw_str = str(hw)
+                    
+                    if isinstance(hw, list):
+                        if set(hw) & forbidden_exits:
+                            debug_edge_checks.append(f"    - Edge -> {neighbor}: SKIP (Forbidden {hw})")
+                            continue
+                    elif hw in forbidden_exits:
+                        debug_edge_checks.append(f"    - Edge -> {neighbor}: SKIP (Forbidden {hw})")
+                        continue
+                        
+                    try:
+                        neighbor_data = graph.nodes[neighbor]
+                        n2_lat = neighbor_data.get('y', neighbor_data.get('lat'))
+                        n2_lon = neighbor_data.get('x', neighbor_data.get('lon'))
+                        
+                        edge_bearing = _bearing_between(nlat, nlon, n2_lat, n2_lon)
+                        
+                        ediff = abs(edge_bearing - bearing_out)
+                        ediff = min(ediff, 360 - ediff)
+                        
+                        debug_edge_checks.append(f"    - Edge -> {neighbor}: bearing={edge_bearing:.0f}, diff={ediff:.0f}, hw={hw}")
+                        
+                        if ediff < 90: # Relaxed alignment (+/- 90 deg = Forward Hemisphere)
+                            has_aligned_edge = True
+                            # Found one! No need to check others for *validity*, but keep checking for debug?
+                            # Break for performance.
+                            break
+                    except KeyError:
+                        continue
+                        
+                if not has_aligned_edge:
+                    # No road goes in the direction we want!
+                    # OR the only roads going there are motorways.
+                    # This implies we'd have to take a road going elsewhere and finding a turn.
+                    # PENALTY TUNING: 2000m was too high, causing the solver to pick nodes 1km away just to satisfy this.
+                    # Reduced to 400m to balance "bad alignment" vs "huge detour".
+                    alignment_penalty = 400.0 
+                else:
+                     # It passed!
+                     # Find which edge passed to log it
+                     # print(f"[GeometricSolver]   Node {nid} PASSED. Edge checks:")
+                     # for l in debug_edge_checks:
+                     #     print(l)
+                     pass
+                        
+            # --- Main Road Penalty ---
+            # Penalize snapping to nodes that touch major roads, even if they have valid exits.
+            # We prefer waypoints to be in quiet areas.
+            main_road_penalty = 0.0
+            major_roads = {'motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link'}
+            
+            if incident_highways & major_roads:
+                # PENALTY TUNING: Reduced to 300m. 
+                # If the nearest quiet road is >300m away, we accept the main road to avoid 
+                # "going too far" and creating awkward loops.
+                main_road_penalty = 300.0
+                # print(f"[GeometricSolver]   Node {nid} PENALIZED (Touching Major Road). Penalty=2000.0")
+                
+            # DISTANCE SCALING:
+            # We scale distance by 0.5 so that a "clean" node 600m away (Score=300) 
+            # can beat a "messy" node 100m away (Score=50 + 400 penalty = 450).
+            score = (dist * 0.5) + degree_bonus + scenic_penalty + flow_penalty + alignment_penalty + main_road_penalty
+            
+            # print(f"[GeometricSolver]   Node {nid} Score {score:.1f} (D={dist:.0f}, F={flow_penalty}, A={alignment_penalty}, M={main_road_penalty})")
+            
             if score < best_score:
                 best_score = score
                 best_node = nid
+                
+            # TERMINATION CHECK:
+            # If we have evaluated enough candidates (min_search) AND found at least one valid node, stop.
+            if (i + 1) >= min_search and best_node is not None:
+                break
+                
+            if (i + 1) >= max_search:
+                # Hard limit reached
+                break
 
-        print(f"[GeometricSolver]     Smart-snap: evaluated {evaluated}/{len(candidates)} nodes, "
-              f"selected node {best_node} (dist={best_score:.1f}m)")
+        if best_node:
+            print(f"[GeometricSolver]     Smart-snap selected {best_node} (Score={best_score:.1f})")
+        
         return best_node
+
+
 
     except Exception as e:
         print(f"[GeometricSolver] Smart-snap failed: {e}")
@@ -460,7 +630,7 @@ def _route_leg(graph, source: int, target: int,
 
 # ── Triangle construction & routing ──────────────────────────────────────────
 
-def _try_triangle(
+def _try_polygon(
     graph,
     start_node: int,
     target_distance: float,
@@ -469,128 +639,180 @@ def _try_triangle(
     bearing: float,
     tau: float,
     length_range: Tuple[float, float],
-    angle_deg: float = 60.0,
+    num_vertices: int = 3,  # Total vertices including Start (3=Triangle, 4=Quad)
+    arc_angle: float = 90.0,  # Total spread of the shape
+    irregularity: float = 0.0,  # 0.0 = perfect symmetry, 1.0 = high jitter
 ) -> Optional[Tuple[List[int], float, float, float]]:
     """
-    Attempt to build and route a geometric triangle skeleton.
-    Supports Equilateral (60°) and Isosceles (variable angle) shapes.
-
-    Steps:
-        1. Compute side length R (distance from S to W1/W2) based on angle:
-           Perimeter P ≈ 3 * a (if 60°).
-           General: P = 2R + 2R*sin(angle/2)  =>  R = P / (2 * (1 + sin(angle/2)))
-           Apply τ: R = (D / τ) / (2 * (1 + sin(angle/2)))
-        2. Project W1 at *bearing*, W2 at *bearing + angle* from start.
-        3. Smart-snap W1, W2 to real graph nodes.
-        4. Route legs in "critical leg first" order (W1→W2, S→W1, W2→S).
-        5. Concatenate and return full loop.
+    Attempt to build and route a 'Natural Shape' polygon loop.
+    
+    Instead of a rigid triangle, this places N-1 waypoints along an arc 
+    centered on the main bearing.
+    
+    Logic:
+        1. Calculate Radius R based on total length D/tau and arc geometry.
+           Approx: Length = 2R + ArcLength = R(2 + theta_rad)
+           So R = (D/tau) / (2 + theta_radians)
+        2. Distribute N-1 waypoints along the arc from (bearing - arc/2) to (bearing + arc/2).
+        3. Apply random jitter to angles and radii if irregularity > 0.
+        4. Route legs S -> W1 -> W2 ... -> Wn -> S.
     """
+    import random
+    
     s_lat, s_lon = _node_coords(graph, start_node)
     
-    # General Isosceles perimeter formula
-    # R = radius (S->W1 and S->W2)
-    sin_half_angle = math.sin(math.radians(angle_deg / 2.0))
-    radius = (target_distance / tau) / (2.0 * (1.0 + sin_half_angle))
-
-    print(f"[GeometricSolver]   Triangle attempt: start_node={start_node}, "
-          f"bearing={bearing:.1f} deg, angle={angle_deg:.0f} deg, tau={tau:.3f}, radius={radius:.1f}m")
-
-    # -- Step 1: Project waypoints ------------------------------------
-    w1_lat, w1_lon = _project_point(s_lat, s_lon, bearing, radius)
-    w2_lat, w2_lon = _project_point(s_lat, s_lon, (bearing + angle_deg) % 360,
-                                     radius)
-    print(f"[GeometricSolver]   Projected W1=({w1_lat:.6f}, {w1_lon:.6f}), "
-          f"W2=({w2_lat:.6f}, {w2_lon:.6f})")
-
-    # -- Step 2: Smart-snap to graph nodes ----------------------------
-    print(f"[GeometricSolver]   Snapping waypoints...")
-    w1_node = _smart_snap(graph, w1_lat, w1_lon)
-    w2_node = _smart_snap(graph, w2_lat, w2_lon)
-
-    if w1_node is None or w2_node is None:
-        print(f"[GeometricSolver]   [FAILED] Snap failed (W1={w1_node}, W2={w2_node})")
-        return None
-
-    print(f"[GeometricSolver]   Snapped to W1={w1_node}, W2={w2_node}")
-
-    # Avoid degenerate triangles
-    if w1_node == w2_node or w1_node == start_node or w2_node == start_node:
-        print(f"[GeometricSolver]   [FAILED] Degenerate triangle "
-              f"(S={start_node}, W1={w1_node}, W2={w2_node})")
-        return None
-
-    # -- Step 2b: Reachability check ----------------------------------
-    print(f"[GeometricSolver]   Checking graph connectivity...")
-    reach_s_w1 = _are_reachable(graph, start_node, w1_node)
-    reach_w1_w2 = _are_reachable(graph, w1_node, w2_node)
-    reach_w2_s = _are_reachable(graph, w2_node, start_node)
+    # 1. Calculate Geometry
+    angle_rad = math.radians(arc_angle)
+    # Estimate Radius: D/tau = 2R (out/back) + Arc (R*theta)
+    # This is an approximation assuming the path follows the perimeter
+    radius = (target_distance / tau) / (2.0 + angle_rad)
     
-    if not (reach_s_w1 and reach_w1_w2 and reach_w2_s):
-        print(f"[GeometricSolver]   [FAILED] Reachability check failed: "
-              f"S->W1={reach_s_w1}, W1->W2={reach_w1_w2}, W2->S={reach_w2_s}")
+    # Sanity check radius
+    if radius < 50:
         return None
+
+    # 2. Determine Waypoint Angles
+    num_waypoints = num_vertices - 1
+    waypoints_data = [] # (lat, lon, node)
     
-    print(f"[GeometricSolver]   [OK] All nodes reachable")
-
-    # -- Step 3: Route legs -- Critical Leg First ----------------------
-    print(f"[GeometricSolver]   Routing legs (Critical Leg First)...")
-
-    # Leg B (Bridge Crosser): W1 -> W2
-    print(f"[GeometricSolver]   -> Leg B (Bridge): W1->W2")
-    leg_b = _route_leg(graph, w1_node, w2_node, weights,
-                       combine_nature, length_range)
-    if leg_b is None:
-        print(f"[GeometricSolver]   [FAILED] Leg B (W1->W2) failed")
-        return None
-
-    path_b, dist_b, cost_b = leg_b
-
-    # Bridge-leg detour check: routed dist vs air distance
-    w1_lat_a, w1_lon_a = _node_coords(graph, w1_node)
-    w2_lat_a, w2_lon_a = _node_coords(graph, w2_node)
-    air_b = _haversine(w1_lat_a, w1_lon_a, w2_lat_a, w2_lon_a)
-    detour_ratio = dist_b / air_b if air_b > 0 else 1.0
-    print(f"[GeometricSolver]   Bridge leg: routed={dist_b:.0f}m, "
-          f"air={air_b:.0f}m, ratio={detour_ratio:.2f}x")
+    # Start angle (relative to symmetry axis 'bearing')
+    start_angle_rel = -arc_angle / 2.0
     
-    if air_b > 0 and dist_b > BRIDGE_LEG_DETOUR_FACTOR * air_b:
-        print(f"[GeometricSolver]   [FAILED] Bridge leg too detoured "
-              f"({detour_ratio:.2f}x > {BRIDGE_LEG_DETOUR_FACTOR}x threshold)")
-        return None
+    if num_waypoints > 1:
+        step_angle = arc_angle / (num_waypoints - 1)
+    else:
+        # Fallback for degenerate line (shouldn't happen with N>=3)
+        step_angle = 0 
+        start_angle_rel = 0
+        
+    print(f"[GeometricSolver]   Polygon attempt (N={num_vertices}): bearing={bearing:.1f}, "
+          f"arc={arc_angle}°, tau={tau:.3f}, radius={radius:.0f}m, jitter={irregularity:.2f}")
+
+    # 3. Project Waypoints (Theoretical)
+    theoretical_points = [] # List of (lat, lon)
     
-    print(f"[GeometricSolver]   [OK] Bridge leg acceptable")
+    prev_node_coords = (s_lat, s_lon)
+    
+    for i in range(num_waypoints):
+        # Nominal angle
+        angle_rel = start_angle_rel + (i * step_angle)
+        
+        # Apply Jitter
+        jitter_angle = 0.0
+        jitter_radius = 1.0
+        
+        if irregularity > 0:
+            # Jitter angle: +/- 20% of step
+            angle_noise = (random.random() - 0.5) * step_angle * irregularity * 0.8
+            # Ensure monotonicity is preserved (simplified check)
+            angle_rel += angle_noise
+            
+            # Jitter radius: +/- 15%
+            rad_noise = (random.random() - 0.5) * 0.3 * irregularity
+            jitter_radius = 1.0 + rad_noise
+            
+        final_bearing = (bearing + angle_rel) % 360
+        final_radius = radius * jitter_radius
+        
+        w_lat, w_lon = _project_point(s_lat, s_lon, final_bearing, final_radius)
+        theoretical_points.append((w_lat, w_lon))
 
-    # Leg A: S -> W1
-    print(f"[GeometricSolver]   -> Leg A: S->W1")
-    leg_a = _route_leg(graph, start_node, w1_node, weights,
-                       combine_nature, length_range)
-    if leg_a is None:
-        print(f"[GeometricSolver]   [FAILED] Leg A (S->W1) failed")
-        return None
-    path_a, dist_a, cost_a = leg_a
+    # 4. Snap Waypoints with Flow Awareness
+    # We need to know previous and next points to penalize U-turns.
+    # Sequence: Start -> W1 -> W2 ... -> Wn -> Start
+    
+    # We snap W_i using:
+    #   prev_point = snapped W_{i-1} (or Start)
+    #   target_point = theoretical W_i
+    #   next_point = theoretical W_{i+1} (or Start)
+    
+    prev_node = start_node
+    # We need coords of prev_node for angle calc
+    prev_coords = _node_coords(graph, start_node) 
+    
+    for i in range(num_waypoints):
+        w_lat, w_lon = theoretical_points[i]
+        
+        # Determine next point (theoretical)
+        if i < num_waypoints - 1:
+            next_coords = theoretical_points[i+1]
+        else:
+            # Last waypoint goes back to start
+            next_coords = (s_lat, s_lon)
+            
+        # Smart Snap with Flow Awareness
+        w_node = _smart_snap(
+            graph, w_lat, w_lon, 
+            prev_point=prev_coords, 
+            next_point=next_coords
+        )
+        
+        if w_node is None or w_node == start_node or w_node == prev_node:
+            print(f"[GeometricSolver]   [FAILED] Waypoint {i+1} snap failed or duplicate")
+            return None
+            
+        waypoints_data.append(w_node)
+        prev_node = w_node
+        prev_coords = _node_coords(graph, w_node)
+        
+    # Check if waypoints are unique
+    if len(set(waypoints_data)) != len(waypoints_data):
+         print(f"[GeometricSolver]   [FAILED] Duplicate waypoints in shape")
+         return None
 
-    # Leg C: W2 -> S
-    print(f"[GeometricSolver]   -> Leg C: W2->S")
-    leg_c = _route_leg(graph, w2_node, start_node, weights,
-                       combine_nature, length_range)
-    if leg_c is None:
-        print(f"[GeometricSolver]   [FAILED] Leg C (W2->S) failed")
-        return None
-    path_c, dist_c, cost_c = leg_c
-
-    # -- Step 4: Concatenate ------------------------------------------
-    # path_a ends at W1, path_b starts at W1 -> skip first node of B
-    # path_b ends at W2, path_c starts at W2 -> skip first node of C
-    full_route = path_a + path_b[1:] + path_c[1:]
-
-    total_distance = dist_a + dist_b + dist_c
-    total_cost = cost_a + cost_b + cost_c
-
-    print(f"[GeometricSolver]   [SUCCESS] Triangle complete: {len(full_route)} nodes, "
-          f"{total_distance:.0f}m, scenic_cost={total_cost:.4f}")
-    print(f"[GeometricSolver]   Leg breakdown: A={dist_a:.0f}m, B={dist_b:.0f}m, C={dist_c:.0f}m")
-
-    return (full_route, total_distance, total_cost, tau)
+    # 5. Route Legs
+    # Sequence: Start -> W1 -> W2 ... -> Wn -> Start
+    full_route = []
+    total_dist = 0.0
+    total_cost = 0.0
+    
+    # Points sequence including start/end
+    sequence = [start_node] + waypoints_data + [start_node]
+    
+    print(f"[GeometricSolver]   Routing {len(sequence)-1} legs: {sequence}")
+    
+    # Route sequentially
+    # Enhancement: We could try "Critical Step First" (Bridge) logic for Polygons too,
+    # but sequential is simpler for N-points.
+    # For N=3 (Triangle), critical is W1-W2.
+    # For N=4 (Quad), critical might be W1-W2 or W2-W3.
+    # Let's stick to sequential for now to support generic N.
+    
+    # Validation: Check air-distance feasibility before routing?
+    # Skipping for now to keep it simple.
+    
+    legs_routed = 0
+    
+    for i in range(len(sequence) - 1):
+        u = sequence[i]
+        v = sequence[i+1]
+        
+        leg_res = _route_leg(graph, u, v, weights, combine_nature, length_range)
+        if leg_res is None:
+            print(f"[GeometricSolver]   [FAILED] Leg {i+1} ({u}->{v}) failed")
+            return None
+            
+        l_path, l_dist, l_cost = leg_res
+        
+        # Check for excessive detour on this leg (bridge leg check logic)
+        u_c = _node_coords(graph, u)
+        v_c = _node_coords(graph, v)
+        air_d = _haversine(u_c[0], u_c[1], v_c[0], v_c[1])
+        if air_d > 0 and l_dist > BRIDGE_LEG_DETOUR_FACTOR * air_d:
+             print(f"[GeometricSolver]   [FAILED] Leg {i+1} detour too high ({l_dist/air_d:.1f}x)")
+             return None
+             
+        if i == 0:
+            full_route.extend(l_path)
+        else:
+            full_route.extend(l_path[1:]) # Skip duplicate join node
+            
+        total_dist += l_dist
+        total_cost += l_cost
+        legs_routed += 1
+        
+    print(f"[GeometricSolver]   [SUCCESS] Polygon complete: {total_dist:.0f}m, cost={total_cost:.4f}")
+    return (full_route, total_dist, total_cost, tau)
 
 
 def _try_out_and_back(
@@ -656,9 +878,55 @@ def _try_out_and_back(
     return (route, total_distance, total_cost)
 
 
+def _prune_spurs(path: List[int]) -> List[int]:
+    """
+    Removes 'A -> B -> A' artifacts from a path list.
+    Repeats until no spurs remain (handling nested spurs).
+    """
+    clean_path = list(path)
+    changed = True
+    
+    while changed:
+        changed = False
+        i = 0
+        while i < len(clean_path) - 2:
+            # Check for A -> B -> A pattern
+            if clean_path[i] == clean_path[i+2]:
+                # Remove the spur (B and the return A)
+                del clean_path[i+1:i+3] 
+                changed = True
+            else:
+                i += 1
+                
+    return clean_path
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # GeometricLoopSolver
 # ══════════════════════════════════════════════════════════════════════════════
+
+def _prune_spurs(path: List[int]) -> List[int]:
+    """
+    Removes 'A -> B -> A' artifacts from a path list.
+    Repeats until no spurs remain (handling nested spurs).
+    """
+    clean_path = list(path)
+    changed = True
+    
+    while changed:
+        changed = False
+        i = 0
+        while i < len(clean_path) - 2:
+            # Check for A -> B -> A pattern
+            if clean_path[i] == clean_path[i+2]:
+                # Remove the spur (B and the return A)
+                del clean_path[i+1:i+3] 
+                changed = True
+            else:
+                i += 1
+                
+    return clean_path
+
 
 class GeometricLoopSolver(LoopSolverBase):
     """
@@ -800,95 +1068,120 @@ class GeometricLoopSolver(LoopSolverBase):
                 for i in range(num_attempts)
             ]
         
-        # Expand bearings with shape angles based on variety
-        # Level 0: 60° (Equilateral)
-        # Level 1: 60°, 90° (Wide Isosceles)
-        # Level 2: 60°, 90°, 45° (Narrow Isosceles)
-        shapes = [60.0]
-        if variety_level >= 1:
-            shapes.append(90.0)
-        if variety_level >= 2:
-            shapes.append(45.0)
+        # Define candidate configurations: (num_vertices, arc_angle, irregularity)
+        # We generate a mix of shapes for each bearing.
+        # N=3: Triangle (stable)
+        # N=4: Quad (wider)
+        # N=5: Pentagon (organic, rounded)
         
-        bearings = []
-        for b in raw_bearings:
-            for s in shapes:
-                bearings.append((b, s))
-
-        print(f"[GeometricSolver] Generated {len(bearings)} candidates (bearing/angle): {[(f'{b:.0f}°', f'{a:.0f}°') for b, a in bearings]}")
-        print(f"")
+        configs = []
+        # Basic Triangle (Stable)
+        configs.append({'n': 3, 'arc': 90.0, 'irr': 0.05, 'tau': DEFAULT_TAU})
+        
+        if variety_level >= 1:
+            # Irregular Quad
+            configs.append({'n': 4, 'arc': 110.0, 'irr': 0.15, 'tau': DEFAULT_TAU * 1.05})
+            
+        if variety_level >= 2:
+            # High-irregularity Pentagon
+            configs.append({'n': 5, 'arc': 130.0, 'irr': 0.25, 'tau': DEFAULT_TAU * 1.1})
+            
+        # Ensure we have enough configs if variety is low but num_candidates is high
+        # Cycle through configs if needed, or add variations
+        while len(configs) < 1:
+             configs.append({'n': 3, 'arc': 90.0, 'irr': 0.0, 'tau': DEFAULT_TAU})
 
         all_candidates: List[Tuple[List[int], float, float]] = []
 
-        for idx, (bearing, angle_deg) in enumerate(bearings):
+        for idx, bearing in enumerate(raw_bearings):
             elapsed = time.time() - t0
             if elapsed > max_search_time:
                 print(f"\n[GeometricSolver] [TIME LIMIT] Reached ({elapsed:.1f}s > {max_search_time}s)")
                 break
 
-            print(f"\n[GeometricSolver] ------------------------------------------------")
-            print(f"[GeometricSolver] Candidate {idx+1}/{len(bearings)}: {bearing:.1f}° / {angle_deg:.0f}° (elapsed: {elapsed:.1f}s)")
-            print(f"[GeometricSolver] ------------------------------------------------")
-
-            tau = DEFAULT_TAU
-            triangle_success = False
-
-            # ── Clamped proportional feedback loop ───────────────────
-            for retry in range(MAX_FEEDBACK_RETRIES):
-                if time.time() - t0 > max_search_time:
-                    break
-
-                result = _try_triangle(
-                    graph, start_node, target_distance, weights,
-                    combine_nature, bearing, tau, length_range,
-                    angle_deg=angle_deg
-                )
-
-                if result is None:
-                    # Triangle construction failed entirely -- no feedback
-                    print(f"[GeometricSolver]   [FAILED] Retry {retry}: triangle construction failed")
-                    break
-
-                route, actual_dist, scenic_cost, _ = result
-
-                # -- Check asymmetric tolerance -------------------
-                frac = (actual_dist - target_distance) / target_distance
-                deviation_pct = frac * 100
-                print(f"[GeometricSolver]   Distance check: {actual_dist:.0f}m "
-                      f"(target: {target_distance:.0f}m, deviation: {deviation_pct:+.1f}%)")
-                print(f"[GeometricSolver]   Tolerance range: [{-TOLERANCE_UNDER*100:.1f}%, +{TOLERANCE_OVER*100:.1f}%]")
+            # For each bearing, try the enabled shape configurations
+            # We limit attempts per bearing to avoid explosion
+            # If variety is high, we might try multiple shapes per bearing.
+            # Logic: Try config 0. If it fails or we need variety, try config 1.
+            
+            # Simple approach: Alternate configs based on bearing index?
+            # Or try all valid configs for this bearing?
+            # Let's try up to 2 configs per bearing to get variety.
+            
+            bearing_configs = configs[:2] # Try max 2 shapes per bearing to save time
+            
+            for cfg in bearing_configs:
+                n_verts = cfg['n']
+                tau = cfg['tau']
                 
-                if -TOLERANCE_UNDER <= frac <= TOLERANCE_OVER:
-                    # Success!
-                    all_candidates.append((
-                        route, actual_dist, scenic_cost, 
-                        {'bearing': bearing, 'angle': angle_deg, 'tau': tau}
-                    ))
-                    triangle_success = True
-                    print(f"[GeometricSolver]   [SUCCESS] ACCEPTED: {actual_dist:.0f}m ({deviation_pct:+.1f}%), tau={tau:.3f}")
-                    break
+                print(f"\n[GeometricSolver] ------------------------------------------------")
+                print(f"[GeometricSolver] Bearing {bearing:.0f}° | Shape N={n_verts} (elapsed: {elapsed:.1f}s)")
+                print(f"[GeometricSolver] ------------------------------------------------")
 
-                # -- Clamped update --------------------------------
-                if target_distance > 0:
-                    raw_ratio = actual_dist / target_distance
-                    clamped_ratio = max(
-                        TAU_CLAMP_LOW,
-                        min(TAU_CLAMP_HIGH, raw_ratio),
+                shape_success = False
+
+                # ── Clamped proportional feedback loop ───────────────────
+                for retry in range(MAX_FEEDBACK_RETRIES):
+                    if time.time() - t0 > max_search_time:
+                        break
+
+                    result = _try_polygon(
+                        graph, start_node, target_distance, weights,
+                        combine_nature, bearing, tau, length_range,
+                        num_vertices=n_verts,
+                        arc_angle=cfg['arc'],
+                        irregularity=cfg['irr']
                     )
-                    tau_new = tau * clamped_ratio
-                    print(f"[GeometricSolver]   Tau adjustment: raw_ratio={raw_ratio:.3f}, "
-                          f"clamped={clamped_ratio:.3f}")
-                    print(f"[GeometricSolver]   --> Tau {tau:.3f} -> {tau_new:.3f}")
-                    tau = tau_new
-                else:
-                    break
 
-            # -- Fallback: out-and-back if triangle failed ------------
-            if not triangle_success:
+                    if result is None:
+                        # Shape construction failed entirely -- no feedback
+                        print(f"[GeometricSolver]   [FAILED] Retry {retry}: shape construction failed")
+                        break
+
+                    route, actual_dist, scenic_cost, _ = result
+
+                    # -- Check asymmetric tolerance -------------------
+                    frac = (actual_dist - target_distance) / target_distance
+                    deviation_pct = frac * 100
+                    print(f"[GeometricSolver]   Distance check: {actual_dist:.0f}m "
+                          f"(target: {target_distance:.0f}m, deviation: {deviation_pct:+.1f}%)")
+                    
+                    if -TOLERANCE_UNDER <= frac <= TOLERANCE_OVER:
+                        # Success!
+                        # PRUNE SPURS (Removal of A->B->A artifacts)
+                        route = _prune_spurs(route)
+                        
+                        all_candidates.append((
+                            route, actual_dist, scenic_cost, 
+                            {'bearing': bearing, 'shape': f"N={n_verts}", 'tau': tau}
+                        ))
+                        shape_success = True
+                        break # Break retry loop
+
+                    # -- Clamped update --------------------------------
+                    if target_distance > 0:
+                        raw_ratio = actual_dist / target_distance
+                        clamped_ratio = max(
+                            TAU_CLAMP_LOW,
+                            min(TAU_CLAMP_HIGH, raw_ratio),
+                        )
+                        tau_new = tau * clamped_ratio
+                        print(f"[GeometricSolver]   Tau adjustment: {tau:.3f} -> {tau_new:.3f}")
+                        tau = tau_new
+                    else:
+                        break
+
+                if shape_success:
+                    # Found a valid shape for this bearing
+                    break # Stop trying other shapes for this bearing (e.g. don't try Quad if Tri worked)
+
+            # -- Fallback: out-and-back if NO shapes worked for this bearing ------------
+            if not shape_success:
                 if time.time() - t0 > max_search_time:
                     print(f"[GeometricSolver]   [SKIP] Skipping fallback (time limit)")
                     continue
-                print(f"\n[GeometricSolver]   [WARNING] All triangle attempts failed, trying out-and-back...")
+                    
+                print(f"\n[GeometricSolver]   [WARNING] All polygon attempts failed for bearing {bearing:.0f}°, trying out-and-back...")
                 oab = _try_out_and_back(
                     graph, start_node, target_distance, weights,
                     combine_nature, bearing, DEFAULT_TAU, length_range,
@@ -899,9 +1192,11 @@ class GeometricLoopSolver(LoopSolverBase):
                     deviation_oab_pct = frac_oab * 100
                     print(f"[GeometricSolver]   Out-and-back check: {dist_oab:.0f}m "
                           f"({deviation_oab_pct:+.1f}%), tolerance=+/-{distance_tolerance*100:.0f}%")
-                    # Accept with wider tolerance for fallback
-                    # Accept with wider tolerance for fallback
+                    
                     if abs(frac_oab) <= distance_tolerance:
+                        # PRUNE SPURS
+                        route_oab = _prune_spurs(route_oab)
+                        
                         all_candidates.append((
                             route_oab, dist_oab, cost_oab,
                             {'bearing': bearing, 'type': 'out-and-back'}
