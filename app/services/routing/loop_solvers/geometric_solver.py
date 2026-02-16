@@ -319,30 +319,36 @@ def _try_triangle(
     bearing: float,
     tau: float,
     length_range: Tuple[float, float],
+    angle_deg: float = 60.0,
 ) -> Optional[Tuple[List[int], float, float, float]]:
     """
-    Attempt to build and route one equilateral-triangle skeleton.
+    Attempt to build and route a geometric triangle skeleton.
+    Supports Equilateral (60°) and Isosceles (variable angle) shapes.
 
     Steps:
-        1. Compute side length a = D / (3 × τ).
-        2. Project W1 at *bearing*, W2 at *bearing + 60°* from start.
+        1. Compute side length R (distance from S to W1/W2) based on angle:
+           Perimeter P ≈ 3 * a (if 60°).
+           General: P = 2R + 2R*sin(angle/2)  =>  R = P / (2 * (1 + sin(angle/2)))
+           Apply τ: R = (D / τ) / (2 * (1 + sin(angle/2)))
+        2. Project W1 at *bearing*, W2 at *bearing + angle* from start.
         3. Smart-snap W1, W2 to real graph nodes.
         4. Route legs in "critical leg first" order (W1→W2, S→W1, W2→S).
         5. Concatenate and return full loop.
-
-    Returns:
-        (route, distance, scenic_cost, actual_tau) or None on failure.
     """
     s_lat, s_lon = _node_coords(graph, start_node)
-    side_length = target_distance / (3.0 * tau)
+    
+    # General Isosceles perimeter formula
+    # R = radius (S->W1 and S->W2)
+    sin_half_angle = math.sin(math.radians(angle_deg / 2.0))
+    radius = (target_distance / tau) / (2.0 * (1.0 + sin_half_angle))
 
     print(f"[GeometricSolver]   Triangle attempt: start_node={start_node}, "
-          f"bearing={bearing:.1f} deg, tau={tau:.3f}, side_length={side_length:.1f}m")
+          f"bearing={bearing:.1f} deg, angle={angle_deg:.0f} deg, tau={tau:.3f}, radius={radius:.1f}m")
 
     # -- Step 1: Project waypoints ------------------------------------
-    w1_lat, w1_lon = _project_point(s_lat, s_lon, bearing, side_length)
-    w2_lat, w2_lon = _project_point(s_lat, s_lon, (bearing + 60) % 360,
-                                     side_length)
+    w1_lat, w1_lon = _project_point(s_lat, s_lon, bearing, radius)
+    w2_lat, w2_lon = _project_point(s_lat, s_lon, (bearing + angle_deg) % 360,
+                                     radius)
     print(f"[GeometricSolver]   Projected W1=({w1_lat:.6f}, {w1_lon:.6f}), "
           f"W2=({w2_lat:.6f}, {w2_lon:.6f})")
 
@@ -569,30 +575,45 @@ class GeometricLoopSolver(LoopSolverBase):
 
         if base_bearing is not None:
             # User requested a direction: start from that bearing
-            bearings = [
+            raw_bearings = [
                 (base_bearing + i * rotation_step) % 360
                 for i in range(num_attempts)
             ]
         else:
             # No bias: use equidistant bearings starting from 0°
-            bearings = [
+            raw_bearings = [
                 (i * rotation_step) % 360
                 for i in range(num_attempts)
             ]
+        
+        # Expand bearings with shape angles based on variety
+        # Level 0: 60° (Equilateral)
+        # Level 1: 60°, 90° (Wide Isosceles)
+        # Level 2: 60°, 90°, 45° (Narrow Isosceles)
+        shapes = [60.0]
+        if variety_level >= 1:
+            shapes.append(90.0)
+        if variety_level >= 2:
+            shapes.append(45.0)
+        
+        bearings = []
+        for b in raw_bearings:
+            for s in shapes:
+                bearings.append((b, s))
 
-        print(f"[GeometricSolver] Generated {len(bearings)} bearings: {[f'{b:.0f}°' for b in bearings]}")
+        print(f"[GeometricSolver] Generated {len(bearings)} candidates (bearing/angle): {[(f'{b:.0f}°', f'{a:.0f}°') for b, a in bearings]}")
         print(f"")
 
         all_candidates: List[Tuple[List[int], float, float]] = []
 
-        for idx, bearing in enumerate(bearings):
+        for idx, (bearing, angle_deg) in enumerate(bearings):
             elapsed = time.time() - t0
             if elapsed > max_search_time:
                 print(f"\n[GeometricSolver] [TIME LIMIT] Reached ({elapsed:.1f}s > {max_search_time}s)")
                 break
 
             print(f"\n[GeometricSolver] ------------------------------------------------")
-            print(f"[GeometricSolver] Bearing {idx+1}/{len(bearings)}: {bearing:.1f} deg (elapsed: {elapsed:.1f}s)")
+            print(f"[GeometricSolver] Candidate {idx+1}/{len(bearings)}: {bearing:.1f}° / {angle_deg:.0f}° (elapsed: {elapsed:.1f}s)")
             print(f"[GeometricSolver] ------------------------------------------------")
 
             tau = DEFAULT_TAU
@@ -606,6 +627,7 @@ class GeometricLoopSolver(LoopSolverBase):
                 result = _try_triangle(
                     graph, start_node, target_distance, weights,
                     combine_nature, bearing, tau, length_range,
+                    angle_deg=angle_deg
                 )
 
                 if result is None:
@@ -624,7 +646,10 @@ class GeometricLoopSolver(LoopSolverBase):
                 
                 if -TOLERANCE_UNDER <= frac <= TOLERANCE_OVER:
                     # Success!
-                    all_candidates.append((route, actual_dist, scenic_cost))
+                    all_candidates.append((
+                        route, actual_dist, scenic_cost, 
+                        {'bearing': bearing, 'angle': angle_deg, 'tau': tau}
+                    ))
                     triangle_success = True
                     print(f"[GeometricSolver]   [SUCCESS] ACCEPTED: {actual_dist:.0f}m ({deviation_pct:+.1f}%), tau={tau:.3f}")
                     break
@@ -661,8 +686,12 @@ class GeometricLoopSolver(LoopSolverBase):
                     print(f"[GeometricSolver]   Out-and-back check: {dist_oab:.0f}m "
                           f"({deviation_oab_pct:+.1f}%), tolerance=+/-{distance_tolerance*100:.0f}%")
                     # Accept with wider tolerance for fallback
+                    # Accept with wider tolerance for fallback
                     if abs(frac_oab) <= distance_tolerance:
-                        all_candidates.append((route_oab, dist_oab, cost_oab))
+                        all_candidates.append((
+                            route_oab, dist_oab, cost_oab,
+                            {'bearing': bearing, 'type': 'out-and-back'}
+                        ))
                         print(f"[GeometricSolver]   [SUCCESS] Out-and-back ACCEPTED: "
                               f"{dist_oab:.0f}m ({deviation_oab_pct:+.1f}%)")
                     else:
@@ -679,12 +708,12 @@ class GeometricLoopSolver(LoopSolverBase):
             print(f"[GeometricSolver] [FAILED] No viable loops found")
             return []
 
-        max_cost = max(c for _, _, c in all_candidates) if all_candidates else 1.0
+        max_cost = max(c for _, _, c, _ in all_candidates) if all_candidates else 1.0
         max_cost = max(max_cost, 0.001)
         print(f"[GeometricSolver] Max scenic cost (for normalization): {max_cost:.4f}")
 
         candidates: List[LoopCandidate] = []
-        for route, distance, scenic_cost in all_candidates:
+        for route, distance, scenic_cost, meta in all_candidates:
             deviation = abs(distance - target_distance) / target_distance
             quality = calculate_quality_score(
                 deviation, scenic_cost, max_scenic_cost=max_cost,
@@ -698,6 +727,7 @@ class GeometricLoopSolver(LoopSolverBase):
                 quality_score=quality,
                 algorithm='geometric',
                 metadata={
+                    **meta,
                     'directional_bias': directional_bias,
                     'target_distance': target_distance,
                     'solver': 'triangle_plateau',

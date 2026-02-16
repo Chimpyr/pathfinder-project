@@ -85,7 +85,7 @@ class RouteFinder:
             min_loop_distance = current_app.config.get('LOOP_MIN_DISTANCE', 1000)
             
             # Adjust search time based on distance — longer loops need
-            # proportionally more time to push states past the budget minimum.
+            # proportionally more time.
             if target_distance_m <= 5000:
                 max_search_time = 30
             elif target_distance_m <= 10000:
@@ -94,6 +94,12 @@ class RouteFinder:
                 max_search_time = 60
             else:
                 max_search_time = 120
+            
+            # Geometric solver runs multiple independent searches (one per bearing),
+            # so it needs significantly more time than the single-pass Budget A*.
+            algorithm = current_app.config.get('LOOP_SOLVER_ALGORITHM', 'BUDGET_ASTAR')
+            if algorithm == 'GEOMETRIC':
+                max_search_time = max(max_search_time * 4, 180)  # Allow at least 3 mins
             
             # Create solver via factory (reads LOOP_SOLVER_ALGORITHM from config)
             from app.services.routing.loop_solvers import LoopSolverFactory
