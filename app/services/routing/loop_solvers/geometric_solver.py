@@ -33,6 +33,10 @@ from app.services.routing.loop_solvers.base import (
     calculate_quality_score,
     select_diverse_candidates,
 )
+from app.services.processors.greenness.utils import (
+    build_spatial_index,
+    project_gdf,
+)
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -136,6 +140,152 @@ _BIAS_TO_BEARING: Dict[str, Optional[float]] = {
     'west':  270.0,
     'none':  None,
 }
+
+
+# ── Smart Bearing Logic ─────────────────────────────────────────────────────
+
+def _analyze_scenic_sectors(graph, start_node: int, radius_m: float) -> List[Tuple[float, float]]:
+    """
+    Analyze surrounding scenic features to find the best bearings.
+
+    1. Projects start node to metres.
+    2. Builds spatial index for graph.features (if not present).
+    3. Queries features within radius_m.
+    4. Bins them into 12 sectors (30-degree slices).
+    5. Returns list of (bearing, score) tuples, sorted by score descending.
+    """
+    import geopandas as gpd
+    from shapely.geometry import Point, box
+
+    # 1. Get start node projected coords
+    nd = graph.nodes[start_node]
+    # Check if graph is projected (x, y) or geographic (lon, lat)
+    # The greenness utils expect projected features, so we should allow both
+    # but strictly we need the features to be in meters.
+    # We'll assume graph.features is loaded.
+    
+    if not hasattr(graph, 'features') or graph.features is None or graph.features.empty:
+        print("[GeometricSolver]   Smart Bearing: No features found in graph")
+        return []
+
+    # Ensure spatial index exists on the features GDF
+    if not hasattr(graph, 'sindex_features') or graph.sindex_features is None:
+        print("[GeometricSolver]   Smart Bearing: Building spatial index...")
+        # Project features if needed
+        # Note: In a real app, this should be done at load time.
+        # We'll do a quick check here.
+        # For safety, we use the utility which handles projection
+        if graph.features.crs and graph.features.crs.is_geographic:
+             # This might be slow if we do it every time, but let's assume it's okay for now
+             # or better, strict check
+             pass 
+        
+        # We'll use the helper to get/build sindex.
+        # However, to avoid modifying graph state implicitly too much, we'll just build it locally
+        # if it doesn't exist.
+        sindex, _ = build_spatial_index(graph.features)
+        # Cache it? Maybe not for this prototype to avoid side effects.
+    else:
+        sindex = graph.sindex_features
+
+    if sindex is None:
+         # Fallback if build failed
+         sindex, _ = build_spatial_index(graph.features)
+
+    if sindex is None:
+        return []
+
+    # Get start point in projected coords (meters) for distance checks
+    # conversion
+    # We need a robust way to get meters.
+    # We'll use the transformer from utils if needed, or just relying on the fact
+    # that 'graph.features' usually comes from OSMDataLoader which might be WGS84.
+    # WAIT: loading.py loads features as WGS84 usually.
+    # We need to project everything to meters for "radius" and "area" to make sense.
+    
+    # Let's do a simplified approach:
+    # 1. work in WGS84 (degrees).
+    # 2. Convert radius_m to degrees (approx).
+    
+    # Latitude normalization
+    lat = nd.get('y', nd.get('lat'))
+    lon = nd.get('x', nd.get('lon'))
+    
+    # 1 deg lat ~= 111,000m
+    buffer_deg = radius_m / 111000.0
+    
+    # Create a bounding box in WGS84
+    bbox = box(lon - buffer_deg, lat - buffer_deg, lon + buffer_deg, lat + buffer_deg)
+    
+    # Query candidates
+    candidate_idxs = sindex.query(bbox)
+    
+    if len(candidate_idxs) == 0:
+        return []
+        
+    # Initialize 12 sectors (0-30, 30-60, ...)
+    # 0 is North.
+    sector_scores = [0.0] * 12
+    
+    # Process candidates
+    # We need the actual geometries.
+    features = graph.features.iloc[candidate_idxs]
+    
+    start_point = Point(lon, lat)
+    
+    for _, row in features.iterrows():
+        # Tag filtering? (parks, water)
+        # Assumption: loaded features are already "scenic"
+        
+        # Calculate bearing to centroid
+        centroid = row.geometry.centroid
+        brng = _bearing_between(lat, lon, centroid.y, centroid.x)
+        
+        # Bin index
+        bin_idx = int(brng // 30) % 12
+        
+        # Weight = Area * DistanceFactor?
+        # In WGS84 area is weird. Let's just use a simple heuristic:
+        # 1. Distance from start (closer = better)
+        dist = _haversine(lat, lon, centroid.y, centroid.x)
+        if dist > radius_m:
+            continue
+            
+        # 2. "Mass" ~ approximate area or just 1.0 for existence?
+        # A large park is better than a small one.
+        # Area in deg^2 is tiny.
+        # Let's scale up.
+        area_weight = row.geometry.area * 1e8 # Arbitrary scaling
+        
+        # Decay with distance
+        decay = 1.0 - (dist / radius_m)
+        
+        score = area_weight * decay
+        
+        # Add to bin
+        sector_scores[bin_idx] += score
+        
+    # Smoothing (Window size 3) to find "broad" sectors
+    smoothed = []
+    for i in range(12):
+        prev = sector_scores[(i-1)%12]
+        curr = sector_scores[i]
+        next_ = sector_scores[(i+1)%12]
+        smoothed.append( (prev + 2*curr + next_) / 4 )
+        
+    # Create (bearing, score) tuples (center of sector)
+    results = []
+    for i, score in enumerate(smoothed):
+        center_bearing = (i * 30) + 15
+        results.append((center_bearing, score))
+        
+    # Sort descending
+    results.sort(key=lambda x: x[1], reverse=True)
+    
+    # Debug print
+    # print(f"[GeometricSolver]   Smart Bearing Scores: {[(int(b), f'{s:.2f}') for b,s in results[:3]]}")
+    
+    return results
 
 
 # ── Smart-snap logic ────────────────────────────────────────────────────────
@@ -539,6 +689,7 @@ class GeometricLoopSolver(LoopSolverBase):
         prefer_paved: bool = False,
         prefer_lit: bool = False,
         avoid_unsafe_roads: bool = False,
+        use_smart_bearing: bool = False,
     ) -> List[LoopCandidate]:
         """
         Find multiple loop route candidates using the geometric skeleton
@@ -564,6 +715,7 @@ class GeometricLoopSolver(LoopSolverBase):
         print(f"[GeometricSolver] Distance tolerance: +/-{distance_tolerance*100:.0f}%")
         print(f"[GeometricSolver] Max search time: {max_search_time:.0f}s")
         print(f"[GeometricSolver] Variety level: {variety_level}")
+        print(f"[GeometricSolver] Smart Bearing: {use_smart_bearing}")
         print(f"[GeometricSolver] ======================================================\n")
 
         # ── Determine rotation bearings ──────────────────────────────────
@@ -579,6 +731,68 @@ class GeometricLoopSolver(LoopSolverBase):
                 (base_bearing + i * rotation_step) % 360
                 for i in range(num_attempts)
             ]
+        elif use_smart_bearing:
+            # Smart Bearing Strategy
+            # Analyze sectors to find top scenic directions
+            # Radius: roughly half the target dist (to reach the 'tip' of the loop)
+            scan_radius = target_distance / 2.0
+            print(f"[GeometricSolver] Scanning for scenic sectors (radius={scan_radius:.0f}m)...")
+            
+            scenic_sectors = _analyze_scenic_sectors(graph, start_node, scan_radius)
+            
+            if not scenic_sectors or sum(s for _, s in scenic_sectors) == 0:
+                 print("[GeometricSolver] No scenic data found, falling back to equidistant.")
+                 raw_bearings = [(i * rotation_step) % 360 for i in range(num_attempts)]
+            else:
+                 # Pick top N distinct sectors
+                 # We want to avoid picking two bearing that are too close (e.g. 15 and 45)
+                 # unless we really need more candidates.
+                 selected_bearings = []
+                 min_sep = 45.0 # Min separation degrees
+                 
+                 for b, score in scenic_sectors:
+                     if len(selected_bearings) >= num_attempts:
+                         break
+                     
+                     # Check separation
+                     is_distinct = True
+                     for existing in selected_bearings:
+                         diff = abs(b - existing)
+                         diff = min(diff, 360 - diff)
+                         if diff < min_sep:
+                             is_distinct = False
+                             break
+                     
+                     if is_distinct:
+                         selected_bearings.append(b)
+                
+                 # Fill remaining slots with standard rotations if needed (to ensure we have enough candidates)
+                 # Or just loop the best ones with offsets?
+                 # Let's just fill with equidistant if we strictly need N attempts, 
+                 # but usually fewer GOOD candidates is better than many BAD ones.
+                 # However, the loop logic expects 'num_attempts'.
+                 
+                 while len(selected_bearings) < num_attempts:
+                     # Add a fallback bearing (e.g. 0, 90, 180...) that isn't covered
+                     for angle in [0, 90, 180, 270]:
+                         is_distinct = True
+                         for existing in selected_bearings:
+                             diff = abs(angle - existing)
+                             diff = min(diff, 360 - diff)
+                             if diff < min_sep:
+                                 is_distinct = False
+                                 break
+                         if is_distinct:
+                             selected_bearings.append(angle)
+                             if len(selected_bearings) >= num_attempts:
+                                 break
+                     # If still stuck, just force random generic ones
+                     if len(selected_bearings) < num_attempts:
+                         selected_bearings.append( (len(selected_bearings) * rotation_step) % 360 )
+                 
+                 raw_bearings = selected_bearings[:num_attempts]
+                 print(f"[GeometricSolver] Smart Bearings selected: {raw_bearings}")
+
         else:
             # No bias: use equidistant bearings starting from 0°
             raw_bearings = [

@@ -82,6 +82,7 @@ const preferPedestrianToggle = document.getElementById(
 const preferPavedToggle = document.getElementById("prefer-paved-toggle");
 const preferLitToggle = document.getElementById("prefer-lit-toggle");
 const avoidUnsafeToggle = document.getElementById("avoid-unsafe-toggle");
+const smartBearingToggle = document.getElementById("smart-bearing-toggle");
 const varietyLevelSlider = document.getElementById("variety-level-slider");
 const varietyLevelValue = document.getElementById("variety-level-value");
 
@@ -893,6 +894,7 @@ async function handleLoopSubmit() {
     prefer_paved: preferPavedToggle ? preferPavedToggle.checked : false,
     prefer_lit: preferLitToggle ? preferLitToggle.checked : false,
     avoid_unsafe_roads: avoidUnsafeToggle ? avoidUnsafeToggle.checked : false,
+    use_smart_bearing: smartBearingToggle ? smartBearingToggle.checked : true,
   };
 
   // Add scenic routing weights if enabled

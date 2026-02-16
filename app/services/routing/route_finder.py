@@ -36,6 +36,7 @@ class RouteFinder:
         prefer_paved=False,
         prefer_lit=False,
         avoid_unsafe_roads=False,
+        use_smart_bearing=True,
     ):
         """
         Finds multiple circular (loop) route candidates.
@@ -127,6 +128,7 @@ class RouteFinder:
                 prefer_paved=prefer_paved,
                 prefer_lit=prefer_lit,
                 avoid_unsafe_roads=avoid_unsafe_roads,
+                use_smart_bearing=use_smart_bearing,
             )
             
             # Filter out loops below minimum distance

@@ -236,6 +236,9 @@ def calculate_loop_route():
         prefer_lit = bool(data.get('prefer_lit', False))
         avoid_unsafe_roads = bool(data.get('avoid_unsafe_roads', False))
         
+        # Smart Bearing Toggle
+        use_smart_bearing = bool(data.get('use_smart_bearing', True))
+        
         # Log warning for long loops
         if target_distance_km > 15:
             print(f"[API] Long loop requested ({target_distance_km}km), may take longer to calculate")
@@ -399,6 +402,7 @@ def calculate_loop_route():
             prefer_paved=prefer_paved,
             prefer_lit=prefer_lit,
             avoid_unsafe_roads=avoid_unsafe_roads,
+            use_smart_bearing=use_smart_bearing,
         )
         
         if not candidates:
