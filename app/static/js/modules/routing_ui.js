@@ -176,7 +176,16 @@ async function handleStandardSubmit() {
         if (response.ok) {
             if (data.task_id) {
                 // Async: Poll for result
-                pollTask(data.task_id, onRouteSuccess, (err) => showError(err));
+                pollTask(data.task_id, (result) => {
+                    // Check if this was just a graph build (no route data yet)
+                    if (!result.routes && !result.route_coords && result.node_count) {
+                        console.log("[RoutingUI] Graph build complete. Re-requesting route...");
+                        // Re-submit to trigger sync calculation now that graph exists
+                        handleStandardSubmit();
+                    } else {
+                        onRouteSuccess(result);
+                    }
+                }, (err) => showError(err));
             } else if (data.routes || data.route_coords) {
                 // Sync: Immediate result
                 onRouteSuccess(data);
@@ -189,7 +198,8 @@ async function handleStandardSubmit() {
             clearLoadingState();
         }
     } catch (err) {
-        showError("Network error. Please try again.");
+        console.error("[RoutingUI] Handle Standard Submit Error:", err);
+        showError(`Application error: ${err.message}`);
         clearLoadingState();
     }
 }
@@ -253,7 +263,31 @@ async function handleLoopSubmit() {
 // ----------------------------------------------------------------------------
 
 function onRouteSuccess(result) {
+    console.log("[RoutingUI] onRouteSuccess:", result);
     clearLoadingState();
+
+    if (!result || (!result.routes && !result.route_coords)) {
+        console.error("[RoutingUI] Invalid route result:", result);
+        showError("Received invalid route data from server.");
+        return;
+    }
+
+    // Handle legacy single-route response (shim for compatibility)
+    if (!result.routes && result.route_coords) {
+        console.warn("[RoutingUI] Received legacy single-route format, converting...");
+        result.routes = {
+            'balanced': {
+                route_coords: result.route_coords,
+                stats: result.stats || {},
+                colour: '#3B82F6' // Default blue
+            }
+        };
+        // Ensure stats are populated if missing from root
+        if (!result.routes.balanced.stats.distance_km && result.distance_km) {
+             result.routes.balanced.stats.distance_km = result.distance_km;
+        }
+    }
+
     switchView("routes-view");
     
     // Store result in state

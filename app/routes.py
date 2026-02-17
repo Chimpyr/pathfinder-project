@@ -900,23 +900,26 @@ def calculate_route():
                 'error': 'Could not find a route between these locations.'
             }), 404
         
-        # Extract route coordinates for client-side display
+        # Build single-route response in multi-route format for frontend compatibility
         route_coords = MapRenderer.route_to_coords(graph, route)
         
-        # Build response with resolved coordinates
         response_data = {
-            'success': True,  # Required by admin.html JavaScript
+            'success': True,
             'multi_route': False,
-            'route_coords': route_coords,
-            'start_point': list(start_point),  # Return resolved coords
-            'end_point': list(end_point),      # Return resolved coords
-            'stats': {
-                'distance_km': f"{distance / 1000:.2f}",
-                'time_min': int(time_seconds // 60),
-                'pace_kmh': current_app.config.get('WALKING_SPEED_KMH', 5.0),
-                'routing_mode': 'scenic' if use_wsm else 'shortest'
+            'routes': {
+                'balanced': {
+                    'route_coords': route_coords,
+                    'stats': {
+                        'distance_km': f"{distance / 1000:.2f}",
+                        'time_min': int(time_seconds // 60),
+                    },
+                    'colour': '#3B82F6', # Default blue
+                }
             },
-            'tiles_required': tile_ids if 'tile_ids' in locals() else []
+            'start_point': list(start_point),
+            'end_point': list(end_point),
+            'tiles_required': tile_ids if 'tile_ids' in locals() else [],
+            'debug_info': {}
         }
         
         # Add debug info if enabled
