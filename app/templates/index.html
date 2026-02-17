@@ -217,64 +217,7 @@
                                 <p class="text-xs text-gray-400 text-center">Select a direction to guide the loop's shape</p>
                             </div>
 
-                            <!-- Advanced Options Header -->
-                            <div class="mt-4 mb-2 flex items-center justify-between">
-                                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Advanced Options</h3>
-                                <button type="button" id="advanced-help-btn" class="text-xs text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 hover:underline flex items-center transition-colors">
-                                    <i class="fas fa-question-circle mr-1"></i>What do these do?
-                                </button>
-                            </div>
-
-                            <!-- Advanced Options Group -->
-                            <div class="space-y-3 pl-3 border-l-2 border-gray-100 dark:border-gray-700">
-                                <!-- Prefer Pedestrian Paths Toggle (ADR-010) -->
-                                <div class="flex items-center justify-between">
-                                    <label for="prefer-pedestrian-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                        <i class="fas fa-walking text-green-500 mr-2 w-5 text-center"></i>
-                                        Prefer paths &amp; trails
-                                    </label>
-                                    <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" id="prefer-pedestrian-toggle" class="sr-only peer">
-                                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-green-500"></div>
-                                    </label>
-                                </div>
-
-                                <!-- Prefer Paved Surfaces Toggle (ADR-010 §3) -->
-                                <div class="flex items-center justify-between">
-                                    <label for="prefer-paved-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                        <i class="fas fa-road text-gray-500 mr-2 w-5 text-center"></i>
-                                        Prefer paved surfaces
-                                    </label>
-                                    <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" id="prefer-paved-toggle" class="sr-only peer">
-                                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-gray-500"></div>
-                                    </label>
-                                </div>
-
-                                <!-- Prefer Lit Streets Toggle (ADR-010 §4) -->
-                                <div class="flex items-center justify-between">
-                                    <label for="prefer-lit-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                        <i class="fas fa-lightbulb text-yellow-500 mr-2 w-5 text-center"></i>
-                                        Prefer lit streets
-                                    </label>
-                                    <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" id="prefer-lit-toggle" class="sr-only peer">
-                                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-yellow-500"></div>
-                                    </label>
-                                </div>
-
-                                <!-- Avoid Unsafe Roads Toggle (ADR-010 §5) -->
-                                <div class="flex items-center justify-between">
-                                    <label for="avoid-unsafe-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                        <i class="fas fa-shield-alt text-red-500 mr-2 w-5 text-center"></i>
-                                        Avoid unsafe roads
-                                    </label>
-                                    <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" id="avoid-unsafe-toggle" class="sr-only peer">
-                                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-red-500"></div>
-                                    </label>
-                                </div>
-                            </div>
+                            <!-- Advanced Options Moved to Shared Section -->
 
                             <!-- Smart Bearing Toggle -->
                             <div class="flex items-center justify-between" title="Orient loop towards scenic areas instead of fixed angles">
@@ -305,6 +248,76 @@
                             </div>
                         </div>
 
+                        <!-- Advanced Options (Shared) -->
+                        <div class="mt-4 mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <details class="group">
+                                <summary class="flex justify-between items-center font-medium cursor-pointer list-none">
+                                    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                        <i class="fas fa-cog mr-2 text-gray-500"></i>Advanced Options
+                                    </h3>
+                                    <span class="transition group-open:rotate-180">
+                                        <i class="fas fa-chevron-down text-gray-400"></i>
+                                    </span>
+                                </summary>
+                                
+                                <div class="mt-3 space-y-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                    <div class="flex justify-end mb-2">
+                                        <button type="button" id="advanced-help-btn" class="text-xs text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 hover:underline flex items-center transition-colors">
+                                            <i class="fas fa-question-circle mr-1"></i>What do these do?
+                                        </button>
+                                    </div>
+
+                                    <!-- Prefer Pedestrian Paths Toggle -->
+                                    <div class="flex items-center justify-between">
+                                        <label for="prefer-pedestrian-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                            <i class="fas fa-walking text-green-500 mr-2 w-5 text-center"></i>
+                                            Prefer paths &amp; trails
+                                        </label>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="prefer-pedestrian-toggle" class="sr-only peer">
+                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-green-500"></div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Prefer Paved Surfaces Toggle -->
+                                    <div class="flex items-center justify-between">
+                                        <label for="prefer-paved-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                            <i class="fas fa-road text-gray-500 mr-2 w-5 text-center"></i>
+                                            Prefer paved surfaces
+                                        </label>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="prefer-paved-toggle" class="sr-only peer">
+                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-gray-500"></div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Prefer Lit Streets Toggle -->
+                                    <div class="flex items-center justify-between">
+                                        <label for="prefer-lit-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                            <i class="fas fa-lightbulb text-yellow-500 mr-2 w-5 text-center"></i>
+                                            Prefer lit streets
+                                        </label>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="prefer-lit-toggle" class="sr-only peer">
+                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-yellow-500"></div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Avoid Unsafe Roads Toggle -->
+                                    <div class="flex items-center justify-between">
+                                        <label for="avoid-unsafe-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                            <i class="fas fa-shield-alt text-red-500 mr-2 w-5 text-center"></i>
+                                            Avoid unsafe roads
+                                        </label>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="avoid-unsafe-toggle" class="sr-only peer">
+                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-red-500"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                        
                         <!-- Action Buttons -->
                         <div class="flex gap-3 pt-2">
                             <button type="submit" id="find-route-btn"
@@ -438,7 +451,8 @@
                                 Enabled Toggles = High Priority.
                             </p>
                         </div>
-                    </form>
+
+
 
 
                     
