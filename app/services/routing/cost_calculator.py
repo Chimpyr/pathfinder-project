@@ -47,7 +47,8 @@ def validate_weights(weights: Dict[str, float]) -> Dict[str, float]:
     validated = {}
     for key in required_keys:
         value = weights.get(key, 0.0)
-        if value < 0:
+        # Slope can be negative (-5 to 5) to indicate "Prefer Slope" vs "Avoid Slope"
+        if key != 'slope' and value < 0:
             raise ValueError(f"Weight for '{key}' cannot be negative: {value}")
         validated[key] = float(value)
     
@@ -152,7 +153,16 @@ def cost_wsm_additive(
     
     cost += weights['social'] * norm_social
     cost += weights['quietness'] * norm_quiet
-    cost += weights['slope'] * norm_slope
+    
+    # Handle slope preference (signed weight)
+    slope_weight = weights['slope']
+    if slope_weight >= 0:
+        # Avoid Slope (Positive): Penalize high slope
+        cost += slope_weight * norm_slope
+    else:
+        # Prefer Slope (Negative): Penalize LOW slope (flatness)
+        # 1.0 - norm_slope means 0=steep (good), 1=flat (bad)
+        cost += abs(slope_weight) * (1.0 - norm_slope)
     
     return cost
 
@@ -205,7 +215,6 @@ def cost_hybrid_disjunctive(
             (nature_score, weights['greenness']),
             (norm_social, weights['social']),
             (norm_quiet, weights['quietness']),
-            (norm_slope, weights['slope']),
         ]
     else:
         scenic_data = [
@@ -213,8 +222,16 @@ def cost_hybrid_disjunctive(
             (norm_water, weights['water']),
             (norm_social, weights['social']),
             (norm_quiet, weights['quietness']),
-            (norm_slope, weights['slope']),
         ]
+    
+    # Add slope with signed logic
+    slope_w = weights['slope']
+    if slope_w >= 0:
+        # Avoid Slope: standard penalty
+        scenic_data.append((norm_slope, slope_w))
+    else:
+        # Prefer Slope: Penalize flat
+        scenic_data.append((1.0 - norm_slope, abs(slope_w)))
     
     active = [(val, w) for val, w in scenic_data if w > 0]
     
@@ -338,15 +355,16 @@ def normalise_ui_weights(ui_weights: Dict[str, float]) -> Dict[str, float]:
     MIN_DISTANCE_WEIGHT = 0.1  # Ensures ~1% distance influence at minimum
     merged['distance'] = max(MIN_DISTANCE_WEIGHT, merged['distance'])
     
-    # Sum all values for normalisation
-    total = sum(max(0.0, float(v)) for v in merged.values())
+    # Sum all values for normalisation (use absolute values)
+    total = sum(abs(float(v)) for v in merged.values())
     
     if total == 0:
         # All sliders at zero - fall back to distance-only
         return {k: (1.0 if k == 'distance' else 0.0) for k in defaults}
     
-    # Normalise to sum to 1.0
-    result = {k: max(0.0, float(v)) / total for k, v in merged.items()}
+    # Normalise to sum to 1.0 (magnitude)
+    # Result preserves sign of original weight
+    result = {k: float(v) / total for k, v in merged.items()}
     
     # Diagnostic logging
     print(f"[WSM Weights] Input: {ui_weights}")

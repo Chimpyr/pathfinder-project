@@ -413,15 +413,21 @@
                                     </label>
                                 </div>
                                 
-                                <!-- Flatness Toggle -->
-                                <div class="flex justify-between items-center py-1">
-                                    <label class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
-                                        <span class="mr-1">🚶</span> Prefer Flat
-                                    </label>
-                                    <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" id="weight-flatness" class="sr-only peer">
-                                        <div class="relative w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-300 dark:peer-focus:ring-red-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-red-500"></div>
-                                    </label>
+                                <!-- Slope Preference Slider -->
+                                <div class="slider-group mt-2">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label for="weight-flatness" class="text-xs text-gray-600 dark:text-gray-400 flex items-center">
+                                            <span class="mr-1">⛰️</span> Slope Preference
+                                        </label>
+                                        <span id="weight-flatness-value" class="text-xs font-mono text-gray-500 dark:text-gray-400">Neutral</span>
+                                    </div>
+                                    <input type="range" id="weight-flatness" min="-3" max="3" value="0" step="1"
+                                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-red-500">
+                                    <div class="flex justify-between text-[10px] text-gray-400 mt-1">
+                                        <span>Prefer Slope</span>
+                                        <span>Neutral</span>
+                                        <span>Avoid Slope</span>
+                                    </div>
                                 </div>
                             </div>
                             

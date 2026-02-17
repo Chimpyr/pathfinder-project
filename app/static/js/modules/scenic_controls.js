@@ -33,7 +33,7 @@ export function initScenicControls() {
         groupNatureToggle.addEventListener("change", updateNatureGrouping);
     }
 
-    // Initialize value displays for range inputs
+    // Initialize value displays for standard range inputs
     [weightDistance, weightQuietness, weightGreenness, weightWater, weightNature].forEach(slider => {
         if (slider) {
             slider.addEventListener("input", () => {
@@ -42,6 +42,19 @@ export function initScenicControls() {
             });
         }
     });
+
+    // Special handler for Slope slider to show text labels
+    if (weightFlatness) {
+        weightFlatness.addEventListener("input", () => {
+             const valueSpan = document.getElementById("weight-flatness-value");
+             const val = parseInt(weightFlatness.value);
+             if (valueSpan) {
+                 if (val === 0) valueSpan.textContent = "Neutral";
+                 else if (val > 0) valueSpan.textContent = `Avoid +${val}`;
+                 else valueSpan.textContent = `Prefer +${Math.abs(val)}`;
+             }
+        });
+    }
 }
 
 function updateScenicCollapseState() {
@@ -91,7 +104,9 @@ export function getScenicWeights() {
     }
 
     const socialVal = weightSocial && weightSocial.checked ? 5 : 0;
-    const slopeVal = weightFlatness && weightFlatness.checked ? 5 : 0;
+    
+    // Read slope value from slider (-5 to 5)
+    const slopeVal = weightFlatness ? parseInt(weightFlatness.value) : 0;
 
     return {
         distance: parseInt(weightDistance.value),
