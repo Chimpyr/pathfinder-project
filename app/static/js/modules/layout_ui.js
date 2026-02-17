@@ -31,7 +31,7 @@ function initNavRail() {
     });
 }
 
-function switchView(viewId) {
+export function switchView(viewId) {
     const navRailBtns = document.querySelectorAll(".nav-rail-btn");
     const viewPanels = document.querySelectorAll(".view-panel");
     const sidebar = document.getElementById("sidebar");

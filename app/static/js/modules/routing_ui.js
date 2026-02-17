@@ -8,6 +8,7 @@ import { getScenicWeights } from './scenic_controls.js';
 import { setLoadingState, clearLoadingState } from './ui_common.js';
 import { mapController } from './map_manager.js';
 import { renderRouteOptions, renderLoopOptions, updateStatsForRoute, hideResults } from './results_ui.js';
+import { switchView } from './layout_ui.js';
 
 // Elements
 const modeStandardBtn = document.getElementById("mode-standard");
@@ -253,6 +254,7 @@ async function handleLoopSubmit() {
 
 function onRouteSuccess(result) {
     clearLoadingState();
+    switchView("routes-view");
     
     // Store result in state
     routeState.routes = result.routes;
@@ -276,6 +278,7 @@ function onRouteSuccess(result) {
 function onLoopSuccess(result) {
     clearLoadingState();
     console.log("[RoutingUI] onLoopSuccess with:", result);
+    switchView("routes-view");
     
     if (mapController) {
         if (result.loops && Array.isArray(result.loops)) {

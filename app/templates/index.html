@@ -50,13 +50,13 @@
             
             <!-- Main Nav Items -->
             <div class="flex-1 flex flex-col items-center py-2">
-                <button class="nav-rail-btn active" data-view="route-view" title="Routes">
+                <button class="nav-rail-btn active" data-view="finder-view" title="Finder">
+                    <i class="fas fa-search-location text-lg"></i>
+                    <span class="nav-rail-label">Finder</span>
+                </button>
+                <button class="nav-rail-btn" data-view="routes-view" title="Routes">
                     <i class="fas fa-route text-lg"></i>
                     <span class="nav-rail-label">Routes</span>
-                </button>
-                <button class="nav-rail-btn" data-view="stats-view" title="Statistics">
-                    <i class="fas fa-chart-bar text-lg"></i>
-                    <span class="nav-rail-label">Stats</span>
                 </button>
                 <button class="nav-rail-btn" data-view="settings-view" title="Settings">
                     <i class="fas fa-cog text-lg"></i>
@@ -76,12 +76,12 @@
         <!-- Sidebar Content Area -->
         <div id="sidebar" class="sidebar-resizable h-full bg-white dark:bg-gray-800 shadow-xl flex flex-col border-r border-gray-200 dark:border-gray-700 transition-colors duration-300 overflow-hidden">
             
-            <!-- Route View (Default) -->
-            <div id="route-view" class="view-panel flex flex-col h-full min-h-0" data-active="true">
+            <!-- Finder View (Input) -->
+            <div id="finder-view" class="view-panel flex flex-col h-full min-h-0" data-active="true">
                 <!-- Header -->
                 <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
                     <div>
-                        <h1 class="text-2xl font-bold text-primary-600 dark:text-primary-400">ScenicRoute</h1>
+                        <h1 class="text-2xl font-bold text-primary-600 dark:text-primary-400">Finder</h1>
                         <p class="text-sm text-gray-500 dark:text-gray-400">Enter an address or click on the map</p>
                     </div>
                     <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300">
@@ -434,10 +434,61 @@
                         </div>
                     </form>
 
-                    <!-- Route Stats -->
-                    <div id="route-stats" class="mt-6 hidden space-y-4">
+
+                    
+
+
+                    <div id="error-message" class="mt-6 p-4 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hidden border border-red-100 dark:border-red-800 text-sm"></div>
+                    
+
+                </div>
+
+            </div>
+
+            <!-- Routes View (Results) -->
+            <div id="routes-view" class="view-panel hidden flex-col h-full min-h-0" data-active="false">
+                <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
+                    <div>
+                        <h1 class="text-2xl font-bold text-primary-600 dark:text-primary-400">Routes</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">View and manage calculated routes</p>
+                    </div>
+                </div>
+
+                <div class="p-6 flex-1 overflow-y-auto min-h-0">
+                    
+                    <!-- Empty State -->
+                    <div id="routes-empty-state" class="text-center text-gray-400 dark:text-gray-500 mt-10">
+                        <i class="fas fa-route text-5xl mb-4 opacity-30"></i>
+                        <p class="text-lg font-medium">No routes yet</p>
+                        <p class="text-sm">Use the Finder to generate a route</p>
+                        <button class="mt-4 px-4 py-2 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors text-sm font-medium" onclick="document.querySelector('[data-view=\'finder-view\']').click()">
+                            Go to Finder
+                        </button>
+                    </div>
+
+                    <!-- Routes Content Container -->
+                    <div id="route-stats" class="space-y-4 hidden">
+                         
+                         <!-- Route Options (multi-route selector) -->
+                        <div id="route-options" class="hidden">
+                            <!-- Helper Text -->
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    <i class="fas fa-list mr-2 text-primary-500"></i>Available Routes
+                                </h3>
+                                <span class="text-xs text-gray-400 italic">
+                                    <i class="fas fa-eye mr-1"></i> Toggle visibility
+                                </span>
+                            </div>
+                            
+                            <div id="route-options-list" class="space-y-2">
+                                <!-- Route cards populated by JavaScript -->
+                            </div>
+                        </div>
+
+                        <!-- Stats Card -->
                         <div class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
-                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">Route Details</h3>
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">Selected Route Details</h3>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Distance</p>
@@ -449,21 +500,6 @@
                                 </div>
                             </div>
                             <p class="text-xs text-gray-400 mt-2 italic">Assuming pace of <span id="stat-pace"></span> km/h</p>
-                        </div>
-
-                        <!-- Route Options (multi-route selector) -->
-                        <div id="route-options" class="hidden">
-                            <div class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
-                                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
-                                    <i class="fas fa-layer-group mr-2 text-primary-500"></i>Route Options
-                                </h3>
-                                <div id="route-options-list" class="space-y-2">
-                                    <!-- Route cards populated by JavaScript -->
-                                </div>
-                                <p class="text-xs text-gray-400 mt-3 italic">
-                                    <i class="fas fa-eye mr-1"></i> Toggle visibility • Click to select
-                                </p>
-                            </div>
                         </div>
 
                         <div id="debug-info" class="hidden p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
@@ -479,36 +515,31 @@
                             </details>
                         </div>
                         
-                    </div>
-                    
-                    <!-- Tile Cache Visualization Toggle (always visible) -->
-                    <div class="mt-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700">
-                        <div class="flex items-center gap-2">
-                            <input type="checkbox" id="show-cached-tiles" class="w-4 h-4 accent-purple-600" />
-                            <label for="show-cached-tiles" class="cursor-pointer flex items-center gap-1 text-sm text-purple-700 dark:text-purple-300">
-                                <span>🗃️</span>
-                                Show Cached Tiles
-                            </label>
-                            <span id="tile-count" class="ml-auto text-purple-600 dark:text-purple-400 font-mono text-xs"></span>
+                        <!-- Tile Cache Visualization Toggle -->
+                        <div class="mt-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700">
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="show-cached-tiles" class="w-4 h-4 accent-purple-600" />
+                                <label for="show-cached-tiles" class="cursor-pointer flex items-center gap-1 text-sm text-purple-700 dark:text-purple-300">
+                                    <span>🗃️</span>
+                                    Show Cached Tiles
+                                </label>
+                                <span id="tile-count" class="ml-auto text-purple-600 dark:text-purple-400 font-mono text-xs"></span>
+                            </div>
+                            <p class="text-xs text-purple-500 dark:text-purple-400 mt-1">
+                                <span class="inline-block w-3 h-3 bg-purple-500 opacity-30 mr-1 rounded-sm"></span>Cached
+                                <span class="inline-block w-3 h-3 bg-orange-500 opacity-50 mr-1 ml-2 rounded-sm"></span>Used in route
+                            </p>
                         </div>
-                        <p class="text-xs text-purple-500 dark:text-purple-400 mt-1">
-                            <span class="inline-block w-3 h-3 bg-purple-500 opacity-30 mr-1 rounded-sm"></span>Cached
-                            <span class="inline-block w-3 h-3 bg-orange-500 opacity-50 mr-1 ml-2 rounded-sm"></span>Used in route
-                        </p>
                     </div>
-
-                    <div id="error-message" class="mt-6 p-4 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hidden border border-red-100 dark:border-red-800 text-sm"></div>
-                    
-
                 </div>
+            </div>
 
-                <!-- Footer -->
-                <div class="p-4 border-t border-gray-200 dark:border-gray-700 text-center text-xs text-gray-400 flex justify-between items-center shrink-0">
-                    <span>Powered by OSMnx, NetworkX &amp; Leaflet</span>
-                    <a href="/admin/" class="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
-                        <i class="fas fa-cog mr-1"></i>Admin
-                    </a>
-                </div>
+            <!-- Shared Footer -->
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 text-center text-xs text-gray-400 flex justify-between items-center shrink-0">
+                <span>Powered by OSMnx, NetworkX &amp; Leaflet</span>
+                <a href="/admin/" class="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
+                    <i class="fas fa-cog mr-1"></i>Admin
+                </a>
             </div>
 
             <!-- Stats View (Placeholder) -->

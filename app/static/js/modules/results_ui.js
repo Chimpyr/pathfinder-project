@@ -8,6 +8,8 @@ import { mapController } from './map_manager.js';
 // DOM Elements
 const routeOptionsList = document.getElementById("route-options-list");
 const routeOptionsContainer = document.getElementById("route-options");
+const routesEmptyState = document.getElementById("routes-empty-state");
+const routeStatsContainer = document.getElementById("route-stats");
 const statDistance = document.getElementById("stat-distance");
 const statTime = document.getElementById("stat-time");
 
@@ -64,6 +66,8 @@ export function renderRouteOptions(routes) {
 
     routeOptionsList.innerHTML = html;
     routeOptionsContainer.classList.remove("hidden");
+    if (routesEmptyState) routesEmptyState.classList.add("hidden");
+    if (routeStatsContainer) routeStatsContainer.classList.remove("hidden");
 
     // Add listeners
     document.querySelectorAll('.route-option-card').forEach(card => {
@@ -102,8 +106,7 @@ export function updateStatsForRoute(routeType) {
     if (statDistance) statDistance.textContent = routeData.stats.distance_km;
     if (statTime) statTime.textContent = routeData.stats.time_min;
     
-    const routeStats = document.getElementById("route-stats");
-    if (routeStats) routeStats.classList.remove("hidden");
+    if (routeStatsContainer) routeStatsContainer.classList.remove("hidden");
 }
 
 /**
@@ -142,16 +145,23 @@ export function renderLoopOptions(loops) {
                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-8 flex gap-3">
                     <span>${loop.distance_km} km</span>
                     <span>${loop.time_min} min</span>
-                    ${loop.quality_score ? `<span title="Quality Score">★ ${loop.quality_score}</span>` : ""}
+                    ${loop.quality_score ? `<span title="Quality Score (0-1)\n60% Distance Accuracy\n40% Scenic Quality">★ ${loop.quality_score}</span>` : ""}
                 </div>
             </div>
         `;
     });
 
+    html += `
+        <div class="text-xs text-gray-400 mt-3 px-1 italic border-t border-gray-100 dark:border-gray-700 pt-2">
+            <i class="fas fa-info-circle mr-1"></i> 
+            Quality Score = 60% Distance + 40% Scenery
+        </div>
+    `;
+
     routeOptionsList.innerHTML = html;
     routeOptionsContainer.classList.remove("hidden");
-    const routeStats = document.getElementById("route-stats");
-    if (routeStats) routeStats.classList.remove("hidden");
+    if (routesEmptyState) routesEmptyState.classList.add("hidden");
+    if (routeStatsContainer) routeStatsContainer.classList.remove("hidden");
 
     // Add listeners
     document.querySelectorAll('.loop-option-card').forEach(card => {
@@ -197,6 +207,6 @@ function handleLoopVisibilityToggle(loopId, loops) {
 
 export function hideResults() {
     if (routeOptionsContainer) routeOptionsContainer.classList.add("hidden");
-    const routeStats = document.getElementById("route-stats");
-    if (routeStats) routeStats.classList.add("hidden");
+    if (routeStatsContainer) routeStatsContainer.classList.add("hidden");
+    if (routesEmptyState) routesEmptyState.classList.remove("hidden");
 }
