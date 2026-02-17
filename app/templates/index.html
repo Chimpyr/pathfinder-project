@@ -579,7 +579,7 @@
     <!-- Map Controller -->
     <script src="{{ url_for('static', filename='js/map.js') }}"></script>
     <!-- Main Application JS -->
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
     <!-- Help Modal for Advanced Options -->
     <div id="advanced-options-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
