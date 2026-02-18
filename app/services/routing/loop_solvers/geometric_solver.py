@@ -553,6 +553,54 @@ def _are_reachable(graph, node_a: int, node_b: int) -> bool:
         return False
 
 
+def _recalculate_route_stats(
+    graph, route: List[int], weights: Dict[str, float],
+    combine_nature: bool, length_range: Tuple[float, float]
+) -> Tuple[float, float]:
+    """
+    Recalculate total distance and scenic cost for a route.
+    Used after spur pruning to get accurate metrics.
+    """
+    total_dist = 0.0
+    total_cost = 0.0
+    min_len, max_len = length_range
+
+    for i in range(len(route) - 1):
+        u, v = route[i], route[i+1]
+        edges = graph.get_edge_data(u, v)
+        if not edges:
+            continue
+            
+        # Find best edge (same logic as _route_leg)
+        best_len = float('inf')
+        best_data = None
+        for edata in edges.values():
+            el = edata.get('length', float('inf'))
+            if el < best_len:
+                best_len = el
+                best_data = edata
+        
+        if best_data is None:
+            continue
+
+        total_dist += best_len
+        norm_length = normalise_length(best_len, min_len, max_len)
+        cost = compute_wsm_cost(
+            norm_length=norm_length,
+            norm_green=best_data.get('norm_green', 0.5),
+            norm_water=best_data.get('norm_water', 0.5),
+            norm_social=best_data.get('norm_social', 0.5),
+            norm_quiet=best_data.get('norm_quiet', 0.5),
+            norm_slope=best_data.get('norm_slope', 0.5),
+            weights=weights,
+            combine_nature=combine_nature,
+        )
+        total_cost += cost
+        
+    return total_dist, total_cost
+
+
+
 # ── Point-to-point WSM A* leg router ────────────────────────────────────────
 
 def _route_leg(graph, source: int, target: int,
@@ -1140,17 +1188,31 @@ class GeometricLoopSolver(LoopSolverBase):
 
                     route, actual_dist, scenic_cost, _ = result
 
+                    # ── PRUNE SPURS & RECALCULATE ────────────────────────
+                    # Remove A->B->A artifacts immediately so we check the
+                    # TRUE distance against the tolerance.
+                    # ─────────────────────────────────────────────────────
+                    route = _prune_spurs(route)
+                    
+                    # If route collapsed (e.g. was entirely a spur), fail this attempt
+                    if len(route) < 3: 
+                        print(f"[GeometricSolver]   [REJECT] Route collapsed after pruning")
+                        # Force feedback to grow
+                        actual_dist = 0 
+                    else:
+                        # Recalculate stats for the clean route
+                        actual_dist, scenic_cost = _recalculate_route_stats(
+                            graph, route, weights, combine_nature, length_range
+                        )
+
                     # -- Check asymmetric tolerance -------------------
                     frac = (actual_dist - target_distance) / target_distance
                     deviation_pct = frac * 100
-                    print(f"[GeometricSolver]   Distance check: {actual_dist:.0f}m "
+                    print(f"[GeometricSolver]   Distance check (clean): {actual_dist:.0f}m "
                           f"(target: {target_distance:.0f}m, deviation: {deviation_pct:+.1f}%)")
                     
                     if -TOLERANCE_UNDER <= frac <= TOLERANCE_OVER:
                         # Success!
-                        # PRUNE SPURS (Removal of A->B->A artifacts)
-                        route = _prune_spurs(route)
-                        
                         all_candidates.append((
                             route, actual_dist, scenic_cost, 
                             {'bearing': bearing, 'shape': f"N={n_verts}", 'tau': tau}
@@ -1188,15 +1250,23 @@ class GeometricLoopSolver(LoopSolverBase):
                 )
                 if oab is not None:
                     route_oab, dist_oab, cost_oab = oab
+                    
+                    # ── PRUNE SPURS & RECALCULATE ────────────────────────
+                    route_oab = _prune_spurs(route_oab)
+                    if len(route_oab) >= 3:
+                         dist_oab, cost_oab = _recalculate_route_stats(
+                            graph, route_oab, weights, combine_nature, length_range
+                        )
+                    else:
+                        dist_oab = 0
+                    # ─────────────────────────────────────────────────────
+
                     frac_oab = (dist_oab - target_distance) / target_distance
                     deviation_oab_pct = frac_oab * 100
-                    print(f"[GeometricSolver]   Out-and-back check: {dist_oab:.0f}m "
+                    print(f"[GeometricSolver]   Out-and-back check (clean): {dist_oab:.0f}m "
                           f"({deviation_oab_pct:+.1f}%), tolerance=+/-{distance_tolerance*100:.0f}%")
                     
                     if abs(frac_oab) <= distance_tolerance:
-                        # PRUNE SPURS
-                        route_oab = _prune_spurs(route_oab)
-                        
                         all_candidates.append((
                             route_oab, dist_oab, cost_oab,
                             {'bearing': bearing, 'type': 'out-and-back'}
