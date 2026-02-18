@@ -806,17 +806,21 @@ class MapController {
   /**
    * Add the street lighting vector tile overlay from Martin tileserver.
    * @param {Object} options - Optional style overrides.
-   * @param {string} options.litColor   - Hex colour for lit streets (default #FFD700).
-   * @param {number} options.litWeight  - Line weight for lit streets (default 2).
+   * @param {string} options.litColor     - Hex colour for lit streets (default #FFD700).
+   * @param {string} options.unlitColor   - Hex colour for unlit streets (default #1a1a1a).
+   * @param {string} options.unknownColor - Hex colour for unknown streets (default #888888).
+   * @param {number} options.litWeight    - Line weight for lit streets (default 2).
    */
   addLightingLayer(options = {}) {
     // Persist current options so updateLightingStyle can reference them
     this.lightingOptions = {
-      litColor: options.litColor ?? this.lightingOptions?.litColor ?? "#FFD700",
-      litWeight: options.litWeight ?? this.lightingOptions?.litWeight ?? 2,
+      litColor:     options.litColor     ?? this.lightingOptions?.litColor     ?? "#FFD700",
+      unlitColor:   options.unlitColor   ?? this.lightingOptions?.unlitColor   ?? "#1a1a1a",
+      unknownColor: options.unknownColor ?? this.lightingOptions?.unknownColor ?? "#888888",
+      litWeight:    options.litWeight    ?? this.lightingOptions?.litWeight    ?? 2,
     };
 
-    const { litColor, litWeight } = this.lightingOptions;
+    const { litColor, unlitColor, unknownColor, litWeight } = this.lightingOptions;
 
     // Remove existing layer before re-adding with new style
     if (this.lightingLayer) {
@@ -836,12 +840,27 @@ class MapController {
     this.lightingLayer = L.vectorGrid.protobuf(url, {
       vectorTileLayerStyles: {
         street_lighting: (properties) => {
-          const isLit = properties.is_lit;
-          return {
-            weight: isLit ? litWeight : Math.max(1, litWeight - 1),
-            color: isLit ? litColor : "#444444",
-            opacity: isLit ? 0.8 : 0.3,
-          };
+          const status = properties.lit_status; // 'lit' | 'unlit' | 'unknown'
+          if (status === "lit") {
+            return {
+              weight: litWeight,
+              color: litColor,
+              opacity: 0.85,
+            };
+          } else if (status === "unlit") {
+            return {
+              weight: Math.max(1, litWeight - 1),
+              color: unlitColor,
+              opacity: 0.6,
+            };
+          } else {
+            // 'unknown' — no lit tag, render subtly
+            return {
+              weight: litWeight,
+              color: unknownColor,
+              opacity: 0.25,
+            };
+          }
         },
       },
       interactive: true,

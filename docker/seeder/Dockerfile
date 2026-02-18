@@ -8,7 +8,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY scripts/wait-for-postgres.sh /wait-for-postgres.sh
-COPY app/data/lighting.lua /lighting.lua
+COPY docker/seeder/lighting.lua /lighting.lua
 
 # Strip Windows CRLF line endings and ensure the script is executable
 RUN sed -i 's/\r//' /wait-for-postgres.sh && chmod +x /wait-for-postgres.sh

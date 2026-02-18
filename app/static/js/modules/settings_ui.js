@@ -22,7 +22,9 @@ const WEIGHT_LABELS = {
 function initMapOverlays() {
   const toggle = document.getElementById("lighting-overlay-toggle");
   const advancedPanel = document.getElementById("lighting-advanced-options");
-  const colorPicker = document.getElementById("lighting-lit-color");
+  const litColorPicker = document.getElementById("lighting-lit-color");
+  const unlitColorPicker = document.getElementById("lighting-unlit-color");
+  const unknownColorPicker = document.getElementById("lighting-unknown-color");
   const weightSlider = document.getElementById("lighting-weight-slider");
   const weightLabel = document.getElementById("lighting-weight-value");
 
@@ -30,14 +32,18 @@ function initMapOverlays() {
 
   // --- Restore persisted state ---
   const savedOn = localStorage.getItem("lightingOverlay") === "true";
-  const savedColor = localStorage.getItem("lightingColor") || "#FFD700";
+  const savedLitColor = localStorage.getItem("lightingLitColor") || "#FFD700";
+  const savedUnlitColor = localStorage.getItem("lightingUnlitColor") || "#1a1a1a";
+  const savedUnknownColor = localStorage.getItem("lightingUnknownColor") || "#888888";
   const savedWeight = parseInt(
     localStorage.getItem("lightingWeight") || "2",
     10,
   );
 
   toggle.checked = savedOn;
-  colorPicker.value = savedColor;
+  litColorPicker.value = savedLitColor;
+  unlitColorPicker.value = savedUnlitColor;
+  unknownColorPicker.value = savedUnknownColor;
   weightSlider.value = savedWeight;
   weightLabel.textContent = WEIGHT_LABELS[savedWeight] || "Normal";
 
@@ -46,18 +52,21 @@ function initMapOverlays() {
 
   if (savedOn && mapController) {
     mapController.addLightingLayer({
-      litColor: savedColor,
+      litColor: savedLitColor,
+      unlitColor: savedUnlitColor,
+      unknownColor: savedUnknownColor,
       litWeight: savedWeight,
     });
   }
 
   // Helper: read current options and re-render
   const applyStyle = () => {
-    const opts = {
-      litColor: colorPicker.value,
+    mapController?.updateLightingStyle({
+      litColor: litColorPicker.value,
+      unlitColor: unlitColorPicker.value,
+      unknownColor: unknownColorPicker.value,
       litWeight: parseInt(weightSlider.value, 10),
-    };
-    mapController?.updateLightingStyle(opts);
+    });
   };
 
   // --- Toggle ---
@@ -66,7 +75,9 @@ function initMapOverlays() {
     advancedPanel.classList.toggle("hidden", !on);
     if (on) {
       mapController?.addLightingLayer({
-        litColor: colorPicker.value,
+        litColor: litColorPicker.value,
+        unlitColor: unlitColorPicker.value,
+        unknownColor: unknownColorPicker.value,
         litWeight: parseInt(weightSlider.value, 10),
       });
       localStorage.setItem("lightingOverlay", "true");
@@ -79,10 +90,20 @@ function initMapOverlays() {
     );
   });
 
-  // --- Colour picker (live preview on input, persist on change) ---
-  colorPicker.addEventListener("input", applyStyle);
-  colorPicker.addEventListener("change", () => {
-    localStorage.setItem("lightingColor", colorPicker.value);
+  // --- Colour pickers (live preview on input, persist on change) ---
+  litColorPicker.addEventListener("input", applyStyle);
+  litColorPicker.addEventListener("change", () => {
+    localStorage.setItem("lightingLitColor", litColorPicker.value);
+  });
+
+  unlitColorPicker.addEventListener("input", applyStyle);
+  unlitColorPicker.addEventListener("change", () => {
+    localStorage.setItem("lightingUnlitColor", unlitColorPicker.value);
+  });
+
+  unknownColorPicker.addEventListener("input", applyStyle);
+  unknownColorPicker.addEventListener("change", () => {
+    localStorage.setItem("lightingUnknownColor", unknownColorPicker.value);
   });
 
   // --- Weight slider ---

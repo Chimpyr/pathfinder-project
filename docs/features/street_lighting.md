@@ -75,12 +75,12 @@ This starts `db` (PostGIS), `tileserver` (Martin), `redis`, `api`, and `worker`.
 docker compose --profile seed up --build seeder
 ```
 
-> **Always use `--build`** the first time, or after any changes to `scripts/wait-for-postgres.sh` or `app/data/lighting.lua`. Without it, Docker reuses a cached image layer and will not pick up file changes.
+> **Always use `--build`** the first time, or after any changes to `scripts/wait-for-postgres.sh` or `docker/seeder/lighting.lua`. Without it, Docker reuses a cached image layer and will not pick up file changes.
 
 This builds and runs the `seeder` container, which:
 
 1. Waits for PostGIS to be ready via `pg_isready`
-2. Runs `osm2pgsql --create --flex` using `app/data/lighting.lua`
+2. Runs `osm2pgsql --create --flex` using `docker/seeder/lighting.lua`
 3. Writes the `street_lighting` table into the `public` schema of `scenic_tiles`
 
 > **Expected duration**: 5–20 minutes for `england-latest.osm.pbf` (~1.3 GB), depending on hardware.  
@@ -143,25 +143,23 @@ mapController.removeLightingLayer();
 
 ## Data Schema
 
-The `street_lighting` table is created by `app/data/lighting.lua`:
+The `street_lighting` table is created by `docker/seeder/lighting.lua`:
 
-| Column   | Type     | Description                                                  |
-| -------- | -------- | ------------------------------------------------------------ |
-| `osm_id` | bigint   | OSM way ID                                                   |
-| `is_lit` | boolean  | `true` if `lit` tag is `yes`, `true`, `automatic`, or `24/7` |
-| `geom`   | geometry | Linestring in SRID 3857 (Web Mercator)                       |
+| Column       | Type     | Description                                    |
+| ------------ | -------- | ---------------------------------------------- |
+| `osm_id`     | bigint   | OSM way ID                                     |
+| `lit_status` | text     | `'lit'`, `'unlit'`, or `'unknown'` (see below) |
+| `geom`       | geometry | Linestring in SRID 3857 (Web Mercator)         |
 
-OSM `lit` tag values are normalised as follows:
+OSM `lit` tag values are normalised to three states:
 
-| OSM tag value       | `is_lit` |
-| ------------------- | -------- |
-| `yes`               | `true`   |
-| `true`              | `true`   |
-| `automatic`         | `true`   |
-| `24/7`              | `true`   |
-| `no`, absent, other | `false`  |
+| OSM tag value                      | `lit_status` | Rendered as                |
+| ---------------------------------- | ------------ | -------------------------- |
+| `yes`, `true`, `automatic`, `24/7` | `'lit'`      | Gold (configurable)        |
+| `no`                               | `'unlit'`    | Near-black `#1a1a1a`       |
+| Absent or unrecognised             | `'unknown'`  | Mid grey `#888888` (faint) |
 
-Only ways tagged with `highway=*` are imported; all other features are skipped.
+The distinction between `'unlit'` and `'unknown'` is intentional: a confirmed `lit=no` tag is a stronger signal than simply missing data, and is rendered more prominently.
 
 ---
 
@@ -169,10 +167,11 @@ Only ways tagged with `highway=*` are imported; all other features are skipped.
 
 Defined in `MapController.addLightingLayer()` in `app/static/js/map.js`:
 
-| Condition    | Colour                | Weight | Opacity |
-| ------------ | --------------------- | ------ | ------- |
-| Lit street   | `#FFD700` (gold)      | 2px    | 0.8     |
-| Unlit street | `#444444` (dark grey) | 1px    | 0.3     |
+| `lit_status` | Colour                        | Weight                  | Opacity | Meaning                |
+| ------------ | ----------------------------- | ----------------------- | ------- | ---------------------- |
+| `lit`        | `#FFD700` gold (configurable) | litWeight (default 2px) | 0.85    | Confirmed lit street   |
+| `unlit`      | `#1a1a1a` near-black          | litWeight − 1           | 0.6     | Confirmed unlit street |
+| `unknown`    | `#888888` mid grey            | 1px (fixed)             | 0.25    | No lighting data       |
 
 ---
 
