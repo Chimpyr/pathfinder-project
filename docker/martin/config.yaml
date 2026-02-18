@@ -1,0 +1,12 @@
+# Martin tile server configuration
+# Restricts auto-discovery to the public schema only,
+# preventing PostGIS extension schemas (tiger, topology) from being exposed.
+
+postgres:
+  connection_string: ${DATABASE_URL}
+  auto_publish:
+    tables:
+      from_schemas:
+        - public
+    functions:
+      from_schemas: []

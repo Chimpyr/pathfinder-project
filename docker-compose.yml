@@ -1,4 +1,55 @@
 services:
+  # PostGIS database for vector tile data (street lighting)
+  db:
+    image: postgis/postgis:16-3.5-alpine
+    container_name: scenic-db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Martin vector tile server (serves MVT from PostGIS)
+  tileserver:
+    image: ghcr.io/maplibre/martin:1.3.1
+    container_name: scenic-tileserver
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db/${POSTGRES_DB}
+    volumes:
+      - ./docker/martin/config.yaml:/config.yaml:ro
+    command: ["--config", "/config.yaml"]
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # osm2pgsql seeder – imports street lighting data into PostGIS
+  seeder:
+    build:
+      context: .
+      dockerfile: docker/seeder/Dockerfile
+    container_name: scenic-seeder
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - ./app/data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - seed # Run manually via: docker compose --profile seed up seeder
+
   # Redis message broker and result backend
   redis:
     image: redis:7-alpine
@@ -77,3 +128,4 @@ services:
 
 volumes:
   redis_data:
+  postgres_data:

@@ -101,12 +101,14 @@ class MapController {
 
   /**
    * Change the base tile layer.
-   * 
+   *
    * @param {string} styleId - Key from this.tileLayers (e.g. 'osm', 'carto_dark')
    */
   setTileLayer(styleId) {
     if (!this.tileLayers[styleId]) {
-      console.warn(`[MapController] Unknown tile style: ${styleId}, falling back to OSM`);
+      console.warn(
+        `[MapController] Unknown tile style: ${styleId}, falling back to OSM`,
+      );
       styleId = "osm";
     }
 
@@ -123,7 +125,7 @@ class MapController {
       attribution: def.attr,
       maxZoom: 19,
     }).addTo(this.map);
-    
+
     // Ensure tiles are behind everything else
     this.baseLayer.bringToBack();
 
@@ -798,6 +800,75 @@ class MapController {
     if (this.tileLayers && this.tileLayers.length > 0) {
       this.tileLayers.forEach((layer) => this.map.removeLayer(layer));
       this.tileLayers = [];
+    }
+  }
+
+  /**
+   * Add the street lighting vector tile overlay from Martin tileserver.
+   * @param {Object} options - Optional style overrides.
+   * @param {string} options.litColor   - Hex colour for lit streets (default #FFD700).
+   * @param {number} options.litWeight  - Line weight for lit streets (default 2).
+   */
+  addLightingLayer(options = {}) {
+    // Persist current options so updateLightingStyle can reference them
+    this.lightingOptions = {
+      litColor: options.litColor ?? this.lightingOptions?.litColor ?? "#FFD700",
+      litWeight: options.litWeight ?? this.lightingOptions?.litWeight ?? 2,
+    };
+
+    const { litColor, litWeight } = this.lightingOptions;
+
+    // Remove existing layer before re-adding with new style
+    if (this.lightingLayer) {
+      this.map.removeLayer(this.lightingLayer);
+      this.lightingLayer = null;
+    }
+
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    const url = `${protocol}//${hostname}:3000/street_lighting/{z}/{x}/{y}.pbf`;
+
+    console.log(
+      `[MapController] Fetching lighting tiles from: ${url}`,
+      this.lightingOptions,
+    );
+
+    this.lightingLayer = L.vectorGrid.protobuf(url, {
+      vectorTileLayerStyles: {
+        street_lighting: (properties) => {
+          const isLit = properties.is_lit;
+          return {
+            weight: isLit ? litWeight : Math.max(1, litWeight - 1),
+            color: isLit ? litColor : "#444444",
+            opacity: isLit ? 0.8 : 0.3,
+          };
+        },
+      },
+      interactive: true,
+    });
+
+    this.lightingLayer.addTo(this.map);
+    console.log("[MapController] Street lighting layer added");
+  }
+
+  /**
+   * Update street lighting style without toggling — re-renders with new options.
+   * Only acts if the layer is currently visible.
+   * @param {Object} options - Same options as addLightingLayer.
+   */
+  updateLightingStyle(options = {}) {
+    if (!this.lightingLayer) return; // layer not active, nothing to do
+    this.addLightingLayer(options); // re-create with merged options
+  }
+
+  /**
+   * Remove the street lighting overlay from the map.
+   */
+  removeLightingLayer() {
+    if (this.lightingLayer) {
+      this.map.removeLayer(this.lightingLayer);
+      this.lightingLayer = null;
+      console.log("[MapController] Street lighting layer removed");
     }
   }
 }
