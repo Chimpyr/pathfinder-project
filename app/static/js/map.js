@@ -52,6 +52,26 @@ class MapController {
     // Interaction state: 'idle' | 'setting_start' | 'setting_end' | 'ready'
     this.state = "idle";
 
+    // Tile Layer Definitions
+    this.tileLayers = {
+      osm: {
+        url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      },
+      carto_light: {
+        url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      },
+      carto_dark: {
+        url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      },
+      carto_voyager: {
+        url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+        attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      },
+    };
+
     this._init();
   }
 
@@ -66,12 +86,9 @@ class MapController {
       attributionControl: true,
     }).setView(this.options.center, this.options.zoom);
 
-    // Add OpenStreetMap tile layer
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19,
-    }).addTo(this.map);
+    // Set initial tile layer (default to OSM)
+    this.currentTileLayer = null;
+    this.setTileLayer("osm");
 
     // Set up click handler
     this.map.on("click", (e) => this._handleMapClick(e));
@@ -80,6 +97,38 @@ class MapController {
     this.state = "setting_start";
 
     console.log("[MapController] Initialised");
+  }
+
+  /**
+   * Change the base tile layer.
+   * 
+   * @param {string} styleId - Key from this.tileLayers (e.g. 'osm', 'carto_dark')
+   */
+  setTileLayer(styleId) {
+    if (!this.tileLayers[styleId]) {
+      console.warn(`[MapController] Unknown tile style: ${styleId}, falling back to OSM`);
+      styleId = "osm";
+    }
+
+    // Don't reload if already active
+    if (this.currentTileLayer === styleId) return;
+
+    // Remove existing layer
+    if (this.baseLayer) {
+      this.map.removeLayer(this.baseLayer);
+    }
+
+    const def = this.tileLayers[styleId];
+    this.baseLayer = L.tileLayer(def.url, {
+      attribution: def.attr,
+      maxZoom: 19,
+    }).addTo(this.map);
+    
+    // Ensure tiles are behind everything else
+    this.baseLayer.bringToBack();
+
+    this.currentTileLayer = styleId;
+    console.log(`[MapController] Switched tile layer to: ${styleId}`);
   }
 
   /**

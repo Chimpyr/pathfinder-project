@@ -595,12 +595,87 @@
                         <i class="fas fa-sun hidden dark:block text-yellow-400 text-xl"></i>
                     </button>
                 </div>
-                <div class="p-6 flex-1 flex items-center justify-center">
-                    <div class="text-center text-gray-400 dark:text-gray-500">
-                        <i class="fas fa-tools text-5xl mb-4 opacity-50"></i>
-                        <p class="text-lg font-medium">Coming Soon</p>
-                        <p class="text-sm">Application settings will appear here</p>
+                <div class="p-6 flex-1 overflow-y-auto min-h-0">
+                    
+                    <!-- Map Appearance Section -->
+                    <div class="mb-8">
+                        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center">
+                            <i class="fas fa-map-marked-alt text-primary-500 mr-2"></i>
+                            Map Appearance
+                        </h2>
+                        
+                        <div class="grid grid-cols-1 gap-4">
+                            <!-- Standard OSM -->
+                            <label class="relative flex items-center p-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-primary-500 dark:hover:border-primary-500 transition-all group">
+                                <input type="radio" name="map-style" value="osm" class="peer sr-only" checked>
+                                <div class="w-12 h-12 rounded-lg bg-gray-100 mr-4 overflow-hidden border border-gray-200">
+                                    <img src="https://a.tile.openstreetmap.org/12/2026/1367.png" alt="Standard" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Standard</h3>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">OpenStreetMap Standard</p>
+                                </div>
+                                <div class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 peer-checked:border-primary-500 peer-checked:bg-primary-500 flex items-center justify-center transition-all">
+                                    <div class="w-2.5 h-2.5 rounded-full bg-white opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                                </div>
+                                <div class="absolute inset-0 rounded-xl ring-2 ring-primary-500 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none"></div>
+                            </label>
+
+                            <!-- Carto Light -->
+                            <label class="relative flex items-center p-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-primary-500 dark:hover:border-primary-500 transition-all group">
+                                <input type="radio" name="map-style" value="carto_light" class="peer sr-only">
+                                <div class="w-12 h-12 rounded-lg bg-gray-100 mr-4 overflow-hidden border border-gray-200">
+                                    <img src="https://a.basemaps.cartocdn.com/light_all/12/2026/1367.png" alt="Light" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Clean Light</h3>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">CartoDB Positron - Minimalist</p>
+                                </div>
+                                <div class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 peer-checked:border-primary-500 peer-checked:bg-primary-500 flex items-center justify-center transition-all">
+                                    <div class="w-2.5 h-2.5 rounded-full bg-white opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                                </div>
+                                <div class="absolute inset-0 rounded-xl ring-2 ring-primary-500 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none"></div>
+                            </label>
+
+                            <!-- Carto Dark -->
+                            <label class="relative flex items-center p-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-primary-500 dark:hover:border-primary-500 transition-all group">
+                                <input type="radio" name="map-style" value="carto_dark" class="peer sr-only">
+                                <div class="w-12 h-12 rounded-lg bg-gray-800 mr-4 overflow-hidden border border-gray-700">
+                                    <img src="https://a.basemaps.cartocdn.com/dark_all/12/2026/1367.png" alt="Dark" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Dark Mode</h3>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">CartoDB Dark Matter - High Contrast</p>
+                                </div>
+                                <div class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 peer-checked:border-primary-500 peer-checked:bg-primary-500 flex items-center justify-center transition-all">
+                                    <div class="w-2.5 h-2.5 rounded-full bg-white opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                                </div>
+                                <div class="absolute inset-0 rounded-xl ring-2 ring-primary-500 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none"></div>
+                            </label>
+
+                            <!-- Carto Voyager -->
+                            <label class="relative flex items-center p-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-primary-500 dark:hover:border-primary-500 transition-all group">
+                                <input type="radio" name="map-style" value="carto_voyager" class="peer sr-only">
+                                <div class="w-12 h-12 rounded-lg bg-gray-100 mr-4 overflow-hidden border border-gray-200">
+                                    <img src="https://a.basemaps.cartocdn.com/rastertiles/voyager/12/2026/1367.png" alt="Voyager" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Voyager</h3>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">CartoDB Voyager - Detailed</p>
+                                </div>
+                                <div class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 peer-checked:border-primary-500 peer-checked:bg-primary-500 flex items-center justify-center transition-all">
+                                    <div class="w-2.5 h-2.5 rounded-full bg-white opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                                </div>
+                                <div class="absolute inset-0 rounded-xl ring-2 ring-primary-500 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none"></div>
+                            </label>
+                        </div>
                     </div>
+                    
+                    <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg text-xs text-gray-500 dark:text-gray-400">
+                        <p class="mb-2"><strong>Note:</strong> Map tiles are provided by OpenStreetMap and CartoDB. Internet connection required.</p>
+                        <p>Changing map style only affects the background appearance, not the routing data.</p>
+                    </div>
+
                 </div>
             </div>
         </div>

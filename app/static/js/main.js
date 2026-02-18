@@ -10,6 +10,7 @@ import { initScenicControls, getScenicWeights } from './modules/scenic_controls.
 import { initLayoutUI } from './modules/layout_ui.js';
 import { initRoutingUI } from './modules/routing_ui.js';
 import { getCachedTiles } from './modules/api.js';
+import { initSettingsUI } from './modules/settings_ui.js';
 
 // Initialize Everything
 document.addEventListener("DOMContentLoaded", () => {
@@ -36,6 +37,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 5. Debug / Cached Tiles
     initCachedTilesDebug();
+
+    // 6. Settings
+    initSettingsUI();
 
     console.log("[App] Ready.");
 });
