@@ -110,6 +110,54 @@ well-lit residential streets can compete with scenic but dark park paths.
 > rural areas, where the "unknown" penalty may gently push routes toward
 > main roads that have streetlights.
 
+> **Mutual exclusivity:** Enabling _Heavily avoid unlit streets_ (below)
+> automatically unchecks this toggle since the stronger mode supersedes it.
+
+---
+
+## Heavily Avoid Unlit Streets
+
+**UI label:** _Heavily avoid unlit streets_ (toggle, moon icon)
+
+A much stronger version of "Prefer lit streets". The solver treats
+confirmed-unlit streets as near-impassable — they receive a **× 5.0
+cost penalty** — and streets with no lighting data are penalised at
+**× 3.0**. Well-lit streets remain actively rewarded with a **× 0.70
+bonus**.
+
+| Lighting status                  | Multiplier                  |
+| -------------------------------- | --------------------------- |
+| Lit (`yes`, `automatic`, `24/7`) | × 0.70 (**strong bonus**)   |
+| Limited / disused                | × 2.5                       |
+| Not lit (`no`)                   | × 5.0 (**near-impassable**) |
+| Unknown (no tag)                 | × 3.0 (assumed dark)        |
+
+The × 5.0 penalty on a confirmed-unlit edge means the router will only
+use it if there is genuinely no other viable way to reach the goal —
+equivalent to treating it as five times the length it physically is.
+
+Streets missing a `lit` tag are treated **conservatively as likely unlit**
+(× 3.0), because many residential streets and footpaths in rural areas
+have no lighting data but are genuinely unlit at night.
+
+**When to use:**
+
+- **Night-time safety** where personal security is the primary concern
+  and scenic value is secondary.
+- **Areas with more OSM lighting data** (city centres) where the ×3.0
+  unknown penalty is less likely to eliminate otherwise valid paths.
+
+> **Mutual exclusivity:** Enabling this toggle automatically unchecks
+> "Prefer lit streets". Both cannot be active simultaneously; this mode
+> always takes precedence.
+
+> **Loop mode**: When used in GeometricLoopSolver (round-trip routing), the
+> strong penalties can cause routed legs to be significantly longer than
+> their air-line distance as the solver detours to stay on lit streets.
+> This triggers the tortuosity (τ) feedback loop to shrink the geometric
+> skeleton — see the [Street Lighting routing docs](street_lighting.md#loop-mode)
+> for a full explanation.
+
 ---
 
 ## Avoid Unsafe Roads
@@ -180,15 +228,19 @@ Running the same query multiple times with variety > 0 will produce
 The toggles are independent and can be mixed freely. Some useful
 combinations:
 
-| Profile          | Controls                                                        |
-| ---------------- | --------------------------------------------------------------- |
-| **Safety first** | Prefer paths & trails + Avoid unsafe roads + Prefer lit streets |
-| **Accessible**   | Prefer paved surfaces + Avoid unsafe roads                      |
-| **Night walk**   | Prefer lit streets + Avoid unsafe roads                         |
-| **Adventurous**  | Route variety 3, all toggles off                                |
-| **Trail runner** | Prefer paths & trails, all others off                           |
+| Profile               | Controls                                                        |
+| --------------------- | --------------------------------------------------------------- |
+| **Safety first**      | Prefer paths & trails + Avoid unsafe roads + Prefer lit streets |
+| **Night walk**        | Prefer lit streets + Avoid unsafe roads                         |
+| **Night walk strict** | Heavily avoid unlit streets + Avoid unsafe roads                |
+| **Accessible**        | Prefer paved surfaces + Avoid unsafe roads                      |
+| **Adventurous**       | Route variety 3, all toggles off                                |
+| **Trail runner**      | Prefer paths & trails, all others off                           |
+
+> **Note:** _Prefer lit streets_ and _Heavily avoid unlit streets_ are **mutually exclusive** — enabling one automatically disables the other in the UI.
 
 Each toggle multiplies the edge cost independently. When multiple toggles
 are enabled, their penalties **stack multiplicatively** — a dark, unsurfaced
-main road would receive × 1.8 (unlit) × 2.0 (soft surface) × 3.5 (unsafe)
-= × 12.6, making it extremely unlikely to appear in the route.
+main road with no pavement would receive × 5.0 (heavily unlit) × 2.0
+(soft surface) × 3.5 (unsafe) = × 35.0, making it essentially
+unroutable.

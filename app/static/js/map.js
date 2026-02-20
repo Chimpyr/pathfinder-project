@@ -814,13 +814,16 @@ class MapController {
   addLightingLayer(options = {}) {
     // Persist current options so updateLightingStyle can reference them
     this.lightingOptions = {
-      litColor:     options.litColor     ?? this.lightingOptions?.litColor     ?? "#FFD700",
-      unlitColor:   options.unlitColor   ?? this.lightingOptions?.unlitColor   ?? "#1a1a1a",
-      unknownColor: options.unknownColor ?? this.lightingOptions?.unknownColor ?? "#888888",
-      litWeight:    options.litWeight    ?? this.lightingOptions?.litWeight    ?? 2,
+      litColor: options.litColor ?? this.lightingOptions?.litColor ?? "#FFD700",
+      unlitColor:
+        options.unlitColor ?? this.lightingOptions?.unlitColor ?? "#1a1a1a",
+      unknownColor:
+        options.unknownColor ?? this.lightingOptions?.unknownColor ?? "#888888",
+      litWeight: options.litWeight ?? this.lightingOptions?.litWeight ?? 2,
     };
 
-    const { litColor, unlitColor, unknownColor, litWeight } = this.lightingOptions;
+    const { litColor, unlitColor, unknownColor, litWeight } =
+      this.lightingOptions;
 
     // Remove existing layer before re-adding with new style
     if (this.lightingLayer) {

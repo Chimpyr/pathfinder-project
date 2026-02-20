@@ -15,7 +15,50 @@ from app.services.routing.cost_calculator import (
     get_active_cost_function,
 )
 from math import radians, cos, sin, asin, sqrt
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
+
+
+# ── Lit-tag penalty multipliers ──────────────────────────────────────────────
+# Ported from deprecated budget_astar_solver.py (ADR-010 §4)
+_LIT_PENALTY: Dict[str, float] = {
+    'yes': 0.85, 'automatic': 0.85, '24/7': 0.85,   # Bonus for lit
+    'limited': 1.3, 'disused': 1.3,
+    'no': 1.8,
+}
+_LIT_DEFAULT: float = 1.2  # Unknown/missing lit tag
+
+# "Heavily avoid unlit" uses much stronger penalties
+_LIT_HEAVY_PENALTY: Dict[str, float] = {
+    'yes': 0.70, 'automatic': 0.70, '24/7': 0.70,   # Bigger bonus for lit
+    'limited': 2.5, 'disused': 2.5,
+    'no': 5.0,                                        # 5× cost for unlit
+}
+_LIT_HEAVY_DEFAULT: float = 3.0  # Unknown/missing → assume unlit
+
+
+def _compute_lit_multiplier(edge_data: dict, heavily_avoid: bool = False) -> float:
+    """
+    Multiplicative penalty (or bonus) based on the ``lit`` OSM tag.
+
+    Returns < 1.0 for lit streets (bonus), > 1.0 for unlit/unknown.
+
+    Args:
+        edge_data: Edge attribute dictionary (may contain ``'lit'`` key).
+        heavily_avoid: If True, use the much stronger penalty table.
+
+    Returns:
+        Multiplier to apply to edge cost.
+    """
+    table = _LIT_HEAVY_PENALTY if heavily_avoid else _LIT_PENALTY
+    default = _LIT_HEAVY_DEFAULT if heavily_avoid else _LIT_DEFAULT
+
+    tag = edge_data.get('lit')
+    if isinstance(tag, list):
+        tag = tag[0] if tag else None
+    if tag is None:
+        return default
+    tag_lower = tag.lower() if isinstance(tag, str) else str(tag).lower()
+    return table.get(tag_lower, default)
 
 
 class WSMNetworkXAStar(AStar):
@@ -30,6 +73,8 @@ class WSMNetworkXAStar(AStar):
         weights: Feature weight dictionary for WSM calculation.
         min_length: Minimum edge length in graph (for normalisation).
         max_length: Maximum edge length in graph (for normalisation).
+        prefer_lit: Apply mild lit-preference penalties.
+        heavily_avoid_unlit: Apply strong unlit-avoidance penalties.
     """
 
     def __init__(
@@ -37,7 +82,9 @@ class WSMNetworkXAStar(AStar):
         graph, 
         weights: Optional[Dict[str, float]] = None,
         length_range: Optional[tuple[float, float]] = None,
-        combine_nature: bool = False
+        combine_nature: bool = False,
+        prefer_lit: bool = False,
+        heavily_avoid_unlit: bool = False,
     ):
         """
         Initialise WSM A* solver.
@@ -47,9 +94,13 @@ class WSMNetworkXAStar(AStar):
             weights: Feature weights dictionary. If None, uses equal weights.
             length_range: Pre-computed (min, max) length tuple. If None, computed from graph.
             combine_nature: If True, combine greenness and water into a single "nature" score.
+            prefer_lit: If True, apply mild multiplicative lit-preference penalty.
+            heavily_avoid_unlit: If True, apply strong multiplicative unlit-avoidance penalty (overrides prefer_lit).
         """
         self.graph = graph
         self.combine_nature = combine_nature
+        self.prefer_lit = prefer_lit
+        self.heavily_avoid_unlit = heavily_avoid_unlit
         
         # Validate and set weights
         if weights is None:
@@ -65,7 +116,8 @@ class WSMNetworkXAStar(AStar):
         
         # Log which cost function algorithm is being used (once per route)
         cost_func = get_active_cost_function()
-        print(f"[WSM A*] Using cost function: {cost_func.value}")
+        lit_mode = 'heavily_avoid_unlit' if heavily_avoid_unlit else ('prefer_lit' if prefer_lit else 'off')
+        print(f"[WSM A*] Using cost function: {cost_func.value}, lit_mode: {lit_mode}")
         
         # Get or compute length range for normalisation
         if length_range is not None:
@@ -133,6 +185,12 @@ class WSMNetworkXAStar(AStar):
                 weights=self.weights,
                 combine_nature=self.combine_nature
             )
+            
+            # Apply lit-preference multiplier (if enabled)
+            if self.heavily_avoid_unlit or self.prefer_lit:
+                cost *= _compute_lit_multiplier(
+                    data, heavily_avoid=self.heavily_avoid_unlit
+                )
             
             # Debug logging for first few edges (to see greenness variance)
             if not hasattr(self, '_debug_count'):

@@ -245,6 +245,7 @@ class LoopSolverBase(ABC):
         prefer_paved: bool = False,
         prefer_lit: bool = False,
         avoid_unsafe_roads: bool = False,
+        heavily_avoid_unlit: bool = False,
     ) -> List[LoopCandidate]:
         """
         Find multiple loop route candidates.
@@ -264,6 +265,7 @@ class LoopSolverBase(ABC):
             prefer_paved: If True, penalise unpaved/soft surfaces.
             prefer_lit: If True, penalise unlit streets and bonus lit ones.
             avoid_unsafe_roads: If True, heavily penalise main roads without sidewalks.
+            heavily_avoid_unlit: If True, apply very strong unlit-avoidance penalties.
 
         Returns:
             List of LoopCandidate objects sorted by quality score.

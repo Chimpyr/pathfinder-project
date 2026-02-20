@@ -234,6 +234,7 @@ def calculate_loop_route():
         # Surface, lighting, and safety toggles (ADR-010 §3–§5)
         prefer_paved = bool(data.get('prefer_paved', False))
         prefer_lit = bool(data.get('prefer_lit', False))
+        heavily_avoid_unlit = bool(data.get('heavily_avoid_unlit', False))
         avoid_unsafe_roads = bool(data.get('avoid_unsafe_roads', False))
         
         # Smart Bearing Toggle
@@ -403,6 +404,7 @@ def calculate_loop_route():
             prefer_lit=prefer_lit,
             avoid_unsafe_roads=avoid_unsafe_roads,
             use_smart_bearing=use_smart_bearing,
+            heavily_avoid_unlit=heavily_avoid_unlit,
         )
         
         if not candidates:
@@ -796,6 +798,8 @@ def calculate_route():
         # Parse WSM settings from request
         use_wsm = data.get('use_wsm', False)
         combine_nature = data.get('combine_nature', False)
+        prefer_lit = bool(data.get('prefer_lit', False))
+        heavily_avoid_unlit = bool(data.get('heavily_avoid_unlit', False))
         weights = None
         
         if use_wsm:
@@ -823,7 +827,9 @@ def calculate_route():
             
             distinct_result = find_distinct_paths(
                 finder, start_point, end_point, weights,
-                combine_nature=combine_nature
+                combine_nature=combine_nature,
+                prefer_lit=prefer_lit,
+                heavily_avoid_unlit=heavily_avoid_unlit,
             )
             
             # Validate that at least one route was found
@@ -892,7 +898,9 @@ def calculate_route():
             start_point, end_point,
             use_wsm=use_wsm,
             weights=weights,
-            combine_nature=combine_nature
+            combine_nature=combine_nature,
+            prefer_lit=prefer_lit,
+            heavily_avoid_unlit=heavily_avoid_unlit,
         )
         
         if not route:

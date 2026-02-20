@@ -33,8 +33,10 @@ function initMapOverlays() {
   // --- Restore persisted state ---
   const savedOn = localStorage.getItem("lightingOverlay") === "true";
   const savedLitColor = localStorage.getItem("lightingLitColor") || "#FFD700";
-  const savedUnlitColor = localStorage.getItem("lightingUnlitColor") || "#1a1a1a";
-  const savedUnknownColor = localStorage.getItem("lightingUnknownColor") || "#888888";
+  const savedUnlitColor =
+    localStorage.getItem("lightingUnlitColor") || "#1a1a1a";
+  const savedUnknownColor =
+    localStorage.getItem("lightingUnknownColor") || "#888888";
   const savedWeight = parseInt(
     localStorage.getItem("lightingWeight") || "2",
     10,

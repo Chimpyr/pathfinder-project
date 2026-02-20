@@ -607,6 +607,8 @@ def _route_leg(graph, source: int, target: int,
                weights: Dict[str, float],
                combine_nature: bool = False,
                length_range: Optional[Tuple[float, float]] = None,
+               prefer_lit: bool = False,
+               heavily_avoid_unlit: bool = False,
                ) -> Optional[Tuple[List[int], float, float]]:
     """
     Route one leg (source -> target) using the WSM A* solver.
@@ -622,6 +624,8 @@ def _route_leg(graph, source: int, target: int,
         solver = WSMNetworkXAStar(
             graph, weights, length_range=length_range,
             combine_nature=combine_nature,
+            prefer_lit=prefer_lit,
+            heavily_avoid_unlit=heavily_avoid_unlit,
         )
         result = solver.astar(source, target)
         if result is None:
@@ -690,6 +694,8 @@ def _try_polygon(
     num_vertices: int = 3,  # Total vertices including Start (3=Triangle, 4=Quad)
     arc_angle: float = 90.0,  # Total spread of the shape
     irregularity: float = 0.0,  # 0.0 = perfect symmetry, 1.0 = high jitter
+    prefer_lit: bool = False,
+    heavily_avoid_unlit: bool = False,
 ) -> Optional[Tuple[List[int], float, float, float]]:
     """
     Attempt to build and route a 'Natural Shape' polygon loop.
@@ -835,7 +841,8 @@ def _try_polygon(
         u = sequence[i]
         v = sequence[i+1]
         
-        leg_res = _route_leg(graph, u, v, weights, combine_nature, length_range)
+        leg_res = _route_leg(graph, u, v, weights, combine_nature, length_range,
+                             prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit)
         if leg_res is None:
             print(f"[GeometricSolver]   [FAILED] Leg {i+1} ({u}->{v}) failed")
             return None
@@ -872,6 +879,8 @@ def _try_out_and_back(
     bearing: float,
     tau: float,
     length_range: Tuple[float, float],
+    prefer_lit: bool = False,
+    heavily_avoid_unlit: bool = False,
 ) -> Optional[Tuple[List[int], float, float]]:
     """
     Fallback: out-and-back route when all triangle attempts fail.
@@ -903,14 +912,16 @@ def _try_out_and_back(
 
     print(f"[GeometricSolver]   -> Routing outbound leg: S->W")
     leg_out = _route_leg(graph, start_node, w_node, weights,
-                         combine_nature, length_range)
+                         combine_nature, length_range,
+                         prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit)
     if leg_out is None:
         print(f"[GeometricSolver]   [FAILED] Outbound leg failed")
         return None
 
     print(f"[GeometricSolver]   -> Routing return leg: W->S")
     leg_back = _route_leg(graph, w_node, start_node, weights,
-                          combine_nature, length_range)
+                          combine_nature, length_range,
+                          prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit)
     if leg_back is None:
         print(f"[GeometricSolver]   [FAILED] Return leg failed")
         return None
@@ -1006,6 +1017,7 @@ class GeometricLoopSolver(LoopSolverBase):
         prefer_lit: bool = False,
         avoid_unsafe_roads: bool = False,
         use_smart_bearing: bool = False,
+        heavily_avoid_unlit: bool = False,
     ) -> List[LoopCandidate]:
         """
         Find multiple loop route candidates using the geometric skeleton
@@ -1032,6 +1044,8 @@ class GeometricLoopSolver(LoopSolverBase):
         print(f"[GeometricSolver] Max search time: {max_search_time:.0f}s")
         print(f"[GeometricSolver] Variety level: {variety_level}")
         print(f"[GeometricSolver] Smart Bearing: {use_smart_bearing}")
+        lit_mode = 'heavily_avoid_unlit' if heavily_avoid_unlit else ('prefer_lit' if prefer_lit else 'off')
+        print(f"[GeometricSolver] Lit mode: {lit_mode}")
         print(f"[GeometricSolver] ======================================================\n")
 
         # ── Determine rotation bearings ──────────────────────────────────
@@ -1178,7 +1192,9 @@ class GeometricLoopSolver(LoopSolverBase):
                         combine_nature, bearing, tau, length_range,
                         num_vertices=n_verts,
                         arc_angle=cfg['arc'],
-                        irregularity=cfg['irr']
+                        irregularity=cfg['irr'],
+                        prefer_lit=prefer_lit,
+                        heavily_avoid_unlit=heavily_avoid_unlit,
                     )
 
                     if result is None:
@@ -1247,6 +1263,8 @@ class GeometricLoopSolver(LoopSolverBase):
                 oab = _try_out_and_back(
                     graph, start_node, target_distance, weights,
                     combine_nature, bearing, DEFAULT_TAU, length_range,
+                    prefer_lit=prefer_lit,
+                    heavily_avoid_unlit=heavily_avoid_unlit,
                 )
                 if oab is not None:
                     route_oab, dist_oab, cost_oab = oab

@@ -37,6 +37,7 @@ class RouteFinder:
         prefer_lit=False,
         avoid_unsafe_roads=False,
         use_smart_bearing=True,
+        heavily_avoid_unlit=False,
     ):
         """
         Finds multiple circular (loop) route candidates.
@@ -129,6 +130,7 @@ class RouteFinder:
                 prefer_lit=prefer_lit,
                 avoid_unsafe_roads=avoid_unsafe_roads,
                 use_smart_bearing=use_smart_bearing,
+                heavily_avoid_unlit=heavily_avoid_unlit,
             )
             
             # Filter out loops below minimum distance
@@ -151,7 +153,8 @@ class RouteFinder:
             traceback.print_exc()
             return []
 
-    def find_route(self, start_point, end_point, use_wsm=False, weights=None, combine_nature=False):
+    def find_route(self, start_point, end_point, use_wsm=False, weights=None, combine_nature=False,
+                   prefer_lit=False, heavily_avoid_unlit=False):
         """
         Finds a path between two locations (coordinates).
         
@@ -165,6 +168,8 @@ class RouteFinder:
             use_wsm (bool): If True, use WSM cost function for scenic routing.
             weights (dict): Feature weights for WSM mode. Uses defaults if None.
             combine_nature (bool): If True, combine greenness and water into single "nature" score.
+            prefer_lit (bool): If True, apply mild multiplicative lit-preference penalty.
+            heavily_avoid_unlit (bool): If True, apply strong multiplicative unlit-avoidance penalty.
 
         Returns:
             tuple: (route, start_point, end_point, distance, time_seconds)
@@ -193,7 +198,10 @@ class RouteFinder:
                 if weights is None:
                     weights = current_app.config.get('WSM_DEFAULT_WEIGHTS')
                 
-                astar_solver = WSMNetworkXAStar(self.graph, weights, combine_nature=combine_nature)
+                astar_solver = WSMNetworkXAStar(
+                    self.graph, weights, combine_nature=combine_nature,
+                    prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
+                )
                 
                 if current_app.config.get('VERBOSE_LOGGING'):
                     print(f"[VERBOSE] WSM weights: {weights}, combine_nature: {combine_nature}")
