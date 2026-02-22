@@ -32,11 +32,14 @@ ScenicPathFinder/
 │   │   │   ├── social.py            # POI proximity scoring
 │   │   │   ├── elevation.py         # Gradient calculation
 │   │   │   ├── quietness.py         # Highway noise classification
+│   │   │   ├── lighting.py          # Street lighting status
+│   │   │   ├── surface.py           # Surface type classification (paved/unpaved)
 │   │   │   └── orchestrator.py      # Scenic pipeline coordinator
 │   │   │
 │   │   ├── routing/                 # Pathfinding
 │   │   │   ├── route_finder.py      # A* pathfinding wrapper
-│   │   │   └── astar/               # Custom A* implementation
+│   │   │   ├── astar/               # Custom A* implementation
+│   │   │   └── loop_solvers/        # Round-trip route generation algorithms
 │   │   │
 │   │   └── rendering/               # Map output
 │   │       └── map_renderer.py      # Folium map generation
@@ -279,6 +282,25 @@ Fetches elevation data and calculates edge gradients with Tobler's hiking functi
 
 ---
 
+### LightingProcessor (`processors/lighting.py`)
+
+Checks OSM edge attributes for the presence of street lighting, used to penalise unlit streets at night or when user prefers lit paths.
+
+**Edge attribute:** `lit` (string value mapped to boolean or cost)
+*   **Values:** 'yes', 'no', 'none', 'disused', etc.
+
+---
+
+### SurfaceProcessor (`processors/surface.py`)
+
+Evaluates edge surface attributes to classify paths as paved or unpaved, allowing routing preferences for solid ground underfoot.
+
+**Edge attribute:** `surface` (string classification)
+*   **Paved:** 'asphalt', 'paved', 'concrete', 'cobblestone', 'paving_stones', etc.
+*   **Unpaved:** 'unpaved', 'dirt', 'gravel', 'ground', 'mud', 'grass', etc.
+
+---
+
 ### RouteFinder (`routing/route_finder.py`)
 
 A\* pathfinding with pluggable cost functions.
@@ -286,12 +308,34 @@ A\* pathfinding with pluggable cost functions.
 **Modes:**
 
 - `use_wsm=False`: Standard A\* using `length` attribute for shortest path
-- `use_wsm=True`: WSM A\* using normalised scenic features with configurable weights
+- `use_wsm=True`: WSM A* using normalised scenic features with configurable weights
 
 **Key Classes:**
 
 - `OSMNetworkXAStar`: Distance-only pathfinding
 - `WSMNetworkXAStar`: Weighted Sum Model pathfinding
+
+---
+
+### Loop Routing (`routing/loop_solvers/`)
+
+Generates round-trip walking routes starting and ending at the same location without direct backtracking where possible.
+
+**Key Components:**
+- Uses internal heuristics to ensure circular variations.
+- Integrates with standard RouteFinder for actual path calculation.
+
+---
+
+## Frontend Architecture
+
+The user interface is powered by a modular Vanilla JS frontend using `Leaflet.js`.
+
+**Key Elements:**
+- **Navigation Rail**: A vertical, collapsible sidebar providing switching between core contexts (Routes, Admin Panel).
+- **Routes Panel**: Divided into *Standard Route* (A to B) and *Round Trip* (Loop generation) tabs.
+- **Advanced Options**: Configurable routing overlays and soft-avoidances (prefer lit, paved, avoid unsafe) shared globally.
+- **Map Overlays**: Toggleable tile layers (Voyager, CartoDB Light/Dark) and data overlays (Street Lights mapping) integrated directly on top of Leaflet layers.
 
 ---
 

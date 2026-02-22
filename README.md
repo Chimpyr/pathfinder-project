@@ -1,5 +1,12 @@
 # PathFinder MVP Setup Guide
 
+## Features
+- **Multi-criteria A* Routing**: Optimise walks for Greenness, Water proximity, Quietness, and Social POIs.
+- **Round Trip (Loop) Generation**: Create circular routes of target distances returning to your start point.
+- **Advanced Navigation Options**: Toggle preferences for lit streets (ideal for night), paved surfaces, and paths/trails.
+- **Nav Rail Interface**: Clean, collapsible vertical sidebar organising routing, settings, and an admin debug panel.
+- **Map Overlays**: Visualise OSM data like street lighting on top of customizable map appearances (CartoDB Light/Dark, Voyager).
+
 ## Prerequisites
 
 - **Python 3.9+** (Tested with Python 3.13)
