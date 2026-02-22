@@ -64,8 +64,12 @@
                 </button>
             </div>
             
-            <!-- Bottom Section: Admin -->
-            <div class="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2 w-full flex justify-center">
+            <!-- Bottom Section: Account & Admin -->
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2 w-full flex flex-col items-center gap-1">
+                <button class="nav-rail-btn" data-view="account-view" title="Account">
+                    <i class="fas fa-user-circle text-lg" id="account-nav-icon"></i>
+                    <span class="nav-rail-label">Account</span>
+                </button>
                 <a href="/admin/" class="nav-rail-btn" title="Admin Panel">
                     <i class="fas fa-tools text-lg"></i>
                     <span class="nav-rail-label">Admin</span>
@@ -566,14 +570,6 @@
                 </div>
             </div>
 
-            <!-- Shared Footer -->
-            <div class="p-4 border-t border-gray-200 dark:border-gray-700 text-center text-xs text-gray-400 flex justify-between items-center shrink-0">
-                <span>Powered by OSMnx, NetworkX &amp; Leaflet</span>
-                <a href="/admin/" class="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
-                    <i class="fas fa-cog mr-1"></i>Admin
-                </a>
-            </div>
-
             <!-- Stats View (Placeholder) -->
             <div id="stats-view" class="view-panel hidden flex-col h-full min-h-0" data-active="false">
                 <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
@@ -776,6 +772,132 @@
                     </div>
 
                 </div>
+            </div>
+
+            <!-- Account View -->
+            <div id="account-view" class="view-panel hidden flex-col h-full min-h-0" data-active="false">
+                <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
+                    <div>
+                        <h1 class="text-2xl font-bold text-primary-600 dark:text-primary-400">Account</h1>
+                        <p id="account-subtitle" class="text-sm text-gray-500 dark:text-gray-400">Sign in to save routes and pins</p>
+                    </div>
+                </div>
+                <div class="p-6 flex-1 overflow-y-auto min-h-0">
+
+                    <!-- Auth feedback message -->
+                    <div id="auth-message" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+
+                    <!-- Login Form -->
+                    <div id="auth-login" class="space-y-4">
+                        <div class="text-center mb-6">
+                            <div class="w-16 h-16 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-user text-2xl text-primary-600 dark:text-primary-400"></i>
+                            </div>
+                            <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Welcome Back</h2>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Sign in to access your saved data</p>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                            <input type="email" id="login-email" placeholder="you@example.com"
+                                class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+                            <input type="password" id="login-password" placeholder="••••••••"
+                                class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm">
+                        </div>
+                        <button id="login-btn"
+                            class="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg shadow-md transform active:scale-[0.98] transition-all flex justify-center items-center">
+                            <span>Sign In</span>
+                            <i class="fas fa-circle-notch fa-spin ml-2 hidden" id="login-spinner"></i>
+                        </button>
+                        <p class="text-center text-sm text-gray-500 dark:text-gray-400">
+                            Don't have an account?
+                            <button id="show-register" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Create one</button>
+                        </p>
+                    </div>
+
+                    <!-- Register Form -->
+                    <div id="auth-register" class="space-y-4 hidden">
+                        <div class="text-center mb-6">
+                            <div class="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-user-plus text-2xl text-green-600 dark:text-green-400"></i>
+                            </div>
+                            <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Create Account</h2>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Save your favourite routes and locations</p>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                            <input type="email" id="register-email" placeholder="you@example.com"
+                                class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+                            <input type="password" id="register-password" placeholder="Min 8 characters"
+                                class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Confirm Password</label>
+                            <input type="password" id="register-confirm" placeholder="••••••••"
+                                class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm">
+                        </div>
+                        <button id="register-btn"
+                            class="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transform active:scale-[0.98] transition-all flex justify-center items-center">
+                            <span>Create Account</span>
+                            <i class="fas fa-circle-notch fa-spin ml-2 hidden" id="register-spinner"></i>
+                        </button>
+                        <p class="text-center text-sm text-gray-500 dark:text-gray-400">
+                            Already have an account?
+                            <button id="show-login" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Sign in</button>
+                        </p>
+                    </div>
+
+                    <!-- Logged-in Profile -->
+                    <div id="auth-profile" class="hidden">
+                        <div class="text-center mb-6">
+                            <div class="w-20 h-20 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-user-check text-3xl text-primary-600 dark:text-primary-400"></i>
+                            </div>
+                            <h2 id="profile-email" class="text-lg font-semibold text-gray-800 dark:text-gray-200"></h2>
+                            <p id="profile-since" class="text-xs text-gray-500 dark:text-gray-400"></p>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-map-pin text-red-500 mr-3"></i>
+                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Saved Pins</span>
+                                    </div>
+                                    <span id="profile-pin-count" class="text-sm font-bold text-primary-600 dark:text-primary-400">—</span>
+                                </div>
+                            </div>
+                            <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-route text-blue-500 mr-3"></i>
+                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Saved Routes</span>
+                                    </div>
+                                    <span id="profile-route-count" class="text-sm font-bold text-primary-600 dark:text-primary-400">—</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="logout-btn"
+                            class="w-full mt-6 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors flex justify-center items-center">
+                            <i class="fas fa-sign-out-alt mr-2"></i> Log Out
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Shared Footer -->
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 text-center text-xs text-gray-400 flex justify-between items-center shrink-0">
+                <span>Powered by OSMnx, NetworkX &amp; Leaflet</span>
+                <a href="/admin/" class="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
+                    <i class="fas fa-cog mr-1"></i>Admin
+                </a>
             </div>
         </div>
 

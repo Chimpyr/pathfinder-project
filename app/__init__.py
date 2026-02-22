@@ -24,6 +24,12 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     login_manager.init_app(app)
 
+    # Return JSON 401 instead of redirect for unauthenticated API requests
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        from flask import jsonify
+        return jsonify({'error': 'Authentication required'}), 401
+
     # ── Flask-Login user loader ───────────────────────────────────────
     from app.models.user import User
 
