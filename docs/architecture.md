@@ -44,9 +44,25 @@ ScenicPathFinder/
 │   │   └── rendering/               # Map output
 │   │       └── map_renderer.py      # Folium map generation
 │   │
-│   ├── routes.py                    # Flask endpoints
+│   ├── models/                      # SQLAlchemy ORM models
+│   │   ├── user.py                  # User accounts (email, hashed password)
+│   │   ├── saved_pin.py             # Bookmarked map locations
+│   │   └── saved_route.py           # Saved route configurations
+│   │
+│   ├── blueprints/                  # Modular Flask API endpoints
+│   │   ├── auth.py                  # Registration, login, logout
+│   │   ├── user_data.py             # CRUD for pins and routes
+│   │   ├── admin.py                 # Admin panel / diagnostics
+│   │   └── tasks.py                 # Async task polling
+│   │
+│   ├── extensions.py                # Centralised extension instances
+│   ├── routes.py                    # Core routing Flask endpoints
 │   ├── templates/                   # HTML templates
 │   └── data/                        # Downloaded PBF files + cache
+│
+├── scripts/
+│   ├── db_bootstrap.py              # Auto-creates user_db on PostGIS
+│   └── wait-for-postgres.sh         # Container health-check script
 │
 ├── config.py                        # Application settings
 ├── run.py                           # Entry point
@@ -336,6 +352,48 @@ The user interface is powered by a modular Vanilla JS frontend using `Leaflet.js
 - **Routes Panel**: Divided into *Standard Route* (A to B) and *Round Trip* (Loop generation) tabs.
 - **Advanced Options**: Configurable routing overlays and soft-avoidances (prefer lit, paved, avoid unsafe) shared globally.
 - **Map Overlays**: Toggleable tile layers (Voyager, CartoDB Light/Dark) and data overlays (Street Lights mapping) integrated directly on top of Leaflet layers.
+
+---
+
+## User Persistence Layer
+
+Server-side user data (accounts, saved pins, saved routes) is stored in a separate PostgreSQL database (`user_db`) on the same PostGIS container that hosts `scenic_tiles`. This isolation ensures OSM data operations cannot affect user state.
+
+### Database Architecture
+
+```
+PostGIS Container (scenic-db)
+├── scenic_tiles    ← Martin tileserver + osm2pgsql (street lighting)
+└── user_db         ← Flask-SQLAlchemy ORM (users, pins, routes)
+```
+
+### ORM Models (`app/models/`)
+
+| Model | Table | Key Columns |
+|-------|-------|-------------|
+| `User` | `users` | `email` (unique), `password_hash`, `created_at` |
+| `SavedPin` | `saved_pins` | `user_id` (FK), `label`, `latitude`, `longitude` |
+| `SavedRoute` | `saved_routes` | `user_id` (FK), `start/end_lat/lon`, `weights_json`, `route_geometry` (optional) |
+
+### Authentication (`app/blueprints/auth.py`)
+
+Session-based auth via Flask-Login. Passwords hashed with `werkzeug.security` (PBKDF2-SHA256).
+
+Endpoints: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`
+
+### Data CRUD (`app/blueprints/user_data.py`)
+
+All endpoints protected by `@login_required`.
+
+Endpoints: `GET/POST/DELETE /api/pins`, `GET/POST/DELETE /api/routes`
+
+### Related Decisions
+
+- [ADR-012: Dual-Database Segregation](decisions/ADR-012-dual-database-segregation.md)
+- [ADR-013: Automated Database Bootstrapping](decisions/ADR-013-automated-database-bootstrapping.md)
+- [ADR-014: Parametrised Route Storage](decisions/ADR-014-parametrised-route-storage.md)
+- [ADR-015: Connection Pool Tuning](decisions/ADR-015-connection-pool-tuning.md)
+- [ADR-016: Alembic Migration Safety](decisions/ADR-016-alembic-migration-safety.md)
 
 ---
 

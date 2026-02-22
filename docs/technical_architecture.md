@@ -66,3 +66,33 @@ The application is containerized using Docker Compose.
     - `MAX_CACHED_REGIONS = 3`: Only keeps 3 full region graphs in memory.
     - `MAX_CACHED_TILES = 16`: Keeps ~16 tile graphs in memory (approx. 1.5GB usage).
     - `MAX_PYROSM_PBF_SIZE = 100MB`: Threshold to trigger `osmium` extraction to protect against OOM during loading.
+
+## 5. User Persistence Layer
+
+User accounts, saved map pins, and saved route configurations are stored in a dedicated PostgreSQL database (`user_db`) co-hosted on the existing PostGIS container alongside `scenic_tiles`.
+
+- **Database Segregation**:
+  - `scenic_tiles`: Volatile OSM data (street lighting tiles, spatial references). Managed by `osm2pgsql` and Martin tileserver.
+  - `user_db`: Persistent user state (accounts, pins, routes). Managed by Flask-SQLAlchemy ORM with Alembic migrations.
+  - Separate databases enable independent `pg_dump` backups and prevent `osm2pgsql --create` from affecting user data.
+
+- **Bootstrap**:
+  - `scripts/db_bootstrap.py` auto-creates `user_db` if missing, using a raw `psycopg2` connection with `ISOLATION_LEVEL_AUTOCOMMIT` (PostgreSQL requires autocommit for `CREATE DATABASE`).
+  - Called from the Flask application factory (`create_app()`) before SQLAlchemy initialisation.
+
+- **ORM & Extensions**:
+  - `app/extensions.py` centralises `SQLAlchemy`, `Migrate`, and `LoginManager` instances to avoid circular imports.
+  - Models: `User` (email, hashed password), `SavedPin` (lat/lon, label), `SavedRoute` (parametrised inputs + optional geometry).
+
+- **Connection Pooling**:
+  - Conservative tuning: `pool_size=3`, `max_overflow=2` per process.
+  - API (1 process) + Workers (4 processes) = max 25 connections, well within PostgreSQL's default 100 limit.
+
+- **Authentication**:
+  - Flask-Login session management with `werkzeug.security` PBKDF2-SHA256 password hashing.
+  - `auth.py` blueprint provides register/login/logout/me endpoints.
+  - `user_data.py` blueprint provides CRUD for pins and routes, all protected by `@login_required`.
+
+- **Migration Safety**:
+  - Alembic's `env.py` must include an `include_object` hook that whitelists only ORM-declared tables, preventing autogenerate from touching PostGIS/osm2pgsql tables.
+

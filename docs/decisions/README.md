@@ -27,9 +27,16 @@ Each ADR follows this structure:
 | [ADR-004](ADR-004-bbox-clipping.md) | Bounding Box Clipping for Graph Loading | Accepted | 2026-01-30 |
 | [ADR-005](ADR-005-async-task-cache-reliability.md) | Async Task Lock Management and Cache Reliability | Accepted | 2026-01-30 |
 | [ADR-011](ADR-011-restricted-access-pruning.md) | Restricted-Access Edge and Node Pruning | Accepted | 2026-02-22 |
+| [ADR-012](ADR-012-dual-database-segregation.md) | Dual-Database Segregation for User Persistence | Accepted | 2026-02-22 |
+| [ADR-013](ADR-013-automated-database-bootstrapping.md) | Automated Database Bootstrapping | Accepted | 2026-02-22 |
+| [ADR-014](ADR-014-parametrised-route-storage.md) | Parametrised Route Storage Strategy | Accepted | 2026-02-22 |
+| [ADR-015](ADR-015-connection-pool-tuning.md) | Connection Pool Tuning for Dual-Database Architecture | Accepted | 2026-02-22 |
+| [ADR-016](ADR-016-alembic-migration-safety.md) | Alembic Migration Safety — include_object Firewall | Accepted | 2026-02-22 |
 
 ## Related Documentation
 
 - [WSM Feature Documentation](../wsm_feature.md) - Technical details of the cost function
 - [Greenness Methods Comparison](../greenness_methods_comparison.md) - Research on greenness detection approaches
 - [Custom Walking Filter](../features/custom_walking_filter.md) - Walking network filter and restricted-access pruning
+- [User Accounts & Authentication](../features/user_accounts.md) - User registration, login, and session management
+- [Saved Data (Pins & Routes)](../features/saved_data.md) - CRUD API for user-saved locations and routes

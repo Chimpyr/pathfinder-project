@@ -4,9 +4,9 @@ services:
     image: postgis/postgis:16-3.5-alpine
     container_name: scenic-db
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
@@ -16,6 +16,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  
+  pgadmin:
+    image: dpage/pgadmin4:9.12.0
+    container_name: scenic-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
 
   # Martin vector tile server (serves MVT from PostGIS)
   tileserver:
@@ -84,8 +95,15 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - GREENNESS_MODE=EDGE_SAMPLING
       - ELEVATION_MODE=LOCAL
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB_HOST=db
+      - POSTGRES_DB_PORT=5432
+      - USER_DB_NAME=${USER_DB_NAME:-user_db}
     depends_on:
       redis:
+        condition: service_healthy
+      db:
         condition: service_healthy
     command: python run.py
 
@@ -105,8 +123,15 @@ services:
       - GREENNESS_MODE=EDGE_SAMPLING
       - ELEVATION_MODE=LOCAL
       - C_FORCE_ROOT=true
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB_HOST=db
+      - POSTGRES_DB_PORT=5432
+      - USER_DB_NAME=${USER_DB_NAME:-user_db}
     depends_on:
       redis:
+        condition: service_healthy
+      db:
         condition: service_healthy
     command: celery -A celery_app worker --loglevel=info --concurrency=4
 

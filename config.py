@@ -8,6 +8,28 @@ class Config:
     VERBOSE_LOGGING = True
     WALKING_SPEED_KMH = 5.0
     
+    # =========================================================================
+    # User Database Configuration (PostgreSQL)
+    # =========================================================================
+    _PG_USER = os.environ.get('POSTGRES_USER', 'scenic')
+    _PG_PASS = os.environ.get('POSTGRES_PASSWORD', 'scenicpassword')
+    _PG_HOST = os.environ.get('POSTGRES_DB_HOST', 'localhost')
+    _PG_PORT = os.environ.get('POSTGRES_DB_PORT', '5432')
+    _USER_DB = os.environ.get('USER_DB_NAME', 'user_db')
+
+    SQLALCHEMY_DATABASE_URI = (
+        f"postgresql://{_PG_USER}:{_PG_PASS}@{_PG_HOST}:{_PG_PORT}/{_USER_DB}"
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # Connection pool tuning — conservative to stay below PostgreSQL max_connections
+    # API (1 worker) + Celery (4 workers) = 5 processes × pool_size 3 = 15 conns max
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 3,
+        'max_overflow': 2,
+        'pool_pre_ping': True,  # Detect stale connections
+    }
+    
     # Greenness visibility processing mode
     # Options: 'OFF', 'FAST', 'EDGE_SAMPLING', 'NOVACK'
     # - OFF: Skip greenness processing entirely (fastest startup)
