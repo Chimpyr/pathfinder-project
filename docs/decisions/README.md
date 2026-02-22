@@ -26,8 +26,10 @@ Each ADR follows this structure:
 | [ADR-003](ADR-003-weighted-min-and-slider-scale.md) | Weighted-MIN Algorithm and 0-5 Slider Scale | Accepted | 2026-01-19 |
 | [ADR-004](ADR-004-bbox-clipping.md) | Bounding Box Clipping for Graph Loading | Accepted | 2026-01-30 |
 | [ADR-005](ADR-005-async-task-cache-reliability.md) | Async Task Lock Management and Cache Reliability | Accepted | 2026-01-30 |
+| [ADR-011](ADR-011-restricted-access-pruning.md) | Restricted-Access Edge and Node Pruning | Accepted | 2026-02-22 |
 
 ## Related Documentation
 
 - [WSM Feature Documentation](../wsm_feature.md) - Technical details of the cost function
 - [Greenness Methods Comparison](../greenness_methods_comparison.md) - Research on greenness detection approaches
+- [Custom Walking Filter](../features/custom_walking_filter.md) - Walking network filter and restricted-access pruning

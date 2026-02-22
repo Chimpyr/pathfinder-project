@@ -23,6 +23,7 @@ ScenicPathFinder/
 │   │   ├── core/                    # Infrastructure
 │   │   │   ├── cache_manager.py     # Disk caching (pickle)
 │   │   │   ├── data_loader.py       # PBF download + parsing
+│   │   │   ├── walking_filter.py    # Custom walking network filter
 │   │   │   └── graph_manager.py     # Two-tier cache orchestration
 │   │   │
 │   │   ├── processors/              # Edge attribute processors
@@ -349,7 +350,13 @@ class Config:
                              ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                      DATA LOADER                                  │
-│         Download PBF → Parse with pyrosm → NetworkX Graph         │
+│         Download PBF → Parse with pyrosm → Raw edges + nodes      │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    WALKING FILTER                                 │
+│  Prune restricted access, locked gates, private service roads     │
 └────────────────────────────┬─────────────────────────────────────┘
                              │
                              ▼

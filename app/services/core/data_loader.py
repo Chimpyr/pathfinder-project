@@ -263,9 +263,10 @@ class OSMDataLoader:
                  raise
 
             # Apply our custom walking filter to the raw edges
+            # Pass nodes so barrier resolution (locked gates) can work
             if graph is None and nodes is not None and edges is not None:
                 pre_filter = len(edges)
-                edges = apply_walking_filter(edges)
+                edges = apply_walking_filter(edges, nodes=nodes)
                 self.log(
                     f"[OSMDataLoader] Walking filter: {pre_filter} → {len(edges)} edges "
                     f"(removed {pre_filter - len(edges)})"

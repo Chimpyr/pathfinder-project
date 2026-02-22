@@ -8,6 +8,12 @@ This filter keeps cycleways and other ways that are legally or explicitly
 accessible to pedestrians, while still excluding genuinely unwalkable
 infrastructure (motorways, construction, etc.).
 
+It also performs **restricted-access pruning**: edges tagged as private,
+military, agricultural, etc. are removed before graph construction,
+unless an explicit pedestrian override (``foot=yes``, ``foot=designated``)
+is present.  Node-level barriers (locked gates) also cause connected
+edges to be dropped.
+
 Design goals
 ------------
 1. **Correct** — include shared-use cycleways tagged ``foot=yes``
@@ -16,6 +22,8 @@ Design goals
    one-line change to a clearly-named constant.
 3. **Documented** — every exclusion and inclusion rule has a comment
    explaining *why*.
+4. **Safe** — remove edges through military zones, private business
+   parks, locked gates, and similar non-navigable areas.
 
 See also:
     ``docs/features/custom_walking_filter.md`` for the user-facing
@@ -27,7 +35,7 @@ See also:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import Optional, Set, TYPE_CHECKING
 
 import pandas as pd
 
@@ -52,14 +60,39 @@ EXCLUDED_HIGHWAY_TAGS: set[str] = {
 }
 # fmt: on
 
-# ``foot`` values that mean pedestrians are explicitly FORBIDDEN.
-EXCLUDED_FOOT_TAGS: set[str] = {"no"}
+# ---------------------------------------------------------------------------
+# Restricted-access tag sets  (used by the unified pruning masks)
+# ---------------------------------------------------------------------------
 
 # ``access`` values that mean general public access is forbidden.
-EXCLUDED_ACCESS_TAGS: set[str] = {"private", "no"}
+# Broader than the original {private, no} — covers military, agricultural, etc.
+RESTRICTED_ACCESS: set[str] = {
+    "private", "no", "military", "customers",
+    "agricultural", "forestry", "delivery", "restricted",
+}
 
-# ``service`` values that indicate private driveways etc.
-EXCLUDED_SERVICE_TAGS: set[str] = {"private"}
+# ``foot`` values that mean pedestrians are explicitly forbidden or redirected.
+RESTRICTED_FOOT: set[str] = {
+    "no", "private", "restricted", "use_sidepath",
+}
+
+# ``foot`` values that **explicitly allow** pedestrian access.
+# Used as an override: an edge with access=private BUT foot=designated is KEPT.
+EXPLICIT_ALLOW: set[str] = {
+    "yes", "permissive", "designated", "public",
+}
+
+# ``service`` sub-tag values indicating private/non-public service roads.
+RESTRICTED_SERVICE: set[str] = {
+    "driveway", "parking_aisle", "private",
+}
+
+# ---------------------------------------------------------------------------
+# Legacy aliases  (kept for backward compatibility with existing tests)
+# ---------------------------------------------------------------------------
+EXCLUDED_FOOT_TAGS: set[str] = RESTRICTED_FOOT
+EXCLUDED_ACCESS_TAGS: set[str] = RESTRICTED_ACCESS
+EXCLUDED_SERVICE_TAGS: set[str] = RESTRICTED_SERVICE
 
 # Highway values that are ONLY kept when the way has an explicit
 # pedestrian-access tag (``foot ∈ PEDESTRIAN_FOOT_VALUES``).
@@ -91,17 +124,86 @@ PEDESTRIAN_DESIGNATION_VALUES: set[str] = {
 # This list is appended to whatever the caller already requests.
 EXTRA_WALKING_ATTRIBUTES: list[str] = [
     "designation",  # UK legal right-of-way status
+    "barrier",      # gate / bollard / fence (for node-level barrier resolution)
+    "locked",       # whether a barrier is locked
+    "service",      # service road sub-type (driveway, parking_aisle, etc.)
 ]
+
+
+# ---------------------------------------------------------------------------
+# Node-level barrier resolution
+# ---------------------------------------------------------------------------
+
+def _resolve_restricted_nodes(
+    nodes: "gpd.GeoDataFrame",
+) -> Set[int]:
+    """Identify impassable node IDs (locked gates, restricted checkpoints).
+
+    A node is considered impassable when:
+    - ``barrier == 'gate'``  **AND**
+    - (``locked == 'yes'``  **OR**  ``access ∈ RESTRICTED_ACCESS``)
+
+    Parameters
+    ----------
+    nodes : GeoDataFrame
+        Raw nodes from ``osm.get_network(nodes=True)``.
+
+    Returns
+    -------
+    set[int]
+        Node IDs that should block any edge touching them.
+    """
+    if nodes is None or nodes.empty:
+        return set()
+
+    # Need both 'barrier' and at least one of 'locked'/'access'
+    if "barrier" not in nodes.columns:
+        return set()
+
+    barrier_lower = nodes["barrier"].astype(str).str.lower()
+    is_gate = barrier_lower == "gate"
+
+    if not is_gate.any():
+        return set()
+
+    # Check locked status
+    if "locked" in nodes.columns:
+        is_locked = nodes["locked"].astype(str).str.lower() == "yes"
+    else:
+        is_locked = pd.Series(False, index=nodes.index)
+
+    # Check access restriction
+    if "access" in nodes.columns:
+        is_restricted = nodes["access"].astype(str).str.lower().isin(RESTRICTED_ACCESS)
+    else:
+        is_restricted = pd.Series(False, index=nodes.index)
+
+    blocked = is_gate & (is_locked | is_restricted)
+
+    if not blocked.any():
+        return set()
+
+    # Extract the node IDs — pyrosm uses the DataFrame index or an 'id' column
+    if "id" in nodes.columns:
+        restricted_ids = set(nodes.loc[blocked, "id"])
+    else:
+        restricted_ids = set(nodes.index[blocked])
+
+    logger.info("Barrier filter: identified %d restricted gate nodes", len(restricted_ids))
+    return restricted_ids
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
-def apply_walking_filter(edges: "gpd.GeoDataFrame") -> "gpd.GeoDataFrame":
+def apply_walking_filter(
+    edges: "gpd.GeoDataFrame",
+    nodes: Optional["gpd.GeoDataFrame"] = None,
+) -> "gpd.GeoDataFrame":
     """Filter a raw ``network_type="all"`` edges GeoDataFrame to walking-suitable ways.
 
-    The logic mirrors pyrosm's built-in walking filter but with two key
+    The logic mirrors pyrosm's built-in walking filter but with key
     improvements:
 
     1. ``highway=cycleway`` is **kept** when the way has a pedestrian-access
@@ -109,11 +211,17 @@ def apply_walking_filter(edges: "gpd.GeoDataFrame") -> "gpd.GeoDataFrame":
        ``designation`` confirming foot access).
     2. ``designation`` is available as an edge attribute for downstream
        processors (e.g. ``_road_type_penalty``).
+    3. **Restricted-access pruning** — edges through military zones,
+       private business parks, locked gates, and similar non-navigable
+       areas are removed unless an explicit pedestrian override is present.
 
     Parameters
     ----------
     edges : GeoDataFrame
         Raw edges from ``osm.get_network(network_type="all", ...)``.
+    nodes : GeoDataFrame, optional
+        Raw nodes from the same call.  Used for barrier/gate resolution.
+        If ``None``, barrier filtering is skipped.
 
     Returns
     -------
@@ -141,26 +249,13 @@ def apply_walking_filter(edges: "gpd.GeoDataFrame") -> "gpd.GeoDataFrame":
         logger.warning("No 'highway' column found in edges — returning empty")
         return edges.iloc[0:0]
 
-    # 3. Exclude foot=no
+    # Pre-compute foot_lower (used by multiple masks below)
     if "foot" in edges.columns:
         foot_lower = edges["foot"].astype(str).str.lower()
-        mask &= ~foot_lower.isin(EXCLUDED_FOOT_TAGS)
     else:
         foot_lower = pd.Series("", index=edges.index)
 
-    # 4. Exclude service=private
-    if "service" in edges.columns:
-        mask &= edges["service"].astype(str).str.lower() != "private"
-
-    # 5. Exclude access=private|no (unless foot tag explicitly allows)
-    if "access" in edges.columns:
-        access_lower = edges["access"].astype(str).str.lower()
-        access_blocked = access_lower.isin(EXCLUDED_ACCESS_TAGS)
-        # If foot tag is explicitly permissive, override the access block
-        foot_overrides = foot_lower.isin(PEDESTRIAN_FOOT_VALUES)
-        mask &= ~access_blocked | foot_overrides
-
-    # --- Conditional inclusion (the new bit) ------------------------------
+    # --- Conditional inclusion (cycleway §2a fix) -------------------------
     # Ways whose highway tag is in CONDITIONAL_HIGHWAY_TAGS are only kept
     # if they have a pedestrian-access indicator.
 
@@ -183,6 +278,59 @@ def apply_walking_filter(edges: "gpd.GeoDataFrame") -> "gpd.GeoDataFrame":
         # For conditional ways: keep only if pedestrian access is confirmed
         conditional_rejected = is_conditional & ~pedestrian_confirmed
         mask &= ~conditional_rejected
+
+    # =====================================================================
+    # Restricted-access pruning  (four boolean masks + barrier resolution)
+    # =====================================================================
+
+    # Mask A — The Override: explicit pedestrian allow
+    is_explicitly_allowed = foot_lower.isin(EXPLICIT_ALLOW)
+
+    # Mask B — Pedestrian restriction (foot tag forbids walking)
+    is_foot_restricted = foot_lower.isin(RESTRICTED_FOOT)
+
+    # Mask C — General access restriction (access tag forbids entry)
+    if "access" in edges.columns:
+        access_lower = edges["access"].astype(str).str.lower()
+        is_access_restricted = access_lower.isin(RESTRICTED_ACCESS)
+    else:
+        is_access_restricted = pd.Series(False, index=edges.index)
+
+    # Mask D — Implicit service-road restriction
+    if "service" in edges.columns:
+        service_lower = edges["service"].astype(str).str.lower()
+        is_private_service = (
+            (highway_lower == "service")
+            & service_lower.isin(RESTRICTED_SERVICE)
+        )
+    else:
+        is_private_service = pd.Series(False, index=edges.index)
+
+    # --- Node-level barrier resolution ------------------------------------
+    restricted_node_ids = _resolve_restricted_nodes(nodes)
+
+    if restricted_node_ids:
+        # Flag edges whose source or target vertex is a restricted gate
+        if "u" in edges.columns and "v" in edges.columns:
+            gate_blocked = (
+                edges["u"].isin(restricted_node_ids)
+                | edges["v"].isin(restricted_node_ids)
+            )
+        else:
+            gate_blocked = pd.Series(False, index=edges.index)
+    else:
+        gate_blocked = pd.Series(False, index=edges.index)
+
+    # --- Unified drop mask ------------------------------------------------
+    # drop = gate_blocked | B | (C & ~A) | (D & ~A)
+    drop_mask = (
+        gate_blocked
+        | is_foot_restricted
+        | (is_access_restricted & ~is_explicitly_allowed)
+        | (is_private_service & ~is_explicitly_allowed)
+    )
+
+    mask &= ~drop_mask
 
     filtered = edges[mask].copy()
     removed = initial_count - len(filtered)
