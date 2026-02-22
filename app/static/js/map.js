@@ -282,7 +282,8 @@ class MapController {
   }
 
   /**
-   * Build a rich HTML popup with a "Save Pin" button.
+   * Build a rich HTML popup with an editable name field and "Save Pin" button.
+   * Auto-fills the name via reverse geocoding (Nominatim).
    * @param {string} label - Display label (e.g. "Start Point").
    * @param {number} lat - Latitude.
    * @param {number} lon - Longitude.
@@ -290,24 +291,105 @@ class MapController {
    */
   _buildPinPopup(label, lat, lon) {
     const container = document.createElement("div");
-    container.style.minWidth = "160px";
+    container.style.minWidth = "200px";
+
+    // Generate a sensible default from coordinates
+    const coordLabel = `Pin at ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+
     container.innerHTML = `
       <div style="font-weight:600;font-size:13px;margin-bottom:2px;">${label}</div>
-      <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
-      <button class="popup-save-pin-btn" data-lat="${lat}" data-lon="${lon}" data-label="${label}">
+      <div style="font-size:11px;color:#6b7280;margin-bottom:8px;">${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
+      <input type="text" class="popup-pin-name-input" placeholder="Name this pin…" value="" maxlength="100"
+             style="width:100%;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:6px;outline:none;margin-bottom:6px;box-sizing:border-box;">
+      <div style="font-size:10px;color:#9ca3af;margin-bottom:6px;font-style:italic;" class="popup-pin-geocode-hint">Looking up location…</div>
+      <button class="popup-save-pin-btn" data-lat="${lat}" data-lon="${lon}" data-label="${coordLabel}">
         <i class="fas fa-thumbtack"></i> Save Pin
       </button>
     `;
+
+    const input = container.querySelector(".popup-pin-name-input");
+    const hint = container.querySelector(".popup-pin-geocode-hint");
     const btn = container.querySelector(".popup-save-pin-btn");
-    btn.addEventListener("click", () => this._savePinFromPopup(btn));
+
+    // Reverse geocode to suggest a meaningful name
+    this._reverseGeocode(lat, lon).then(placeName => {
+      if (placeName) {
+        input.value = placeName;
+        hint.textContent = "Suggested name from location";
+      } else {
+        input.value = coordLabel;
+        hint.textContent = "";
+      }
+    });
+
+    // Check if a pin is already saved at this location
+    this._isPinAlreadySaved(lat, lon).then(alreadySaved => {
+      if (alreadySaved) {
+        input.style.display = "none";
+        hint.style.display = "none";
+        btn.classList.add("saved");
+        btn.innerHTML = '<i class="fas fa-check"></i> Already saved';
+      }
+    });
+
+    btn.addEventListener("click", () => this._savePinFromPopup(btn, input));
     return container;
+  }
+
+  /**
+   * Check whether a pin already exists near the given coordinates.
+   * Uses a ~10m tolerance to account for floating-point differences.
+   * @param {number} lat
+   * @param {number} lon
+   * @returns {Promise<boolean>}
+   */
+  async _isPinAlreadySaved(lat, lon) {
+    try {
+      const res = await fetch("/api/pins");
+      if (!res.ok) return false;
+      const data = await res.json();
+      const tolerance = 0.0001; // ~11 metres
+      return (data.pins || []).some(p =>
+        Math.abs(p.latitude - lat) < tolerance && Math.abs(p.longitude - lon) < tolerance
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Reverse geocode coordinates to a human-readable place name.
+   * Uses Nominatim (OpenStreetMap) — free, no API key needed.
+   * @param {number} lat
+   * @param {number} lon
+   * @returns {Promise<string|null>}
+   */
+  async _reverseGeocode(lat, lon) {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=18&addressdetails=1`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      // Build a concise name: road + suburb/neighbourhood, or display_name truncated
+      const addr = data.address || {};
+      const parts = [
+        addr.road || addr.pedestrian || addr.footway || addr.path || "",
+        addr.suburb || addr.neighbourhood || addr.hamlet || addr.village || addr.town || "",
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(", ") : (data.display_name || "").split(",").slice(0, 2).join(",").trim() || null;
+    } catch {
+      return null;
+    }
   }
 
   /**
    * Handle "Save Pin" click from a popup button.
    * @param {HTMLElement} btn - The clicked button.
+   * @param {HTMLInputElement} [nameInput] - Optional name input field.
    */
-  async _savePinFromPopup(btn) {
+  async _savePinFromPopup(btn, nameInput) {
     if (btn.classList.contains("saved")) return;
 
     // Auth check
@@ -324,7 +406,10 @@ class MapController {
 
     const lat = parseFloat(btn.dataset.lat);
     const lon = parseFloat(btn.dataset.lon);
-    const label = btn.dataset.label || `Pin at ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    // Prefer user-typed name, then fall back to data attribute
+    const label = (nameInput && nameInput.value.trim())
+      ? nameInput.value.trim()
+      : btn.dataset.label || `Pin at ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 
     btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
     try {
@@ -337,8 +422,9 @@ class MapController {
         btn.classList.add("saved");
         btn.innerHTML = '<i class="fas fa-check"></i> Saved';
         this._showMapToast("Pin saved!", "success");
+        document.dispatchEvent(new CustomEvent("saved-pin-added"));
         if (this._contextMarker) {
-          this._contextMarker._pinSaved = true; // Mark context marker as saved
+          this._contextMarker._pinSaved = true;
         }
       } else {
         const data = await res.json();
@@ -1029,6 +1115,48 @@ class MapController {
       this.map.removeLayer(this.lightingLayer);
       this.lightingLayer = null;
       console.log("[MapController] Street lighting layer removed");
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  TEMPORARY PIN MARKER (for Saved panel hover/click preview)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Show a temporary preview pin on the map.
+   * Replaces any existing temp pin. Used by the Saved panel.
+   * @param {number} lat
+   * @param {number} lon
+   * @param {string} [label]
+   */
+  showTempPinMarker(lat, lon, label = "") {
+    this.removeTempPinMarker();
+
+    this._tempPinMarker = L.marker([lat, lon], {
+      icon: L.divIcon({
+        className: "temp-pin-icon",
+        html: '<i class="fas fa-map-pin" style="font-size:28px;color:#3b82f6;text-shadow:0 2px 6px rgba(59,130,246,0.4);"></i>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+        popupAnchor: [0, -28],
+      }),
+      interactive: false,
+    }).addTo(this.map);
+
+    if (label) {
+      this._tempPinMarker.bindTooltip(label, { permanent: true, direction: "top", offset: [0, -8] });
+    }
+
+    this.map.panTo([lat, lon], { animate: true, duration: 0.4 });
+  }
+
+  /**
+   * Remove the current temporary preview pin (if any).
+   */
+  removeTempPinMarker() {
+    if (this._tempPinMarker) {
+      this.map.removeLayer(this._tempPinMarker);
+      this._tempPinMarker = null;
     }
   }
 }

@@ -57,6 +57,12 @@ export function initInputHandlers(callbacks) {
          if (mapController) mapController.clear(); 
          // State reset is handled via mapController callback onMarkersCleared
     });
+
+    // Swap Locations Button
+    const swapBtn = document.getElementById("swap-locations-btn");
+    if (swapBtn) {
+        swapBtn.addEventListener("click", swapLocations);
+    }
 }
 
 async function performGeocode(address, type) {
@@ -160,4 +166,92 @@ function updateCoordsDisplay() {
     } else {
         endCoordsDisplay.classList.add("hidden");
     }
+}
+
+/**
+ * Swap start and end locations — state, inputs, and map markers.
+ */
+function swapLocations() {
+    // Swap state
+    const tmpLat = startState.lat;
+    const tmpLon = startState.lon;
+    const tmpAddr = startState.address;
+
+    startState.lat = endState.lat;
+    startState.lon = endState.lon;
+    startState.address = endState.address;
+
+    endState.lat = tmpLat;
+    endState.lon = tmpLon;
+    endState.address = tmpAddr;
+
+    // Swap input values
+    const tmpVal = startInput.value;
+    startInput.value = endInput.value;
+    endInput.value = tmpVal;
+
+    // Update map markers
+    if (mapController) {
+        // Remove existing markers
+        if (mapController.startMarker) {
+            mapController.map.removeLayer(mapController.startMarker);
+            mapController.startMarker = null;
+        }
+        if (mapController.endMarker) {
+            mapController.map.removeLayer(mapController.endMarker);
+            mapController.endMarker = null;
+        }
+
+        // Re-place markers with swapped positions (don't trigger callbacks — state already updated)
+        if (startState.lat !== null) {
+            mapController.startMarker = L.marker([startState.lat, startState.lon], {
+                icon: mapController._createIcon("green"),
+                draggable: true,
+            }).addTo(mapController.map);
+            mapController.startMarker.bindPopup(
+                mapController._buildPinPopup("Start Point", startState.lat, startState.lon)
+            );
+        }
+        if (endState.lat !== null) {
+            mapController.endMarker = L.marker([endState.lat, endState.lon], {
+                icon: mapController._createIcon("red"),
+                draggable: true,
+            }).addTo(mapController.map);
+            mapController.endMarker.bindPopup(
+                mapController._buildPinPopup("End Point", endState.lat, endState.lon)
+            );
+        }
+    }
+
+    updateClearButtons();
+    updateCoordsDisplay();
+    console.log("[InputHandlers] Swapped start and end locations");
+}
+
+/**
+ * Programmatically set a start point from coordinates.
+ * Used by Saved panel to route from a pin.
+ */
+export function setStartFromCoords(lat, lon) {
+    startState.lat = lat;
+    startState.lon = lon;
+    startState.address = null;
+    startInput.value = formatCoords(lat, lon);
+    if (mapController) mapController.setStartPoint(lat, lon);
+    updateClearButtons();
+    updateCoordsDisplay();
+}
+
+/**
+ * Programmatically set an end point from coordinates.
+ * Used by Saved panel to route from a pin.
+ */
+export function setEndFromCoords(lat, lon) {
+    endState.lat = lat;
+    endState.lon = lon;
+    endState.address = null;
+    endInput.value = formatCoords(lat, lon);
+    if (mapController) mapController.setEndPoint(lat, lon);
+    updateClearButtons();
+    updateCoordsDisplay();
 }

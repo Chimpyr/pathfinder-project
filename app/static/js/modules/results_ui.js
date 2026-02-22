@@ -42,6 +42,20 @@ function collectWeights() {
     if (socialToggle) w.social = socialToggle.checked;
     const groupNature = document.getElementById('group-nature-toggle');
     if (groupNature) w.group_nature = groupNature.checked;
+
+    // Advanced options
+    const advToggles = [
+        ['prefer_pedestrian', 'prefer-pedestrian-toggle'],
+        ['prefer_paved', 'prefer-paved-toggle'],
+        ['prefer_lit', 'prefer-lit-toggle'],
+        ['heavily_avoid_unlit', 'heavily-avoid-unlit-toggle'],
+        ['avoid_unsafe', 'avoid-unsafe-toggle'],
+    ];
+    for (const [key, id] of advToggles) {
+        const el = document.getElementById(id);
+        if (el) w[key] = el.checked;
+    }
+
     return w;
 }
 
@@ -122,6 +136,7 @@ async function handleSaveQuery(routeType, isLoop, btn) {
             btn.classList.add('saved');
             btn.innerHTML = '<i class="fas fa-check"></i> Saved';
             showToast("Query saved!", "success");
+            document.dispatchEvent(new CustomEvent("saved-query-added"));
         } else {
             const data = await res.json();
             showToast(data.error || "Failed to save", "error");

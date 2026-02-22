@@ -86,6 +86,13 @@ function switchRoutingMode(mode) {
 
   if (btnText) btnText.textContent = isStandard ? "Find Route" : "Find Loop";
 
+  // Hide swap button in loop mode (no end point)
+  const swapRow = document.getElementById("swap-locations-row");
+  if (swapRow) swapRow.classList.toggle("hidden", !isStandard);
+
+  // Notify other modules of mode change
+  document.dispatchEvent(new CustomEvent("routing-mode-changed", { detail: { mode } }));
+
   console.log(`[App] Routing mode: ${mode}`);
 }
 

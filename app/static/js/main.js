@@ -12,6 +12,7 @@ import { initRoutingUI } from './modules/routing_ui.js';
 import { getCachedTiles } from './modules/api.js';
 import { initSettingsUI } from './modules/settings_ui.js';
 import { initAuthUI } from './modules/auth_ui.js';
+import { initSavedUI } from './modules/saved_ui.js';
 
 // Initialize Everything
 document.addEventListener("DOMContentLoaded", () => {
@@ -44,6 +45,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 7. Auth / Account
     initAuthUI();
+
+    // 8. Saved Panel
+    initSavedUI();
 
     console.log("[App] Ready.");
 });

@@ -68,6 +68,25 @@ def create_pin():
     return jsonify({'pin': pin.to_dict()}), 201
 
 
+@user_data_bp.route('/pins/<int:pin_id>', methods=['PATCH'])
+@login_required
+def update_pin(pin_id: int):
+    """Update a saved pin (currently only the label)."""
+    pin = SavedPin.query.filter_by(id=pin_id, user_id=current_user.id).first()
+    if not pin:
+        return jsonify({'error': 'Pin not found'}), 404
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'JSON body required'}), 400
+
+    label = data.get('label')
+    if label is not None:
+        pin.label = str(label).strip()[:100] or pin.label
+
+    db.session.commit()
+    return jsonify({'pin': pin.to_dict()}), 200
+
 @user_data_bp.route('/pins/<int:pin_id>', methods=['DELETE'])
 @login_required
 def delete_pin(pin_id: int):
@@ -141,6 +160,28 @@ def create_query():
     db.session.add(query)
     db.session.commit()
     return jsonify({'query': query.to_dict()}), 201
+
+
+@user_data_bp.route('/queries/<int:query_id>', methods=['PATCH'])
+@login_required
+def update_query(query_id: int):
+    """Update a saved query (currently only the name)."""
+    query = SavedQuery.query.filter_by(
+        id=query_id, user_id=current_user.id
+    ).first()
+    if not query:
+        return jsonify({'error': 'Query not found'}), 404
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'JSON body required'}), 400
+
+    name = data.get('name')
+    if name is not None:
+        query.name = str(name).strip()[:100] or query.name
+
+    db.session.commit()
+    return jsonify({'query': query.to_dict()}), 200
 
 
 @user_data_bp.route('/queries/<int:query_id>', methods=['DELETE'])
