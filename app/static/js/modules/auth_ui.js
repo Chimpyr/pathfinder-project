@@ -197,17 +197,17 @@ export function initAuthUI() {
 
     async function fetchCounts() {
         try {
-            const [pinsRes, routesRes] = await Promise.all([
+            const [pinsRes, queriesRes] = await Promise.all([
                 fetch("/api/pins"),
-                fetch("/api/routes"),
+                fetch("/api/queries"),
             ]);
             if (pinsRes.ok) {
                 const pinsData = await pinsRes.json();
                 document.getElementById("profile-pin-count").textContent = pinsData.pins.length;
             }
-            if (routesRes.ok) {
-                const routesData = await routesRes.json();
-                document.getElementById("profile-route-count").textContent = routesData.routes.length;
+            if (queriesRes.ok) {
+                const queriesData = await queriesRes.json();
+                document.getElementById("profile-route-count").textContent = queriesData.queries.length;
             }
         } catch (_) {
             // Silently fail — counts will show "—"

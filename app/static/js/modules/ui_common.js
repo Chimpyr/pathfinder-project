@@ -93,3 +93,58 @@ export function initThemeToggle() {
         }
     });
 }
+
+// ============================================================================
+// TOAST NOTIFICATIONS
+// ============================================================================
+
+function ensureToastContainer() {
+    let container = document.getElementById("toast-container");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "toast-container";
+        container.className = "toast-container";
+        document.body.appendChild(container);
+    }
+    return container;
+}
+
+/**
+ * Show a toast notification.
+ * @param {string} message - Text to display.
+ * @param {"success"|"error"|"info"} type - Toast style.
+ * @param {number} duration - Auto-dismiss in ms (default 3000).
+ */
+export function showToast(message, type = "info", duration = 3000) {
+    const container = ensureToastContainer();
+
+    const icons = {
+        success: "fa-check-circle",
+        error: "fa-exclamation-circle",
+        info: "fa-info-circle",
+    };
+
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i><span>${message}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add("toast-out");
+        toast.addEventListener("animationend", () => toast.remove());
+    }, duration);
+}
+
+/**
+ * Check if the user is currently authenticated.
+ * @returns {Promise<boolean>}
+ */
+export async function isAuthenticated() {
+    try {
+        const res = await fetch("/auth/me");
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+

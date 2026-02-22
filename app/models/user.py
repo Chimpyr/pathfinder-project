@@ -26,13 +26,13 @@ class User(UserMixin, db.Model):
         default=lambda: datetime.now(timezone.utc),
     )
 
-    # Relationships (cascade delete orphan pins/routes when user is removed)
+    # Relationships (cascade delete orphan pins/queries when user is removed)
     saved_pins = db.relationship(
         'SavedPin', backref='owner', lazy='dynamic',
         cascade='all, delete-orphan',
     )
-    saved_routes = db.relationship(
-        'SavedRoute', backref='owner', lazy='dynamic',
+    saved_queries = db.relationship(
+        'SavedQuery', backref='owner', lazy='dynamic',
         cascade='all, delete-orphan',
     )
 

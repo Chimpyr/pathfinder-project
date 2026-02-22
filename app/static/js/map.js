@@ -93,6 +93,10 @@ class MapController {
     // Set up click handler
     this.map.on("click", (e) => this._handleMapClick(e));
 
+    // Right-click context menu for saving pins
+    this._contextMarker = null;
+    this.map.on("contextmenu", (e) => this._handleContextMenu(e));
+
     // Start in 'setting_start' mode by default
     this.state = "setting_start";
 
@@ -220,12 +224,14 @@ class MapController {
     // Centre map on the new marker
     this.map.panTo([lat, lon]);
 
-    this.startMarker.bindPopup("Start Point").openPopup();
+    this.startMarker.bindPopup(this._buildPinPopup("Start Point", lat, lon)).openPopup();
 
     // Handle drag end
     this.startMarker.on("dragend", (e) => {
       const pos = e.target.getLatLng();
       this.options.onStartSet(pos.lat, pos.lng);
+      // Update popup content with new coords
+      this.startMarker.setPopupContent(this._buildPinPopup("Start Point", pos.lat, pos.lng));
     });
 
     // Trigger callback
@@ -257,12 +263,14 @@ class MapController {
     // Centre map on the new marker
     this.map.panTo([lat, lon]);
 
-    this.endMarker.bindPopup("End Point");
+    this.endMarker.bindPopup(this._buildPinPopup("End Point", lat, lon));
 
     // Handle drag end
     this.endMarker.on("dragend", (e) => {
       const pos = e.target.getLatLng();
       this.options.onEndSet(pos.lat, pos.lng);
+      // Update popup content with new coords
+      this.endMarker.setPopupContent(this._buildPinPopup("End Point", pos.lat, pos.lng));
     });
 
     // Trigger callback
@@ -271,6 +279,136 @@ class MapController {
     console.log(
       `[MapController] End point set: ${lat.toFixed(6)}, ${lon.toFixed(6)}`,
     );
+  }
+
+  /**
+   * Build a rich HTML popup with a "Save Pin" button.
+   * @param {string} label - Display label (e.g. "Start Point").
+   * @param {number} lat - Latitude.
+   * @param {number} lon - Longitude.
+   * @returns {HTMLElement} Popup content element.
+   */
+  _buildPinPopup(label, lat, lon) {
+    const container = document.createElement("div");
+    container.style.minWidth = "160px";
+    container.innerHTML = `
+      <div style="font-weight:600;font-size:13px;margin-bottom:2px;">${label}</div>
+      <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
+      <button class="popup-save-pin-btn" data-lat="${lat}" data-lon="${lon}" data-label="${label}">
+        <i class="fas fa-thumbtack"></i> Save Pin
+      </button>
+    `;
+    const btn = container.querySelector(".popup-save-pin-btn");
+    btn.addEventListener("click", () => this._savePinFromPopup(btn));
+    return container;
+  }
+
+  /**
+   * Handle "Save Pin" click from a popup button.
+   * @param {HTMLElement} btn - The clicked button.
+   */
+  async _savePinFromPopup(btn) {
+    if (btn.classList.contains("saved")) return;
+
+    // Auth check
+    try {
+      const authRes = await fetch("/auth/me");
+      if (!authRes.ok) {
+        this._showMapToast("Sign in to save pins", "info");
+        return;
+      }
+    } catch {
+      this._showMapToast("Sign in to save pins", "info");
+      return;
+    }
+
+    const lat = parseFloat(btn.dataset.lat);
+    const lon = parseFloat(btn.dataset.lon);
+    const label = btn.dataset.label || `Pin at ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+
+    btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+    try {
+      const res = await fetch("/api/pins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label, latitude: lat, longitude: lon }),
+      });
+      if (res.ok) {
+        btn.classList.add("saved");
+        btn.innerHTML = '<i class="fas fa-check"></i> Saved';
+        this._showMapToast("Pin saved!", "success");
+        if (this._contextMarker) {
+          this._contextMarker._pinSaved = true; // Mark context marker as saved
+        }
+      } else {
+        const data = await res.json();
+        this._showMapToast(data.error || "Failed to save", "error");
+        btn.innerHTML = '<i class="fas fa-thumbtack"></i> Save Pin';
+      }
+    } catch {
+      this._showMapToast("Network error", "error");
+      btn.innerHTML = '<i class="fas fa-thumbtack"></i> Save Pin';
+    }
+  }
+
+  /**
+   * Handle right-click context menu on map for pin saving.
+   * @param {L.LeafletMouseEvent} e
+   */
+  _handleContextMenu(e) {
+    // Remove previous context marker
+    if (this._contextMarker) {
+      this.map.removeLayer(this._contextMarker);
+      this._contextMarker = null;
+    }
+
+    const { lat, lng } = e.latlng;
+    this._contextMarker = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: "context-pin-icon",
+        html: '<i class="fas fa-map-pin" style="font-size:24px;color:var(--primary-color);text-shadow:0 1px 3px rgba(0,0,0,0.3);"></i>',
+        iconSize: [24, 24],
+        iconAnchor: [12, 24],
+        popupAnchor: [0, -24],
+      }),
+    }).addTo(this.map);
+
+    const popup = this._buildPinPopup(`Pin at ${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng);
+    this._contextMarker.bindPopup(popup).openPopup();
+
+    // Remove context marker when popup is closed
+    this._contextMarker.on("popupclose", () => {
+      if (this._contextMarker && !this._contextMarker._pinSaved) {
+        this.map.removeLayer(this._contextMarker);
+        this._contextMarker = null;
+      }
+    });
+  }
+
+  /**
+   * Show a toast from map context (uses the same toast system).
+   * @param {string} message
+   * @param {string} type
+   */
+  _showMapToast(message, type) {
+    // Dispatch a custom event that the main app can listen to,
+    // or directly create a toast element.
+    let container = document.getElementById("toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "toast-container";
+      container.className = "toast-container";
+      document.body.appendChild(container);
+    }
+    const icons = { success: "fa-check-circle", error: "fa-exclamation-circle", info: "fa-info-circle" };
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i><span>${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add("toast-out");
+      toast.addEventListener("animationend", () => toast.remove());
+    }, 3000);
   }
 
   /**

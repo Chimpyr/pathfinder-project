@@ -1,9 +1,11 @@
 /**
  * Results UI (Route Cards & Stats)
+ * Handles rendering route/loop option cards with save functionality.
  */
-import { routeState, loopState } from './state.js';
+import { routeState, loopState, startState, endState, appState } from './state.js';
 import { ROUTE_CONFIG } from './config.js';
 import { mapController } from './map_manager.js';
+import { showToast, isAuthenticated } from './ui_common.js';
 
 // DOM Elements
 const routeOptionsList = document.getElementById("route-options-list");
@@ -12,6 +14,128 @@ const routesEmptyState = document.getElementById("routes-empty-state");
 const routeStatsContainer = document.getElementById("route-stats");
 const statDistance = document.getElementById("stat-distance");
 const statTime = document.getElementById("stat-time");
+
+// ============================================================================
+// SAVE QUERY LOGIC
+// ============================================================================
+
+/**
+ * Collect the current scenic weights from the UI controls.
+ * @returns {Object} weights snapshot
+ */
+function collectWeights() {
+    const w = {};
+    const sliders = [
+        ['distance', 'weight-distance'],
+        ['quietness', 'weight-quietness'],
+        ['greenness', 'weight-greenness'],
+        ['water', 'weight-water'],
+        ['nature', 'weight-nature'],
+        ['flatness', 'weight-flatness'],
+    ];
+    for (const [key, id] of sliders) {
+        const el = document.getElementById(id);
+        if (el) w[key] = parseFloat(el.value);
+    }
+    // Toggles
+    const socialToggle = document.getElementById('weight-social');
+    if (socialToggle) w.social = socialToggle.checked;
+    const groupNature = document.getElementById('group-nature-toggle');
+    if (groupNature) w.group_nature = groupNature.checked;
+    return w;
+}
+
+/**
+ * Generate a human-readable query name from addresses or coordinates.
+ */
+function generateQueryName(isLoop) {
+    const startLabel = startState.address || 
+        (startState.lat ? `${startState.lat.toFixed(4)}, ${startState.lon.toFixed(4)}` : 'Unknown');
+    
+    if (isLoop) {
+        return `Loop from ${startLabel}`;
+    }
+    
+    const endLabel = endState.address || 
+        (endState.lat ? `${endState.lat.toFixed(4)}, ${endState.lon.toFixed(4)}` : 'Unknown');
+    return `${startLabel} → ${endLabel}`;
+}
+
+/**
+ * Save a route/loop query to the database.
+ * @param {string} routeType - e.g. "balanced", "baseline", "extremist", or loop ID
+ * @param {boolean} isLoop - Whether this is a loop query
+ * @param {HTMLElement} btn - The save button element
+ */
+async function handleSaveQuery(routeType, isLoop, btn) {
+    if (btn.classList.contains('saved')) return;
+
+    // Auth check
+    const authed = await isAuthenticated();
+    if (!authed) {
+        showToast("Sign in to save queries", "info");
+        return;
+    }
+
+    // Collect data
+    let geometry = null;
+    let distanceKm = null;
+
+    if (isLoop) {
+        // Find the loop data
+        const loops = loopState.loops;
+        const loop = loops?.find(l => l.id === routeType);
+        if (loop) {
+            geometry = loop.route_coords;
+            distanceKm = loop.distance_km;
+        }
+    } else {
+        const routeData = routeState.routes?.[routeType];
+        if (routeData) {
+            geometry = routeData.route_coords || routeData.coordinates;
+            distanceKm = routeData.stats?.distance_km;
+        }
+    }
+
+    const payload = {
+        name: generateQueryName(isLoop),
+        start_lat: startState.lat,
+        start_lon: startState.lon,
+        end_lat: isLoop ? null : endState.lat,
+        end_lon: isLoop ? null : endState.lon,
+        weights: collectWeights(),
+        route_geometry: geometry,
+        distance_km: distanceKm,
+        is_loop: isLoop,
+    };
+
+    // Save
+    btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+    try {
+        const res = await fetch("/api/queries", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+            btn.classList.add('saved');
+            btn.innerHTML = '<i class="fas fa-check"></i> Saved';
+            showToast("Query saved!", "success");
+        } else {
+            const data = await res.json();
+            showToast(data.error || "Failed to save", "error");
+            btn.innerHTML = '<i class="fas fa-bookmark"></i> Save';
+        }
+    } catch (err) {
+        showToast("Network error", "error");
+        btn.innerHTML = '<i class="fas fa-bookmark"></i> Save';
+    }
+}
+
+// ============================================================================
+// ROUTE CARDS (Standard Mode)
+// ============================================================================
 
 /**
  * Render route option cards in the sidebar.
@@ -55,7 +179,12 @@ export function renderRouteOptions(routes) {
                             ${duplicateBadge}
                         </div>
                     </div>
-                    ${isSelected ? '<i class="fas fa-check text-primary-500"></i>' : ""}
+                    <div class="flex items-center gap-1">
+                        <button class="save-query-btn" data-route-type="${type}" data-is-loop="false" title="Save this query">
+                            <i class="fas fa-bookmark"></i> Save
+                        </button>
+                        ${isSelected ? '<i class="fas fa-check text-primary-500"></i>' : ""}
+                    </div>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-8">
                     ${distanceKm} km • ${timeMin} min
@@ -72,8 +201,8 @@ export function renderRouteOptions(routes) {
     // Add listeners
     document.querySelectorAll('.route-option-card').forEach(card => {
         card.addEventListener('click', (e) => {
-            // Check if click was on visibility toggle
             if (e.target.closest('.route-visibility-toggle')) return;
+            if (e.target.closest('.save-query-btn')) return;
             handleRouteSelect(card.dataset.routeType);
         });
     });
@@ -82,6 +211,16 @@ export function renderRouteOptions(routes) {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             handleRouteVisibilityToggle(btn.dataset.type);
+        });
+    });
+
+    // Save buttons
+    document.querySelectorAll('.save-query-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const type = btn.dataset.routeType;
+            const isLoop = btn.dataset.isLoop === "true";
+            handleSaveQuery(type, isLoop, btn);
         });
     });
 }
@@ -109,6 +248,10 @@ export function updateStatsForRoute(routeType) {
     if (routeStatsContainer) routeStatsContainer.classList.remove("hidden");
 }
 
+// ============================================================================
+// LOOP CARDS (Round Trip Mode)
+// ============================================================================
+
 /**
  * Render loop option cards (Multi-Loop support)
  */
@@ -119,10 +262,7 @@ export function renderLoopOptions(loops) {
     
     loops.forEach(loop => {
         const isSelected = loopState.selectedId === loop.id;
-        // Default visibility to true if not set in state, or use state
         const isVisible = loopState.visibility[loop.id] !== false; 
-        
-        // Loop colour from API or default
         const colour = loop.colour || "#3B82F6";
 
         html += `
@@ -140,7 +280,12 @@ export function renderLoopOptions(loops) {
                             <span class="font-medium text-gray-700 dark:text-gray-200">${loop.label || "Loop"}</span>
                         </div>
                     </div>
-                    ${isSelected ? '<i class="fas fa-check text-primary-500"></i>' : ""}
+                    <div class="flex items-center gap-1">
+                        <button class="save-query-btn" data-route-type="${loop.id}" data-is-loop="true" title="Save this query">
+                            <i class="fas fa-bookmark"></i> Save
+                        </button>
+                        ${isSelected ? '<i class="fas fa-check text-primary-500"></i>' : ""}
+                    </div>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-8 flex gap-3">
                     <span>${loop.distance_km} km</span>
@@ -167,6 +312,7 @@ export function renderLoopOptions(loops) {
     document.querySelectorAll('.loop-option-card').forEach(card => {
         card.addEventListener('click', (e) => {
             if (e.target.closest('.loop-visibility-toggle')) return;
+            if (e.target.closest('.save-query-btn')) return;
             handleLoopSelect(card.dataset.loopId, loops);
         });
     });
@@ -178,22 +324,30 @@ export function renderLoopOptions(loops) {
             handleLoopVisibilityToggle(loopId, loops);
         });
     });
+
+    // Save buttons
+    document.querySelectorAll('.save-query-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const type = btn.dataset.routeType;
+            const isLoop = btn.dataset.isLoop === "true";
+            handleSaveQuery(type, isLoop, btn);
+        });
+    });
 }
 
 function handleLoopSelect(loopId, loops) {
     loopState.selectedId = loopId;
     
-    // Highlight on map
     if (mapController) mapController.highlightLoop(loopId);
     
-    // Update main stats
     const selectedLoop = loops.find(l => l.id === loopId);
     if (selectedLoop) {
         if (statDistance) statDistance.textContent = selectedLoop.distance_km;
         if (statTime) statTime.textContent = selectedLoop.time_min;
     }
 
-    renderLoopOptions(loops); // Re-render to update UI selection
+    renderLoopOptions(loops);
 }
 
 function handleLoopVisibilityToggle(loopId, loops) {

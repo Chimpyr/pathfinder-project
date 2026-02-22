@@ -1,12 +1,12 @@
 """
 User Data Blueprint
 ===================
-CRUD endpoints for saved pins and saved routes.
+CRUD endpoints for saved pins and saved queries.
 All endpoints require authentication (@login_required).
 
 Cross-domain aggregation note:
     SQLAlchemy cannot JOIN across different database binds.
-    Any logic comparing user pins/routes against routing_db spatial data
+    Any logic comparing user pins/queries against routing_db spatial data
     must be done in the Python application layer.
 """
 
@@ -15,7 +15,7 @@ from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.models.saved_pin import SavedPin
-from app.models.saved_route import SavedRoute
+from app.models.saved_query import SavedQuery
 
 user_data_bp = Blueprint('user_data', __name__, url_prefix='/api')
 
@@ -82,24 +82,24 @@ def delete_pin(pin_id: int):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  SAVED ROUTES
+#  SAVED QUERIES
 # ═══════════════════════════════════════════════════════════════════════
 
-@user_data_bp.route('/routes', methods=['GET'])
+@user_data_bp.route('/queries', methods=['GET'])
 @login_required
-def list_routes():
-    """Return all saved routes for the current user."""
-    routes = SavedRoute.query.filter_by(user_id=current_user.id).order_by(
-        SavedRoute.created_at.desc()
+def list_queries():
+    """Return all saved queries for the current user."""
+    queries = SavedQuery.query.filter_by(user_id=current_user.id).order_by(
+        SavedQuery.created_at.desc()
     ).all()
-    return jsonify({'routes': [r.to_dict() for r in routes]}), 200
+    return jsonify({'queries': [q.to_dict() for q in queries]}), 200
 
 
-@user_data_bp.route('/routes', methods=['POST'])
+@user_data_bp.route('/queries', methods=['POST'])
 @login_required
-def create_route():
+def create_query():
     """
-    Save a new route configuration.
+    Save a new routing query.
 
     Expects JSON: {
         "name": "My Evening Walk",
@@ -126,9 +126,9 @@ def create_route():
     except (TypeError, ValueError):
         return jsonify({'error': 'Coordinates must be numbers'}), 400
 
-    route = SavedRoute(
+    query = SavedQuery(
         user_id=current_user.id,
-        name=(data.get('name') or 'Untitled Route')[:100],
+        name=(data.get('name') or 'Untitled Query')[:100],
         start_lat=start_lat,
         start_lon=start_lon,
         end_lat=float(data['end_lat']) if data.get('end_lat') is not None else None,
@@ -138,21 +138,21 @@ def create_route():
         distance_km=float(data['distance_km']) if data.get('distance_km') is not None else None,
         is_loop=bool(data.get('is_loop', False)),
     )
-    db.session.add(route)
+    db.session.add(query)
     db.session.commit()
-    return jsonify({'route': route.to_dict()}), 201
+    return jsonify({'query': query.to_dict()}), 201
 
 
-@user_data_bp.route('/routes/<int:route_id>', methods=['DELETE'])
+@user_data_bp.route('/queries/<int:query_id>', methods=['DELETE'])
 @login_required
-def delete_route(route_id: int):
-    """Delete a saved route. Only the owning user may delete."""
-    route = SavedRoute.query.filter_by(
-        id=route_id, user_id=current_user.id
+def delete_query(query_id: int):
+    """Delete a saved query. Only the owning user may delete."""
+    query = SavedQuery.query.filter_by(
+        id=query_id, user_id=current_user.id
     ).first()
-    if not route:
-        return jsonify({'error': 'Route not found'}), 404
+    if not query:
+        return jsonify({'error': 'Query not found'}), 404
 
-    db.session.delete(route)
+    db.session.delete(query)
     db.session.commit()
-    return jsonify({'message': 'Route deleted'}), 200
+    return jsonify({'message': 'Query deleted'}), 200
