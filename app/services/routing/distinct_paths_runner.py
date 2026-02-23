@@ -167,11 +167,11 @@ def find_distinct_paths(
     
     route_baseline, _, _, dist_baseline, time_baseline = route_finder.find_route(
         start_point, end_point,
-        use_wsm=True,
+        use_wsm=False,
         weights=baseline_weights,
         combine_nature=combine_nature,
-        prefer_lit=prefer_lit,
-        heavily_avoid_unlit=heavily_avoid_unlit,
+        prefer_lit=False,              # Baseline must be pure shortest path
+        heavily_avoid_unlit=False,     # No lit modifiers on Direct route
     )
     
     result['baseline'] = {

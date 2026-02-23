@@ -154,7 +154,8 @@ class TestDistinctPathsRunner:
         finder = MagicMock()
         
         # Different routes for different weight configurations
-        def mock_find_route(start, end, use_wsm=False, weights=None, combine_nature=False):
+        def mock_find_route(start, end, use_wsm=False, weights=None, combine_nature=False,
+                            prefer_lit=False, heavily_avoid_unlit=False):
             if weights and weights.get('distance', 0) == 1.0:
                 # Baseline: shortest distance
                 return ([1, 3], start, end, 100.0, 72.0)
@@ -275,3 +276,35 @@ class TestFeaturePriority:
         from app.services.routing.distinct_paths_runner import FEATURE_PRIORITY
         
         assert FEATURE_PRIORITY[0] == 'greenness'
+
+
+class TestBaselinePurity:
+    """Regression tests: baseline must always be pure shortest path."""
+
+    def test_baseline_never_uses_lit_preference(self):
+        """Baseline call must not pass prefer_lit=True even when user enables it."""
+        from app.services.routing.distinct_paths_runner import find_distinct_paths
+
+        finder = MagicMock()
+        finder.find_route.return_value = ([1, 3], (0, 0), (1, 1), 100.0, 72.0)
+
+        user_weights = {'distance': 0.5, 'greenness': 0.3, 'water': 0.2}
+
+        find_distinct_paths(
+            finder, (51.45, -2.58), (51.46, -2.57),
+            user_weights, verbose=False,
+            prefer_lit=True, heavily_avoid_unlit=True,
+        )
+
+        # First call is baseline — must have prefer_lit=False, heavily_avoid_unlit=False
+        baseline_call = finder.find_route.call_args_list[0]
+        assert baseline_call.kwargs.get('prefer_lit') is False, \
+            "Baseline (Direct) route must not use prefer_lit"
+        assert baseline_call.kwargs.get('heavily_avoid_unlit') is False, \
+            "Baseline (Direct) route must not use heavily_avoid_unlit"
+
+        # Balanced (3rd call) should still use user's lit preferences
+        balanced_call = finder.find_route.call_args_list[2]
+        assert balanced_call.kwargs.get('prefer_lit') is True
+        assert balanced_call.kwargs.get('heavily_avoid_unlit') is True
+
