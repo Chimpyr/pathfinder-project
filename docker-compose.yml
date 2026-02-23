@@ -1,7 +1,8 @@
 services:
   # PostGIS database for vector tile data (street lighting)
   db:
-    image: postgis/postgis:16-3.5-alpine
+    image: postgis/postgis:16-3.5
+    platform: linux/amd64
     container_name: scenic-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -16,7 +17,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-  
+
   pgadmin:
     image: dpage/pgadmin4:9.12.0
     container_name: scenic-pgadmin

@@ -9,37 +9,44 @@ Understanding the Dockerfile and docker-compose.yml for ScenicPathFinder.
 ```dockerfile
 FROM python:3.11-slim
 ```
+
 **Base image** — Starts from minimal Python 3.11 on Debian. `slim` reduces image size.
 
 ```dockerfile
 WORKDIR /app
 ```
+
 **Working directory** — Creates `/app` inside container, all commands run from here. Convention like using `src/` in code.
 
 ```dockerfile
 RUN apt-get update && apt-get install -y ... && rm -rf /var/lib/apt/lists/*
 ```
+
 **System dependencies** — Installs geospatial libraries (GEOS, PROJ, GDAL). Cleanup at end reduces image size.
 
 ```dockerfile
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 ```
+
 **Layer caching** — Copy deps first so pip install is cached. Code changes don't trigger reinstall.
 
 ```dockerfile
 COPY . .
 ```
+
 **Copy code** — Done last so code edits don't invalidate pip cache.
 
 ```dockerfile
 EXPOSE 5000
 ```
+
 **Documentation only** — Says "this container listens on 5000". Does NOT publish the port — that's done in docker-compose.yml with `ports:`.
 
 ```dockerfile
 CMD ["python", "run.py"]
 ```
+
 **Default command** — Runs Flask. Override in docker-compose for workers.
 
 ---
@@ -71,9 +78,10 @@ Browser → localhost:5000 → Container's port 5000
 ```
 
 They CAN differ:
+
 ```yaml
 ports:
-  - "8080:5000"  # Browser uses 8080, Flask inside uses 5000
+  - "8080:5000" # Browser uses 8080, Flask inside uses 5000
 ```
 
 ---
@@ -88,10 +96,10 @@ ports:
 
 Format: `HOST_PATH:CONTAINER_PATH`
 
-| Side | Path | Location |
-|------|------|----------|
-| Left (host) | `./app/data` | `c:\...\ScenicPathFinder\app\data\` |
-| Right (container) | `/app/app/data` | Inside container filesystem |
+| Side              | Path            | Location                            |
+| ----------------- | --------------- | ----------------------------------- |
+| Left (host)       | `./app/data`    | `c:\...\ScenicPathFinder\app\data\` |
+| Right (container) | `/app/app/data` | Inside container filesystem         |
 
 The `.` is relative to `docker-compose.yml` location.
 
@@ -103,10 +111,10 @@ The `.` is relative to `docker-compose.yml` location.
 
 **No `./` prefix** — Docker stores this internally (e.g., `C:\ProgramData\Docker\volumes\...`). You don't browse it directly.
 
-| Type | Syntax | Use Case |
-|------|--------|----------|
-| Bind mount | `./path:/path` | Code/data you edit |
-| Named volume | `name:/path` | Persistent DB storage |
+| Type         | Syntax         | Use Case              |
+| ------------ | -------------- | --------------------- |
+| Bind mount   | `./path:/path` | Code/data you edit    |
+| Named volume | `name:/path`   | Persistent DB storage |
 
 ---
 
@@ -114,16 +122,16 @@ The `.` is relative to `docker-compose.yml` location.
 
 ```yaml
 volumes:
-  - ./app/data:/app/app/data    # Explicit cache sharing
-  - .:/app                       # Live code reload (dev only)
+  - ./app/data:/app/app/data # Explicit cache sharing
+  - .:/app # Live code reload (dev only)
 ```
 
 With `.:/app`, the entire project is mounted, making the first line redundant. But:
 
-| Environment | `.:/app` | `./app/data:/app/app/data` |
-|-------------|----------|---------------------------|
-| Development | ✅ Keep (live reload) | Redundant but harmless |
-| Production | ❌ Remove | ✅ Keep (shared cache) |
+| Environment | `.:/app`              | `./app/data:/app/app/data` |
+| ----------- | --------------------- | -------------------------- |
+| Development | ✅ Keep (live reload) | Redundant but harmless     |
+| Production  | ❌ Remove             | ✅ Keep (shared cache)     |
 
 The explicit cache mount ensures API and Worker share graphs even when dev mount is removed.
 
@@ -156,13 +164,47 @@ API waits for Redis to pass its healthcheck (`redis-cli ping`) before starting. 
 
 ## Quick Reference
 
-| Directive | Purpose |
-|-----------|---------|
-| `image:` | Use pre-built image |
-| `build:` | Build from Dockerfile |
+| Directive      | Purpose                  |
+| -------------- | ------------------------ |
+| `image:`       | Use pre-built image      |
+| `build:`       | Build from Dockerfile    |
 | `ports: "A:B"` | Map host:container ports |
-| `volumes:` | Share/persist files |
-| `environment:` | Set env vars |
-| `depends_on:` | Startup order |
-| `command:` | Override CMD |
-| `profiles:` | Optional services |
+| `volumes:`     | Share/persist files      |
+| `environment:` | Set env vars             |
+| `depends_on:`  | Startup order            |
+| `command:`     | Override CMD             |
+| `profiles:`    | Optional services        |
+
+---
+
+## Mac ARM64 (Apple Silicon) Notes
+
+Macs with M-series chips run `linux/arm64/v8`. Some Docker Hub images are **only built for `linux/amd64`** and will fail with:
+
+```
+no matching manifest for linux/arm64/v8 in the manifest list entries
+```
+
+### Known affected images in this project
+
+| Image                           | Issue                 | Fix applied                                                             |
+| ------------------------------- | --------------------- | ----------------------------------------------------------------------- |
+| `postgis/postgis:16-3.5-alpine` | No ARM64 build at all | Switched to `postgis/postgis:16-3.5` (Debian) + `platform: linux/amd64` |
+
+### The fix: `platform: linux/amd64`
+
+Adding `platform: linux/amd64` to a service forces Docker to pull the x86 image. Docker Desktop on Apple Silicon runs it transparently via **Rosetta 2** emulation — no manual steps required.
+
+```yaml
+db:
+  image: postgis/postgis:16-3.5
+  platform: linux/amd64 # <-- forces amd64 emulation on Apple Silicon
+```
+
+### Why not use the `-alpine` tag?
+
+`postgis/postgis:16-3.5-alpine` is only published for `linux/amd64`. The standard Debian-based `postgis/postgis:16-3.5` tag also only has an `amd64` manifest for this version, so `platform: linux/amd64` is still required. Clearing the Docker cache or daemon does **not** fix this — the image simply doesn't exist for ARM64.
+
+### If another service hits the same error
+
+Add `platform: linux/amd64` to that service block. Performance is slightly lower due to emulation, but it is functionally transparent for development use.
