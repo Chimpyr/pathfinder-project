@@ -110,4 +110,4 @@ Think of the **Loop Solver** as a "Travel Agent" and the **Router** as the "Driv
 4.  **Route Legs**: A* route from $Start \to W1 \to W2 \to \dots \to Start$.
 5.  **Validate**: Check total distance is within tolerance (-5% to +15% of target).
 6.  **Prune**: Remove spurs.
-7.  **Return**: Present top 3 diverse options to user.
+7.  **Return**: Present top diverse options (configured by `LOOP_NUM_CANDIDATES`, often 3-7) to user.

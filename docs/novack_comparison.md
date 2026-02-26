@@ -8,9 +8,9 @@ This document compares the implementation of scenic routing in **ScenicPathFinde
 
 | Feature           | Novack et al. (2018)                                                                                          | ScenicPathFinder (Your Project)                                                                                                               |
 | :---------------- | :------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Cost Function** | **Pure Weighted Sum Model (WSM)**<br>Additive: $Cost = w_l \hat{l} + w_g \hat{g} + w_s \hat{s} + w_q \hat{q}$ | **Hybrid Additive-Disjunctive** (Default)<br>Weighted-MIN: $\text{min}(\frac{\text{score}}{1+w})$<br>_(Also supports pure WSM configuration)_ |
+| **Cost Function** | **Pure Weighted Sum Model (WSM)**<br>Additive: $Cost = w_l \hat{l} + w_g \hat{g} + w_s \hat{s} + w_q \hat{q}$ | **Additive or Hybrid**<br>Configurable via `COST_FUNCTION` (defaults to `WSM_ADDITIVE` but also supports `HYBRID_DISJUNCTIVE` for OR semantics) |
 | **Greenness**     | **Isovist / Viewshed Analysis**<br>Simulates visual perception (what can _actually_ be seen).                 | **Dual Mode**: <br>1. `NOVACK` mode (Implements exact isovist logic)<br>2. `EDGE_SAMPLING` / `FAST` (Simpler, faster proxies)                 |
-| **Sociability**   | **Density of "Third Places"**<br>Count of specific amenities in 50m buffer.                                   | **Proximity / Access Score**<br>Inverse distance to nearest POIs with diminishing returns.                                                    |
+| **Sociability**   | **Density of "Third Places"**<br>Count of specific amenities in 50m buffer.                                   | **Identical Methodology**<br>Implemented exactly as Novack (50m buffer density).                                                    |
 | **Quietness**     | **Binary/Ternary Classification**<br>Road type $\rightarrow$ Noise Factor (1.0 vs 2.0).                       | **Similar Classification**<br>Extends logic with `noise_factor` based on highway tags.                                                        |
 | **Water**         | **Implicit** (likely via "Natural" tags)                                                                      | **Explicit Factor**<br>Dedicated `WaterProcessor` calculating proximity.                                                                      |
 | **Graph Prep**    | **High Computational Cost**<br>(Due to complex isovist geometry).                                             | **Configurable Cost**<br>Fast modes for rapid iteration vs. slow/accurate modes.                                                              |
@@ -28,12 +28,12 @@ Novack uses a classic **Weighted Sum Model**. All factors (distance, greenness, 
 - **Implication:** A street must be "good enough" at _everything_ to be selected. If a street is very green but slightly noisy, the noise penalty might outweigh the green benefit, leading to "average" routes rather than "specialized" ones.
 - **Your Code:** You support this via `CostFunction.WSM_ADDITIVE` in `cost_calculator.py`.
 
-**Your Approach (Hybrid Disjunctive):**
-Your default `CostFunction.HYBRID_DISJUNCTIVE` uses a **Weighted-MIN** approach for scenic features.
+**Your Approach (Hybrid Disjunctive / Pure WSM):**
+Your code supports `CostFunction.WSM_ADDITIVE` (the current default) as well as `CostFunction.HYBRID_DISJUNCTIVE`, which uses a **Weighted-MIN** approach for scenic features.
 
-- **Formula:** $Cost = \text{Distance} + \text{Weight} \times \min(\text{Adjusted Scores})$
-- **Implication:** This is a significant deviation. It follows a "logical OR" philosophy: a street is good if it is _either_ green _or_ quiet _or_ social. This prevents the "multi-criteria collapse" where great features are hidden by mediocre scores in other categories.
-- **Verdict:** Your approach is likely **better for discovery**, allowing users to find "hidden gems" that excel in one specific aspect, whereas Novack's approach yields "well-rounded" but potentially boring routes.
+- **Formula (Hybrid):** $Cost = \text{Distance} + \text{Weight} \times \min(\text{Adjusted Scores})$
+- **Implication:** The Hybrid mode follows a "logical OR" philosophy: a street is good if it is _either_ green _or_ quiet _or_ social. This prevents the "multi-criteria collapse" where great features are hidden by mediocre scores in other categories.
+- **Verdict:** Your Hybrid approach is likely **better for discovery**, allowing users to find "hidden gems" that excel in one specific aspect. However, you provide the classic Additive option to ensure predictable, balanced routes as well.
 
 ### B. Feature Extraction: Greenness
 
@@ -57,11 +57,12 @@ Your default `CostFunction.HYBRID_DISJUNCTIVE` uses a **Weighted-MIN** approach 
 - **Metric:** $\text{Sociability} = \frac{\text{Length}}{\text{Count of Third Places}}$.
 - **Focus:** Density/Vibrancy. A street with 10 bars is 10x more "social" than a street with 1.
 
-**Your Approach (Proximity):**
+**Your Approach (Density of Third Places):**
 
-- **Metric:** Inverse distance to nearest POI.
-- **Focus:** Access/Convenience. A street _near_ a bar is "social".
-- **Difference:** Novack's method better captures "lively streets" (walking _through_ a social area). Your method better captures "destinations" (walking _to_ a social area).
+- **Implementation:** You have correctly implemented this in `SocialProcessor` (`social.py`).
+- **Metric:** Like Novack, it calculates $\text{Sociability} = \frac{\text{Length}}{\text{Count of Third Places in 50m buffer}}$.
+- **Focus:** Density/Vibrancy. A street with 10 bars is 10x more "social" than a street with 1.
+- **Verdict:** By adopting Novack's exact metric and tag list (Table 1), your project perfectly mirrors the academic standard for identifying lively "high streets" rather than just single destinations.
 
 ---
 

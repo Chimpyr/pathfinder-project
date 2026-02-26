@@ -361,7 +361,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A celery_app worker --loglevel=info --concurrency=1
+    command: celery -A celery_app worker --loglevel=info --concurrency=4
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1

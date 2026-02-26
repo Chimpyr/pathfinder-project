@@ -23,23 +23,27 @@ ScenicPathFinder/
 │   │   ├── core/                    # Infrastructure
 │   │   │   ├── cache_manager.py     # Disk caching (pickle)
 │   │   │   ├── data_loader.py       # PBF download + parsing
-│   │   │   ├── walking_filter.py    # Custom walking network filter
-│   │   │   └── graph_manager.py     # Two-tier cache orchestration
+│   │   │   ├── dem_loader.py        # Local elevation tile management
+│   │   │   ├── graph_builder.py     # OSM to NetworkX conversion
+│   │   │   ├── graph_manager.py     # Two-tier cache orchestration
+│   │   │   ├── task_manager.py      # Async background tasks
+│   │   │   ├── tile_utils.py        # Spatial tiling geometry
+│   │   │   └── walking_filter.py    # Custom walking network filter
 │   │   │
 │   │   ├── processors/              # Edge attribute processors
-│   │   │   ├── greenness.py         # Green visibility (FAST/NOVACK)
+│   │   │   ├── greenness/           # Green visibility (FAST/NOVACK)
 │   │   │   ├── water.py             # Water proximity scoring
 │   │   │   ├── social.py            # POI proximity scoring
 │   │   │   ├── elevation.py         # Gradient calculation
 │   │   │   ├── quietness.py         # Highway noise classification
-│   │   │   ├── lighting.py          # Street lighting status
-│   │   │   ├── surface.py           # Surface type classification (paved/unpaved)
 │   │   │   └── orchestrator.py      # Scenic pipeline coordinator
 │   │   │
 │   │   ├── routing/                 # Pathfinding
-│   │   │   ├── route_finder.py      # A* pathfinding wrapper
 │   │   │   ├── astar/               # Custom A* implementation
-│   │   │   └── loop_solvers/        # Round-trip route generation algorithms
+│   │   │   ├── loop_solvers/        # Round-trip route generation algorithms
+│   │   │   ├── cost_calculator.py   # WSM edge cost calculation
+│   │   │   ├── distinct_paths_runner.py # Multi-route generation
+│   │   │   └── route_finder.py      # A* pathfinding wrapper
 │   │   │
 │   │   └── rendering/               # Map output
 │   │       └── map_renderer.py      # Folium map generation
@@ -47,7 +51,7 @@ ScenicPathFinder/
 │   ├── models/                      # SQLAlchemy ORM models
 │   │   ├── user.py                  # User accounts (email, hashed password)
 │   │   ├── saved_pin.py             # Bookmarked map locations
-│   │   └── saved_route.py           # Saved route configurations
+│   │   └── saved_query.py           # Parametrised routing queries
 │   │
 │   ├── blueprints/                  # Modular Flask API endpoints
 │   │   ├── auth.py                  # Registration, login, logout
@@ -298,25 +302,6 @@ Fetches elevation data and calculates edge gradients with Tobler's hiking functi
 
 ---
 
-### LightingProcessor (`processors/lighting.py`)
-
-Checks OSM edge attributes for the presence of street lighting, used to penalise unlit streets at night or when user prefers lit paths.
-
-**Edge attribute:** `lit` (string value mapped to boolean or cost)
-*   **Values:** 'yes', 'no', 'none', 'disused', etc.
-
----
-
-### SurfaceProcessor (`processors/surface.py`)
-
-Evaluates edge surface attributes to classify paths as paved or unpaved, allowing routing preferences for solid ground underfoot.
-
-**Edge attribute:** `surface` (string classification)
-*   **Paved:** 'asphalt', 'paved', 'concrete', 'cobblestone', 'paving_stones', etc.
-*   **Unpaved:** 'unpaved', 'dirt', 'gravel', 'ground', 'mud', 'grass', etc.
-
----
-
 ### RouteFinder (`routing/route_finder.py`)
 
 A\* pathfinding with pluggable cost functions.
@@ -373,7 +358,7 @@ PostGIS Container (scenic-db)
 |-------|-------|-------------|
 | `User` | `users` | `email` (unique), `password_hash`, `created_at` |
 | `SavedPin` | `saved_pins` | `user_id` (FK), `label`, `latitude`, `longitude` |
-| `SavedRoute` | `saved_routes` | `user_id` (FK), `start/end_lat/lon`, `weights_json`, `route_geometry` (optional) |
+| `SavedQuery` | `saved_queries` | `user_id` (FK), `start/end_lat/lon`, `weights_json`, `route_geometry` (optional) |
 
 ### Authentication (`app/blueprints/auth.py`)
 
@@ -421,10 +406,21 @@ class Config:
     NORMALISATION_MODE = 'DYNAMIC'    # STATIC | DYNAMIC
 
     # Cost function algorithm for scenic routing
-    COST_FUNCTION = 'HYBRID_DISJUNCTIVE'  # WSM_ADDITIVE | HYBRID_DISJUNCTIVE
+    COST_FUNCTION = 'WSM_ADDITIVE'  # WSM_ADDITIVE | HYBRID_DISJUNCTIVE
+
+    # Loop solver algorithm selection
+    LOOP_SOLVER_ALGORITHM = 'GEOMETRIC' # BUDGET_ASTAR | GEOMETRIC | TREE_SEARCH | RANDOM_WALK
 
     # Cache capacity
     MAX_CACHED_REGIONS = 3
+    MAX_CACHED_TILES = 16
+    
+    # Tile caching configuration
+    TILE_SIZE_KM = 15
+    TILE_OVERLAP_KM = 2
+    
+    # Async Mode Enable
+    ASYNC_MODE = False
 ```
 
 ---

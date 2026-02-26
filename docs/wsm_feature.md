@@ -91,12 +91,12 @@ weights = {
 ```python
 # config.py
 WSM_DEFAULT_WEIGHTS = {
-    'distance': 0.5,    # Physical distance
-    'greenness': 0.15,  # Prefer greener routes
-    'water': 0.1,       # Prefer routes near water
-    'quietness': 0.1,   # Prefer quieter routes
-    'social': 0.1,      # Prefer routes near POIs
-    'slope': 0.05,      # Prefer gentler gradients
+    'distance': 1,    # Physical distance component
+    'greenness': 0.0,  # Prefer greener routes
+    'water': 0.,       # Prefer routes near water features
+    'quietness': 0.,   # Prefer quieter routes (low traffic noise)
+    'social': 0.,      # Prefer routes near tourist/social POIs
+    'slope': 0.0,      # Prefer gentler gradients
 }
 ```
 

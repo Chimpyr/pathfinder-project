@@ -36,8 +36,8 @@ The main routing panel is divided into two distinct modes via a tabbed interface
 "Advanced Options" is a collapsible section available in both Standard and Round Trip routing modes. It exposes specific practical or safety-focused preferences that are independent of purely "scenic" (nature-based) routing.
 
 - **Prefer paths/trails**: Increases the weight/bias towards off-road or dedicated pedestrian paths.
-- **Prefer paved surfaces**: Penalizes unpaved (dirt, mud, grass) edges, useful for accessibility or specific footwear. Managed by the backend `SurfaceProcessor`.
-- **Prefer lit streets**: Penalizes unlit streets, designed for nighttime walking safety. Managed by the backend `LightingProcessor`.
+- **Prefer paved surfaces**: Penalizes unpaved (dirt, mud, grass) edges, useful for accessibility or specific footwear. Managed dynamically via original OSM attributes.
+- **Prefer lit streets**: Penalizes unlit streets, designed for nighttime walking safety. Managed dynamically via original OSM attributes.
 - **Avoid unsafe roads**: Strongly penalizes roads deemed hostile to pedestrians (e.g., fast roads lacking adequate pavements).
 
 ---

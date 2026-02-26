@@ -114,12 +114,7 @@ Beyond raw OSM tags, we compute **derived attributes** on edges during graph loa
 
 ### How It Works
 
-After loading the graph from the PBF file, `GraphManager` runs the `QuietnessProcessor` to classify each edge:
-
-```python
-# In graph_manager.py
-cls._graph = process_graph_quietness(cls._graph)
-```
+After loading the graph from the PBF file, `GraphManager` classifies each edge based on its highway tag:
 
 ### Edge Classification
 
@@ -136,7 +131,6 @@ Each edge receives a `noise_factor` attribute based on its `highway` tag:
 ```python
 edge_data = G[123456789][987654321][0]
 
-# After QuietnessProcessor:
 {
     'length': 45.2,
     'highway': 'residential',
@@ -147,7 +141,7 @@ edge_data = G[123456789][987654321][0]
 
 ### Future Use (WSM A\*)
 
-A `raw_quiet_cost` attribute (formula: `length / noise_factor`) will be added when the **Weighted Sum Model (WSM)** A\* algorithm is implemented. This will allow users to balance route preferences:
+The `noise_factor` attribute is used by the **Weighted Sum Model (WSM)** A\* algorithm to calculate a quietness cost (`norm_quiet`). This allows users to balance route preferences:
 
 - Shortest distance
 - Quietest route

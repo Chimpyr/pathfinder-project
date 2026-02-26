@@ -25,7 +25,7 @@ This is the main pedestrian route through the park, but pyrosm's walking
 filter never lets it reach the graph.
 
 For the full investigation, see
-[ADR-010 §2a](../decisions/ADR-010-improvemetns-to-budget-astar-looper.md).
+[ADR-010 §2a](../decisions/ADR-010-improvements-to-budget-astar-looper.md).
 
 ## How it works
 
