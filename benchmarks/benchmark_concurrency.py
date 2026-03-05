@@ -4,6 +4,9 @@ Benchmark: Concurrent Tile Lock Verification (T-REL-01 / NFR-03)
 Fires 4 simultaneous route requests for the same uncached region
 and verifies that only 1 Celery build task is created (Redis lock).
 
+Uses threading.Barrier to synchronise all threads before firing,
+ensuring truly simultaneous requests.
+
 Pass criteria: exactly 1 build_tile_task enqueued
 
 Usage:
@@ -14,6 +17,7 @@ import time
 import json
 import os
 import threading
+from datetime import datetime, timezone
 import requests
 
 
@@ -23,29 +27,47 @@ CONCURRENT_REQUESTS = 4
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 
 # Use a unique bbox that won't have a cached graph
-# (offset slightly from Bristol to avoid cache hits)
+# (offset slightly from standard Bristol test coordinates to avoid cache hits)
+# API expects use_wsm flag + nested weights dict (see app/routes.py)
 TEST_PAYLOAD = {
     "start_lat": 51.4300,
     "start_lon": -2.6100,
     "end_lat": 51.4400,
     "end_lon": -2.5900,
-    "weight_distance": 3,
-    "weight_greenness": 2,
-    "weight_quietness": 1,
-    "weight_water": 0,
-    "weight_social": 0,
-    "weight_slope": 0,
+    "use_wsm": True,
+    "weights": {
+        "distance": 3,
+        "greenness": 2,
+        "quietness": 1,
+        "water": 0,
+        "social": 0,
+        "slope": 0,
+    },
 }
+
+# Barrier ensures all threads start their HTTP request simultaneously
+_barrier = threading.Barrier(CONCURRENT_REQUESTS)
 
 
 def send_request(request_id: int, results: list):
     """
     Send a route request and record the response.
 
+    All threads wait at the barrier before firing, ensuring
+    truly simultaneous requests to test the Redis lock.
+
     Args:
         request_id: Identifier for this request.
         results: Shared list to append results to.
     """
+    try:
+        # Block until all threads are ready
+        _barrier.wait(timeout=10)
+    except threading.BrokenBarrierError:
+        print(f"  Request {request_id}: Barrier broken — thread did not synchronise")
+        results.append({"request_id": request_id, "error": "Barrier broken"})
+        return
+
     start = time.perf_counter()
     try:
         resp = requests.post(f"{API_BASE}/api/route", json=TEST_PAYLOAD, timeout=30)
@@ -75,6 +97,7 @@ def run_benchmark():
     print("=" * 60)
     print("BENCHMARK: Concurrent Tile Lock (T-REL-01)")
     print(f"Target: exactly 1 Celery task for {CONCURRENT_REQUESTS} simultaneous requests")
+    print(f"Synchronisation: threading.Barrier({CONCURRENT_REQUESTS})")
     print("=" * 60)
 
     # Fire concurrent requests
@@ -86,7 +109,7 @@ def run_benchmark():
         t = threading.Thread(target=send_request, args=(i + 1, results))
         threads.append(t)
 
-    # Start all threads simultaneously
+    # Start all threads (they will block at the barrier until all are ready)
     for t in threads:
         t.start()
 
@@ -127,7 +150,7 @@ def run_benchmark():
 
     # The key assertion: if all requests went async,
     # there should be exactly 1 unique task ID
-    # (the others should reuse the existing task)
+    # (the others should reuse the existing task via Redis lock)
     if async_count > 0:
         lock_pass = len(task_ids) == 1
         print(f"  Unique tasks == 1: {'PASS ✓' if lock_pass else 'FAIL ✗'} ({len(task_ids)} unique)")
@@ -159,6 +182,7 @@ def run_benchmark():
     output = {
         "test_id": "T-REL-01",
         "requirement": "NFR-03",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "concurrent_requests": CONCURRENT_REQUESTS,
         "async_count": async_count,
         "sync_count": sync_count,

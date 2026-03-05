@@ -91,4 +91,7 @@ Because of this strict segregation, the Flask Python backend **never queries Pos
 1.  **Graph Building (Offline Routing):** Celery workers natively parse local `.pbf` files into memory using `pyrosm` to build NetworkX routing matrices.
 2.  **Visual Overlays (Frontend):** The `spatial_db` (PostGIS) is exclusively queried by the containerised **Martin** tileserver, which streams Mapbox Vector Tiles (MVT) representing streetlights and greenery directly to the client's browser layer. 
 
+**Why are the `planet_osm_*` tables isolated?**
+You will also notice the four `planet_osm_*` tables have no relationships linking *each other*. This is an intentional design pattern created by the `osm2pgsql` seeder tool. Raw OpenStreetMap data is highly relational (Nodes belong to Ways, Ways belong to Relations), but `osm2pgsql` flattens this complex graph into independent geometry tables (`_point`, `_line`, `_polygon`). This breaks relational normalization but heavily optimises the database for rapid, read-only spatial bounding-box queries by the Martin tileserver.
+
 This extreme decoupling ensures the pathfinding logic remains completely independent from the visual rendering pipeline, preventing complex SQL joins and avoiding ORM mapping overheads for billions of OSM nodes.

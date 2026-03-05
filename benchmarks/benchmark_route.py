@@ -13,27 +13,33 @@ Usage:
 import time
 import json
 import os
+import math
 import statistics
+from datetime import datetime, timezone
 import requests
 
 
 # Configuration
 API_BASE = os.environ.get("API_BASE", "http://localhost:5000")
-ITERATIONS = int(os.environ.get("BENCHMARK_ITERATIONS", "10"))
+ITERATIONS = int(os.environ.get("BENCHMARK_ITERATIONS", "30"))
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 
 # Bristol test route (Temple Meads to Clifton Suspension Bridge)
+# API expects use_wsm flag + nested weights dict (see app/routes.py)
 TEST_PAYLOAD = {
     "start_lat": 51.4494,
     "start_lon": -2.5811,
     "end_lat": 51.4550,
     "end_lon": -2.6275,
-    "weight_distance": 3,
-    "weight_greenness": 2,
-    "weight_quietness": 1,
-    "weight_water": 1,
-    "weight_social": 1,
-    "weight_slope": 0,
+    "use_wsm": True,
+    "weights": {
+        "distance": 3,
+        "greenness": 2,
+        "quietness": 1,
+        "water": 1,
+        "social": 1,
+        "slope": 0,
+    },
 }
 
 # Pass/fail thresholds (in milliseconds)
@@ -106,7 +112,9 @@ def run_benchmark():
     min_ms = min(latencies_ms)
     max_ms = max(latencies_ms)
     stdev_ms = statistics.stdev(latencies_ms) if len(latencies_ms) > 1 else 0
-    p95_ms = sorted(latencies_ms)[int(len(latencies_ms) * 0.95)]
+    sorted_latencies = sorted(latencies_ms)
+    p95_idx = min(math.ceil(len(sorted_latencies) * 0.95) - 1, len(sorted_latencies) - 1)
+    p95_ms = sorted_latencies[p95_idx]
 
     # Print results
     print("\n" + "=" * 60)
@@ -133,6 +141,7 @@ def run_benchmark():
     results = {
         "test_id": "T-PERF-01",
         "requirement": "NFR-01",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "iterations": len(latencies_ms),
         "min_ms": round(min_ms),
         "max_ms": round(max_ms),
