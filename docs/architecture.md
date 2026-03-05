@@ -548,12 +548,12 @@ The Weighted Sum Model A\* extends standard pathfinding to incorporate user pref
 
 Two algorithms are available, configured via `COST_FUNCTION`:
 
-| Algorithm            | Semantics | Formula                           | Use Case                     |
-| -------------------- | --------- | --------------------------------- | ---------------------------- |
-| `WSM_ADDITIVE`       | AND       | `Σ(wᵢ × normᵢ)`                   | Must be good at ALL criteria |
-| `HYBRID_DISJUNCTIVE` | OR        | `w_d×l̂ + Σw_scenic × min(active)` | Good at ANY criterion        |
+| Algorithm            | Semantics | Formula                                      | Use Case                     |
+| -------------------- | --------- | -------------------------------------------- | ---------------------------- |
+| `WSM_ADDITIVE`       | AND / OR  | `Σ(wᵢ × normᵢ)` with `min(green, water)`     | Best of both worlds          |
+| `HYBRID_DISJUNCTIVE` | OR        | `w_d×l̂ + Σw_scenic × min(active)`            | Good at ANY criterion        |
 
-**Recommendation:** Use `HYBRID_DISJUNCTIVE` (default) to avoid multi-criteria collapse.
+**Recommendation:** Use `WSM_ADDITIVE` (default) with `combine_nature=True` to avoid multi-criteria collapse specifically for correlated nature features.
 
 ### Edge Cost Calculation
 
@@ -561,10 +561,10 @@ Two algorithms are available, configured via `COST_FUNCTION`:
 # WSM A* distance_between() pseudocode
 norm_length = (length - min_length) / (max_length - min_length)
 
-# With HYBRID_DISJUNCTIVE (OR semantics):
-active_scenic = [norm_green, norm_water, ...]  # Only where weight > 0
-best_scenic = min(active_scenic)
-cost = w_distance × norm_length + sum(w_scenic) × best_scenic
+# With WSM_ADDITIVE and combine_nature=True:
+nature_cost = min(norm_green, norm_water)  # Disjunctive OR semantics for nature
+independent_cost = (w_social * norm_social) + (w_quiet * norm_quiet)  # Additive semantics
+cost = (w_distance * norm_length) + (w_nature * nature_cost) + independent_cost
 ```
 
 ### Admissible Heuristic
