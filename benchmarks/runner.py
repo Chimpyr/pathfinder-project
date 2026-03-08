@@ -27,6 +27,7 @@ AVAILABLE_BENCHMARKS = [
     "benchmark_extraction",
     "benchmark_loop",
     "benchmark_pruning",
+    "benchmark_wsm",
 ]
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")

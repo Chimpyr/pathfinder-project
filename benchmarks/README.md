@@ -56,6 +56,7 @@ docker compose exec api python -m benchmarks.benchmark_pruning
 | `benchmark_extraction.py` | T-PERF-04 | — | Point Buffer vs Edge Sampling vs Isovist timing |
 | `benchmark_loop.py` | T-PERF-05 | FR-03 | Loop convergence, timing, accuracy, self-intersection |
 | `benchmark_pruning.py` | T-ENG-03 | FR-09 | Walking filter verification (scripted, not manual) |
+| `benchmark_wsm.py` | T-ENG-01, T-ENG-04, T-ENG-05, T-ENG-06, T-ENG-07 | FR-01, FR-10, FR-14 | WSM mathematical efficacy and path geometry distinctness |
 
 ## Output
 
