@@ -62,6 +62,27 @@ docker compose exec api python -m benchmarks.benchmark_pruning
 
 Each benchmark prints results to stdout and writes a JSON summary to `benchmarks/results/` for inclusion in the report appendix. All JSON files include an ISO 8601 timestamp.
 
+## Visualisations
+
+The JSON outputs can be directly converted into academic, publication-ready graphs mapping to the `REPORT.md` arguments. 
+To do this, ensure the visualisation dependencies are installed (these are separate from the core API dependencies):
+
+```bash
+pip install -r benchmarks/requirements-vis.txt
+```
+
+You can then run the visualiser standalone or passing the `-v` flag to the runner:
+
+```bash
+# Standalone
+python -m benchmarks.visualise_results
+
+# Execute sequentially and visualise afterwards
+docker compose exec api python -m benchmarks.runner --all -v
+```
+
+This will save `.png` plots to `benchmarks/visualisations/`.
+
 ## Notes
 
 - Scripts importing application code (`benchmark_graph_build`, `benchmark_memory`, `benchmark_extraction`, `benchmark_pruning`) require the Flask application context and must be run inside the Docker container.

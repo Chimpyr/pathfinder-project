@@ -2,9 +2,13 @@
 Benchmark: WSM Efficacy Test (T-ENG-01, T-ENG-04, T-ENG-05, T-ENG-06, T-ENG-07)
 
 Systematically validates the mathematical efficacy of the Weighted Sum Model (WSM)
-by sending routing parameters against a warm cache. Assertions are made that
-adjusting parameters correctly evaluates and produces mathematically distinct
-path geometries, confirming Multi-Criteria algorithms natively affect the A* expansion.
+by sending routing requests against a warm cache. Assertions confirm that
+adjusting weight parameters produces geometrically distinct path topologies,
+proving multi-criteria algorithms natively affect A* expansion.
+
+The /api/route response wraps coordinates under:
+    response["routes"]["balanced"]["route_coords"]
+This benchmark extracts and compares those coordinate arrays.
 
 Usage:
     docker compose exec api python -m benchmarks.benchmark_wsm
@@ -22,7 +26,7 @@ API_BASE = os.environ.get("API_BASE", "http://localhost:5000")
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 
 # Bristol test route (Temple Meads to Clifton Suspension Bridge)
-TEST_PAYLOAD = {
+BASE_PAYLOAD = {
     "start_lat": 51.4494,
     "start_lon": -2.5811,
     "end_lat": 51.4550,
@@ -38,16 +42,46 @@ TEST_PAYLOAD = {
     },
     "combine_nature": False,
     "heavily_avoid_unlit": False,
-    "prefer_pedestrian": False
+    "prefer_pedestrian": False,
+    "prefer_lit": False,
 }
 
+# Maximum time to wait for an async graph build (seconds)
+ASYNC_TIMEOUT_S = 300
 
-def _fetch_route(payload_override: dict, name: str) -> dict:
-    """Helper to synchronously fetch a route and extract its geometry coordinates."""
-    print(f"  [{name}] Fetching route...")
-    payload = copy.deepcopy(TEST_PAYLOAD)
-    
-    # Merge overrides
+
+def _extract_coords(response_json: dict) -> list | None:
+    """
+    Extract coordinate array from the /api/route JSON response.
+
+    The API returns coordinates at:
+        response["routes"]["balanced"]["route_coords"]
+
+    Returns:
+        List of coordinate pairs, or None if extraction fails.
+    """
+    try:
+        routes = response_json.get("routes", {})
+        balanced = routes.get("balanced", {})
+        coords = balanced.get("route_coords")
+        if coords and isinstance(coords, list) and len(coords) > 0:
+            return coords
+    except (AttributeError, TypeError):
+        pass
+    return None
+
+
+def _fetch_route(payload_override: dict, name: str) -> list | None:
+    """
+    Send a route request and return the coordinate array.
+
+    Handles both synchronous (200) and asynchronous (202 → poll) flows.
+    Returns the coordinate list directly, or None on failure.
+    """
+    print(f"  [{name}] Requesting route...")
+    payload = copy.deepcopy(BASE_PAYLOAD)
+
+    # Merge overrides (nested dict for weights)
     for key, value in payload_override.items():
         if key == "weights":
             payload["weights"].update(value)
@@ -56,35 +90,46 @@ def _fetch_route(payload_override: dict, name: str) -> dict:
 
     try:
         resp = requests.post(f"{API_BASE}/api/route", json=payload, timeout=120)
-        
-        # If caching triggered async
+
         if resp.status_code == 202:
+            # Async — poll until complete then re-request from cache
             task_id = resp.json().get("task_id")
-            print(f"    Async task started: {task_id}. Polling...")
-            while True:
+            print(f"    Async build started (task_id={task_id}). Polling...")
+            deadline = time.time() + ASYNC_TIMEOUT_S
+            while time.time() < deadline:
                 time.sleep(5)
                 poll = requests.get(f"{API_BASE}/api/task/{task_id}", timeout=30)
                 status = poll.json().get("status", "UNKNOWN")
                 if status in ("SUCCESS", "COMPLETE", "complete"):
-                    return poll.json().get("result", {})
+                    # Re-request — cache should now be warm
+                    resp = requests.post(
+                        f"{API_BASE}/api/route", json=payload, timeout=120
+                    )
+                    return _extract_coords(resp.json()) if resp.status_code == 200 else None
                 if status in ("FAILURE", "FAILED", "ERROR"):
                     print(f"    [ERROR] Task {task_id} failed.")
-                    return {}
+                    return None
+            print(f"    [ERROR] Async timeout after {ASYNC_TIMEOUT_S}s")
+            return None
+
         elif resp.status_code == 200:
-            return resp.json()
+            return _extract_coords(resp.json())
+
         else:
-            print(f"    [WARN] Unexpected GET status: {resp.status_code}")
-            return {}
-            
+            print(f"    [WARN] Unexpected status: {resp.status_code}")
+            return None
+
     except Exception as e:
-        print(f"    [ERROR] Fetch failed: {e}")
-        return {}
+        print(f"    [ERROR] Request failed: {e}")
+        return None
 
 
-def _is_distinct(geom_a: list, geom_b: list) -> bool:
+def _coords_are_distinct(geom_a: list, geom_b: list) -> bool:
     """
-    Evaluates if two coordinate geometries are distinct.
-    Exact sequence equality means the algorithm didn't alter the path.
+    Evaluate whether two coordinate arrays represent distinct paths.
+
+    A simple equality check suffices: if the A* search took a different
+    traversal, the node sequence (and therefore coordinate list) will differ.
     """
     if not geom_a or not geom_b:
         return False
@@ -92,123 +137,137 @@ def _is_distinct(geom_a: list, geom_b: list) -> bool:
 
 
 def run_benchmark():
-    """Execute the WSM coverage suite."""
+    """Execute the WSM efficacy benchmark suite."""
     print("=" * 60)
     print("BENCHMARK: WSM Efficacy Suite")
     print("Covering: T-ENG-01, T-ENG-04, T-ENG-05, T-ENG-06, T-ENG-07")
     print("=" * 60)
 
+    # We expect 7 sub-tests (6 variance + 1 combine nature)
+    total_tests = 7
     results = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "tests_passed": 0,
-        "total_tests": 8,
-        "details": []
+        "total_tests": total_tests,
+        "details": [],
     }
 
-    # 1. Warm-up and fetch Baseline
-    print("\n[Setup] Establishing Baseline Geography (Distance Only = 5)...")
-    base_data = _fetch_route({"weights": {"distance": 5}}, "Baseline (Dist: 5)")
-    if not base_data or "geometry" not in base_data:
-        print("\n[FATAL] Failed to retrieve base geometry. Aborting.")
+    # ── Baseline (distance only = 5) ─────────────────────────────────
+    print("\n[Setup] Establishing baseline (distance=5, all others=0)...")
+    base_coords = _fetch_route({"weights": {"distance": 5}}, "Baseline")
+    if not base_coords:
+        print("\n[FATAL] Could not retrieve baseline route. Aborting.")
+        # Save partial results so the runner log still has output
+        os.makedirs(RESULTS_DIR, exist_ok=True)
+        results["error"] = "Baseline route unavailable"
+        results_path = os.path.join(RESULTS_DIR, "wsm_efficacy.json")
+        with open(results_path, "w") as f:
+            json.dump(results, f, indent=2)
         return
-        
-    base_geom = base_data["geometry"]["coordinates"]
-    print(f"  Baseline established ({len(base_geom)} coordinates).")
 
-    # Tracking paths to ensure they differ from each other (T-ENG-06)
-    geometries_cache = {"Baseline": base_geom}
+    print(f"  Baseline established ({len(base_coords)} coordinates).\n")
 
-    # Helper for running standard variance tests
-    def _test_variance(test_id: str, requirement: str, name: str, overrides: dict, compare_against: str = "Baseline"):
-        print(f"\n[{test_id}] {name}...")
-        route_data = _fetch_route(overrides, name)
-        
-        if not route_data or "geometry" not in route_data:
-            print(f"  -> FAIL (No route data returned)")
-            metrics = {"test_id": test_id, "name": name, "pass": False, "error": "No route data"}
-            results["details"].append(metrics)
-            return
+    # ── Helper ────────────────────────────────────────────────────────
+    def _run_variance_test(
+        test_id: str,
+        requirement: str,
+        label: str,
+        overrides: dict,
+        compare_coords: list | None = None,
+    ):
+        """Compare a weighted route against the baseline (or custom ref)."""
+        ref = compare_coords if compare_coords is not None else base_coords
+        print(f"[{test_id}] {label}")
+        coords = _fetch_route(overrides, label)
 
-        test_geom = route_data["geometry"]["coordinates"]
-        
-        if compare_against in geometries_cache:
-            compare_geom = geometries_cache[compare_against]
-        else:
-            compare_geom = geometries_cache["Baseline"]
+        if coords is None:
+            print(f"  -> FAIL (no route data returned)")
+            results["details"].append(
+                {"test_id": test_id, "requirement": requirement,
+                 "name": label, "pass": False, "error": "No route data"}
+            )
+            return None
 
-        passed = _is_distinct(test_geom, compare_geom)
-        status = "PASS" if passed else "FAIL"
-        print(f"  -> {status}: Path geometry is {'distinct from' if passed else 'IDENTICAL to'} {compare_against}")
-        
+        passed = _coords_are_distinct(coords, ref)
+        tag = "PASS" if passed else "FAIL"
+        print(f"  -> {tag}: geometry is {'distinct from' if passed else 'IDENTICAL to'} reference")
+
         results["details"].append({
             "test_id": test_id,
             "requirement": requirement,
-            "name": name,
+            "name": label,
             "pass": passed,
-            "coords_length": len(test_geom)
+            "coords_length": len(coords),
         })
-        
         if passed:
             results["tests_passed"] += 1
-            geometries_cache[name] = test_geom
+        return coords
 
-    # Execute T-ENG-01 (Greenness Deviation) & T-ENG-06 component
-    _test_variance("T-ENG-01", "FR-01", "Greenness Weight (5)", {"weights": {"greenness": 5}})
-    
-    # Execute T-ENG-06 (Multi-Weight Variance)
-    _test_variance("T-ENG-06.1", "FR-01", "Quietness Weight (5)", {"weights": {"quietness": 5}})
-    _test_variance("T-ENG-06.2", "FR-01", "Water Weight (5)", {"weights": {"water": 5}})
-    _test_variance("T-ENG-06.3", "FR-01", "Social Weight (5)", {"weights": {"social": 5}})
-    
-    # Execute T-ENG-05 (Elevation/Slope Weighting)
-    _test_variance("T-ENG-05", "FR-14", "Slope Weight (5)", {"weights": {"slope": 5}})
-    
-    # Execute T-ENG-04 (Dynamic Multiplicative Penalty)
-    _test_variance("T-ENG-04", "FR-10", "Unlit Penalty", {"heavily_avoid_unlit": True})
+    # ── T-ENG-01: Greenness deviation ─────────────────────────────────
+    _run_variance_test("T-ENG-01", "FR-01", "Greenness (5)",
+                       {"weights": {"greenness": 5}})
 
-    # Execute T-ENG-07 (Combine Nature OR/AND semantics)
-    print("\n[T-ENG-07] Testing Combine Nature Semantic Algebra...")
-    # Generate AND semantics (combine_nature = False)
-    and_data = _fetch_route({"weights": {"greenness": 5, "water": 5}, "combine_nature": False}, "Nature (AND)")
-    # Generate OR semantics (combine_nature = True)
-    or_data = _fetch_route({"weights": {"greenness": 5, "water": 5}, "combine_nature": True}, "Nature (OR)")
+    # ── T-ENG-06: Multi-weight normalisation (one test per weight) ────
+    _run_variance_test("T-ENG-06.q", "FR-01", "Quietness (5)",
+                       {"weights": {"quietness": 5}})
+    _run_variance_test("T-ENG-06.w", "FR-01", "Water (5)",
+                       {"weights": {"water": 5}})
+    _run_variance_test("T-ENG-06.s", "FR-01", "Social (5)",
+                       {"weights": {"social": 5}})
 
-    if and_data and or_data and "geometry" in and_data and "geometry" in or_data:
-        and_geom = and_data["geometry"]["coordinates"]
-        or_geom = or_data["geometry"]["coordinates"]
-        
-        passed = _is_distinct(and_geom, or_geom)
-        status = "PASS" if passed else "FAIL"
-        print(f"  -> {status}: OR semantic path geometry is {'distinct from' if passed else 'IDENTICAL to'} AND semantic path")
-        
+    # ── T-ENG-05: Slope / elevation ───────────────────────────────────
+    _run_variance_test("T-ENG-05", "FR-14", "Slope (5)",
+                       {"weights": {"slope": 5}})
+
+    # ── T-ENG-04: Dynamic multiplicative penalty ──────────────────────
+    _run_variance_test("T-ENG-04", "FR-10", "Unlit penalty",
+                       {"heavily_avoid_unlit": True})
+
+    # ── T-ENG-07: Combine Nature OR vs AND semantics ──────────────────
+    print("\n[T-ENG-07] Combine Nature semantic algebra...")
+    and_coords = _fetch_route(
+        {"weights": {"greenness": 5, "water": 5}, "combine_nature": False},
+        "Nature (AND)",
+    )
+    or_coords = _fetch_route(
+        {"weights": {"greenness": 5, "water": 5}, "combine_nature": True},
+        "Nature (OR)",
+    )
+
+    if and_coords and or_coords:
+        passed = _coords_are_distinct(and_coords, or_coords)
+        tag = "PASS" if passed else "FAIL"
+        print(f"  -> {tag}: OR geometry is {'distinct from' if passed else 'IDENTICAL to'} AND geometry")
         results["details"].append({
             "test_id": "T-ENG-07",
             "requirement": "FR-01",
-            "name": "Combine Nature Semantics",
+            "name": "Combine Nature OR/AND",
             "pass": passed,
-            "coords_length_and": len(and_geom),
-            "coords_length_or": len(or_geom)
+            "coords_length_and": len(and_coords),
+            "coords_length_or": len(or_coords),
         })
         if passed:
-             results["tests_passed"] += 1
+            results["tests_passed"] += 1
     else:
-        print(f"  -> FAIL (No route data returned for Nature Combinatorics)")
-        results["details"].append({"test_id": "T-ENG-07", "name": "Combine Nature Semantics", "pass": False, "error": "No route data"})
+        print("  -> FAIL (could not retrieve both Nature variants)")
+        results["details"].append({
+            "test_id": "T-ENG-07", "requirement": "FR-01",
+            "name": "Combine Nature OR/AND", "pass": False,
+            "error": "Missing route data",
+        })
 
+    # ── Summary ───────────────────────────────────────────────────────
+    results["overall_pass"] = results["tests_passed"] == total_tests
 
-    # Final Summary & Output
-    results["overall_pass"] = results["tests_passed"] == results["total_tests"]
-    
     print("\n" + "=" * 60)
-    print(f"OVERALL RESULTS: {results['tests_passed']}/{results['total_tests']} PASSED")
+    print(f"RESULTS: {results['tests_passed']}/{total_tests} PASSED")
     print("=" * 60)
 
-    # Save Results
     os.makedirs(RESULTS_DIR, exist_ok=True)
     results_path = os.path.join(RESULTS_DIR, "wsm_efficacy.json")
     with open(results_path, "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\nDetailed JSON saved to: {results_path}")
+    print(f"\nJSON saved to: {results_path}")
 
 
 if __name__ == "__main__":
