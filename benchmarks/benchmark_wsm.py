@@ -47,7 +47,7 @@ BASE_PAYLOAD = {
 }
 
 # Maximum time to wait for an async graph build (seconds)
-ASYNC_TIMEOUT_S = 300
+ASYNC_TIMEOUT_S = 900
 
 
 def _extract_coords(response_json: dict) -> list | None:
@@ -100,6 +100,8 @@ def _fetch_route(payload_override: dict, name: str) -> list | None:
                 time.sleep(5)
                 poll = requests.get(f"{API_BASE}/api/task/{task_id}", timeout=30)
                 status = poll.json().get("status", "UNKNOWN")
+                if os.environ.get("VERBOSE_LOGGING") == "True":
+                    print(f"      [POLL] Task {task_id} status: {status}")
                 if status in ("SUCCESS", "COMPLETE", "complete"):
                     # Re-request — cache should now be warm
                     resp = requests.post(

@@ -85,17 +85,24 @@ def _test_loop(bias: str, target_km: float) -> dict:
         if resp.status_code == 202:
             # Async — poll until complete, then re-request from cache
             task_id = resp.json().get("task_id")
-            for _ in range(120):
+            for i in range(120):
                 time.sleep(2)
                 poll = requests.get(f"{API_BASE}/api/task/{task_id}", timeout=10)
                 status = poll.json().get("status", "UNKNOWN")
+                if os.environ.get("VERBOSE_LOGGING") == "True" and i % 5 == 0:
+                    print(f"    [POLL {i}/120] Task {task_id} status: {status}")
                 if status in ("SUCCESS", "COMPLETE", "complete"):
                     elapsed_s = time.perf_counter() - start
+                    if os.environ.get("VERBOSE_LOGGING") == "True":
+                        print(f"    [POLL] Task complete in {elapsed_s:.1f}s. Re-requesting route...")
                     # Re-request from cache (fast path)
-                    resp = requests.post(f"{API_BASE}/api/loop", json=payload, timeout=30)
+                    resp = requests.post(f"{API_BASE}/api/loop", json=payload, timeout=60)
                     break
                 if status in ("FAILURE", "FAILED", "ERROR"):
                     return {"bias": bias, "target_km": target_km, "success": False, "error": status}
+            else:
+                # Polling completely timed out after 240 seconds
+                return {"bias": bias, "target_km": target_km, "success": False, "error": "Async polling timed out after 240s"}
 
         data = resp.json()
 

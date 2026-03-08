@@ -110,12 +110,31 @@ def run_benchmark():
             traceback.print_exc()
             return
 
-        # Load green area GeoDataFrame (needed by the processors)
-        print("\n[Setup] Loading green area data...")
+        # Extract green area polygons from graph.features (already in memory).
+        # NOTE: We must NOT create a new OSMDataLoader here. A fresh loader has
+        # _active_pbf_path=None, so extract_green_areas() falls back to the full
+        # 1.5 GB england.osm.pbf, causing an OOM crash inside pyrosm.
+        print("\n[Setup] Loading green area data from graph features...")
         try:
-            from app.services.core.data_loader import OSMDataLoader
-            loader = OSMDataLoader()
-            green_gdf = loader.get_green_areas(BBOX)
+            import geopandas as gpd
+
+            features = getattr(graph, 'features', None)
+            if features is None or features.empty:
+                print("\n[FAIL] graph.features is empty — cannot extract green areas.")
+                return
+
+            green_gdf = features[features['feature_group'] == 'green'].copy()
+            green_gdf = green_gdf[green_gdf.geometry.notna()]
+            green_gdf = green_gdf[
+                green_gdf.geometry.geom_type.isin(['Polygon', 'MultiPolygon'])
+            ]
+
+            # Project to metres (UTM zone 30N) — same CRS the greenness
+            # processor expects from OSMDataLoader.extract_green_areas().
+            if green_gdf.crs is None:
+                green_gdf = green_gdf.set_crs('EPSG:4326')
+            green_gdf = green_gdf.to_crs('EPSG:32630')
+
             print(f"  Green areas loaded: {len(green_gdf):,} polygons")
         except Exception as e:
             print(f"\n[FAIL] Green area loading failed: {e}")
