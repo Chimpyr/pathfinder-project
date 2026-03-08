@@ -4,7 +4,23 @@ Performance benchmark scripts for the Scenic Pathfinding Engine. These scripts a
 
 ## Usage
 
-All benchmarks should be run from inside the `scenic-api` container:
+All benchmarks are designed to be run from inside the `scenic-api` container.
+
+### Sequential Benchmark Runner
+
+To automate the execution of multiple benchmarks and log their output sequentially to a text file (saved in `benchmarks/results/`), use the `runner.py` script:
+
+```bash
+# Run all benchmarks sequentially
+docker compose exec api python -m benchmarks.runner --all
+
+# Run specific benchmarks
+docker compose exec api python -m benchmarks.runner -b benchmark_route benchmark_extraction benchmark_pruning
+```
+
+### Individual Benchmarks
+
+You can also run individual benchmarks:
 
 ```bash
 # Route computation latency (T-PERF-01 / NFR-01)
