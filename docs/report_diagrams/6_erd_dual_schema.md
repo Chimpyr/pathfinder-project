@@ -27,14 +27,19 @@ erDiagram
         String name
         Float start_lat
         Float start_lon
-        Float end_lat
-        Float end_lon
+        Float end_lat "nullable — loop routes share start"
+        Float end_lon "nullable — loop routes share start"
         JSON weights_json
         JSON route_geometry
         Float distance_km
         Boolean is_loop
         DateTime created_at
     }
+
+    %% NOTE: The report body may reference a "SavedRoute" model.
+    %% No such model exists. SavedQuery fulfils this role via
+    %% route_geometry (JSON) and is_loop (Boolean) columns.
+    %% See: app/models/saved_query.py
 
     %% Relationships in user_db
     User ||--o{ SavedPin : "owns"
@@ -81,17 +86,20 @@ erDiagram
 ```
 
 ## Architectural Justification (Dual-Schema Segregation)
-As detailed in **ADR-012**, the architecture deliberately physically segregates the User Database from the Spatial Database. 
 
-Notice in the ERD that there are **no foreign key relationships** crossing between the tables. 
-*   **The `user_db`** is entirely stateless geographically. A `SavedPin` stores raw `Float` coordinates rather than heavy PostGIS `Geometry` types. It is strictly tied to the Flask application layer and managed gracefully via Flask-Migrate (Alembic) schema migrations.
-*   **The `spatial_db`** is volatile and exists purely for visual rendering. The `planet_osm_*` tables are routinely destroyed and re-created from scratch whenever a new `.pbf` map file is ingested via `osm2pgsql`. If User Data was stored alongside this, a routine map update could catastrophically wipe all user accounts.
+As detailed in **ADR-012**, the architecture deliberately physically segregates the User Database from the Spatial Database.
+
+Notice in the ERD that there are **no foreign key relationships** crossing between the tables.
+
+- **The `user_db`** is entirely stateless geographically. A `SavedPin` stores raw `Float` coordinates rather than heavy PostGIS `Geometry` types. It is strictly tied to the Flask application layer and managed gracefully via Flask-Migrate (Alembic) schema migrations.
+- **The `spatial_db`** is volatile and exists purely for visual rendering. The `planet_osm_*` tables are routinely destroyed and re-created from scratch whenever a new `.pbf` map file is ingested via `osm2pgsql`. If User Data was stored alongside this, a routine map update could catastrophically wipe all user accounts.
 
 Because of this strict segregation, the Flask Python backend **never queries PostGIS directly**. Instead:
+
 1.  **Graph Building (Offline Routing):** Celery workers natively parse local `.pbf` files into memory using `pyrosm` to build NetworkX routing matrices.
-2.  **Visual Overlays (Frontend):** The `spatial_db` (PostGIS) is exclusively queried by the containerised **Martin** tileserver, which streams Mapbox Vector Tiles (MVT) representing streetlights and greenery directly to the client's browser layer. 
+2.  **Visual Overlays (Frontend):** The `spatial_db` (PostGIS) is exclusively queried by the containerised **Martin** tileserver, which streams Mapbox Vector Tiles (MVT) representing streetlights and greenery directly to the client's browser layer.
 
 **Why are the `planet_osm_*` tables isolated?**
-You will also notice the four `planet_osm_*` tables have no relationships linking *each other*. This is an intentional design pattern created by the `osm2pgsql` seeder tool. Raw OpenStreetMap data is highly relational (Nodes belong to Ways, Ways belong to Relations), but `osm2pgsql` flattens this complex graph into independent geometry tables (`_point`, `_line`, `_polygon`). This breaks relational normalization but heavily optimises the database for rapid, read-only spatial bounding-box queries by the Martin tileserver.
+You will also notice the four `planet_osm_*` tables have no relationships linking _each other_. This is an intentional design pattern created by the `osm2pgsql` seeder tool. Raw OpenStreetMap data is highly relational (Nodes belong to Ways, Ways belong to Relations), but `osm2pgsql` flattens this complex graph into independent geometry tables (`_point`, `_line`, `_polygon`). This breaks relational normalization but heavily optimises the database for rapid, read-only spatial bounding-box queries by the Martin tileserver.
 
 This extreme decoupling ensures the pathfinding logic remains completely independent from the visual rendering pipeline, preventing complex SQL joins and avoiding ORM mapping overheads for billions of OSM nodes.
