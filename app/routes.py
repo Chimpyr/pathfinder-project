@@ -800,6 +800,7 @@ def calculate_route():
         combine_nature = data.get('combine_nature', False)
         prefer_lit = bool(data.get('prefer_lit', False))
         heavily_avoid_unlit = bool(data.get('heavily_avoid_unlit', False))
+        prefer_pedestrian = bool(data.get('prefer_pedestrian', False))
         weights = None
         
         if use_wsm:
@@ -830,6 +831,7 @@ def calculate_route():
                 combine_nature=combine_nature,
                 prefer_lit=prefer_lit,
                 heavily_avoid_unlit=heavily_avoid_unlit,
+                prefer_pedestrian=prefer_pedestrian,
             )
             
             # Validate that at least one route was found
@@ -901,6 +903,7 @@ def calculate_route():
             combine_nature=combine_nature,
             prefer_lit=prefer_lit,
             heavily_avoid_unlit=heavily_avoid_unlit,
+            prefer_pedestrian=prefer_pedestrian,
         )
         
         if not route:

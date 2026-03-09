@@ -154,7 +154,7 @@ class RouteFinder:
             return []
 
     def find_route(self, start_point, end_point, use_wsm=False, weights=None, combine_nature=False,
-                   prefer_lit=False, heavily_avoid_unlit=False):
+                   prefer_lit=False, heavily_avoid_unlit=False, prefer_pedestrian=False):
         """
         Finds a path between two locations (coordinates).
         
@@ -170,6 +170,7 @@ class RouteFinder:
             combine_nature (bool): If True, combine greenness and water into single "nature" score.
             prefer_lit (bool): If True, apply mild multiplicative lit-preference penalty.
             heavily_avoid_unlit (bool): If True, apply strong multiplicative unlit-avoidance penalty.
+            prefer_pedestrian (bool): If True, apply penalty to primary/secondary roads and bonus to paths.
 
         Returns:
             tuple: (route, start_point, end_point, distance, time_seconds)
@@ -201,6 +202,7 @@ class RouteFinder:
                 astar_solver = WSMNetworkXAStar(
                     self.graph, weights, combine_nature=combine_nature,
                     prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
+                    prefer_pedestrian=prefer_pedestrian,
                 )
                 
                 if current_app.config.get('VERBOSE_LOGGING'):

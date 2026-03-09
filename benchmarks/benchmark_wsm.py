@@ -145,8 +145,8 @@ def run_benchmark():
     print("Covering: T-ENG-01, T-ENG-04, T-ENG-05, T-ENG-06, T-ENG-07")
     print("=" * 60)
 
-    # We expect 7 sub-tests (6 variance + 1 combine nature)
-    total_tests = 7
+    # We expect 8 sub-tests (6 variance + 2 advanced toggles)
+    total_tests = 8
     results = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "tests_passed": 0,
@@ -221,9 +221,12 @@ def run_benchmark():
     _run_variance_test("T-ENG-05", "FR-14", "Slope (5)",
                        {"weights": {"slope": 5}})
 
-    # ── T-ENG-04: Dynamic multiplicative penalty ──────────────────────
+    # ── T-ENG-04: Dynamic multiplicative penalty / Advanced Options ──────
     _run_variance_test("T-ENG-04", "FR-10", "Unlit penalty",
                        {"heavily_avoid_unlit": True})
+    
+    _run_variance_test("T-ENG-04.p", "FR-10", "Prefer Pedestrian",
+                       {"prefer_pedestrian": True})
 
     # ── T-ENG-07: Combine Nature OR vs AND semantics ──────────────────
     print("\n[T-ENG-07] Combine Nature semantic algebra...")

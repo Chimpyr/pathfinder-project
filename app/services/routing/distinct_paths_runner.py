@@ -128,6 +128,7 @@ def find_distinct_paths(
     combine_nature: bool = False,
     prefer_lit: bool = False,
     heavily_avoid_unlit: bool = False,
+    prefer_pedestrian: bool = False,
 ) -> Dict[str, Any]:
     """
     Execute three A* runs to find distinct route alternatives.
@@ -172,6 +173,7 @@ def find_distinct_paths(
         combine_nature=combine_nature,
         prefer_lit=False,              # Baseline must be pure shortest path
         heavily_avoid_unlit=False,     # No lit modifiers on Direct route
+        prefer_pedestrian=False,       # No pedestrian modifiers on Direct route
     )
     
     result['baseline'] = {
@@ -194,6 +196,7 @@ def find_distinct_paths(
         combine_nature=combine_nature,
         prefer_lit=prefer_lit,
         heavily_avoid_unlit=heavily_avoid_unlit,
+        prefer_pedestrian=prefer_pedestrian,
     )
     
     result['extremist'] = {
@@ -215,6 +218,7 @@ def find_distinct_paths(
         combine_nature=combine_nature,
         prefer_lit=prefer_lit,
         heavily_avoid_unlit=heavily_avoid_unlit,
+        prefer_pedestrian=prefer_pedestrian,
     )
     
     result['balanced'] = {

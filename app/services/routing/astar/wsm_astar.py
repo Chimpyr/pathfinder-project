@@ -85,6 +85,7 @@ class WSMNetworkXAStar(AStar):
         combine_nature: bool = False,
         prefer_lit: bool = False,
         heavily_avoid_unlit: bool = False,
+        prefer_pedestrian: bool = False,
     ):
         """
         Initialise WSM A* solver.
@@ -101,6 +102,7 @@ class WSMNetworkXAStar(AStar):
         self.combine_nature = combine_nature
         self.prefer_lit = prefer_lit
         self.heavily_avoid_unlit = heavily_avoid_unlit
+        self.prefer_pedestrian = prefer_pedestrian
         
         # Validate and set weights
         if weights is None:
@@ -191,6 +193,17 @@ class WSMNetworkXAStar(AStar):
                 cost *= _compute_lit_multiplier(
                     data, heavily_avoid=self.heavily_avoid_unlit
                 )
+            
+            # Apply pedestrian-preference multiplier (if enabled)
+            if self.prefer_pedestrian:
+                highway = data.get('highway', '')
+                if isinstance(highway, list):
+                    highway = highway[0] if highway else ''
+                # Heavily penalise vehicle-focused roads, reward paths
+                if highway in ['trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link']:
+                    cost *= 5.0
+                elif highway in ['pedestrian', 'path', 'footway', 'cycleway', 'track', 'living_street']:
+                    cost *= 0.2
             
             # Debug logging for first few edges (to see greenness variance)
             if not hasattr(self, '_debug_count'):

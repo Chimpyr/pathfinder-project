@@ -31,13 +31,14 @@ import requests
 API_BASE = os.environ.get("API_BASE", "http://localhost:5000")
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 ITERATIONS_PER_CONFIG = 3
+ITERATIONS_PER_CONFIG = 2
 
 # Bristol city centre starting point
 START_LAT = 51.4545
 START_LON = -2.5879
 
 # Target distances to test (in km)
-TARGET_DISTANCES = [3.0, 5.0]
+TARGET_DISTANCES = [3.0, 5.0, 7.5, 10.0]
 
 # Directional biases to test (these influence the geometric shape of the loop)
 # The loop solver internally selects skeleton shapes based on bias and variety
