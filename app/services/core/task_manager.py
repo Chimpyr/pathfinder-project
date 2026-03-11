@@ -171,16 +171,31 @@ class TaskManager:
             - is_new: True if we created a new task, False if reusing existing
             - error: Error message if enqueueing failed
         """
-        # Check for existing task first
-        existing_task_id = self.get_existing_task(region_name, greenness_mode, elevation_mode)
-        if existing_task_id:
-            logger.info(f"[TaskManager] Reusing existing task {existing_task_id} for {region_name}")
-            return {
-                'task_id': existing_task_id,
-                'is_new': False,
-                'error': None
-            }
-        
+        # Atomically claim the build slot BEFORE enqueueing using a single
+        # SET key placeholder NX PX ttl_ms Redis call.  This is indivisible:
+        # only one of N simultaneous callers succeeds; all others read the
+        # winner's task ID once the key is updated with the real value.
+        lock_key = self._get_lock_key(region_name, greenness_mode, elevation_mode)
+        ttl_ms = self.lock_timeout * 1000
+
+        if self.redis_client:
+            claimed = self.redis_client.set(lock_key, "building", nx=True, px=ttl_ms)
+            if not claimed:
+                # Lost the race — return whoever won
+                existing = self.redis_client.get(lock_key)
+                if existing:
+                    existing_id = existing.decode("utf-8")
+                    if existing_id != "building":
+                        logger.info(f"[TaskManager] Reusing existing task {existing_id} for {region_name}")
+                        return {"task_id": existing_id, "is_new": False, "error": None}
+                # Placeholder still set (winner not yet written real task_id)
+                # Fall through — rare edge case: let this caller also enqueue
+        else:
+            # No Redis — non-atomic fallback
+            existing_task_id = self.get_existing_task(region_name, greenness_mode, elevation_mode)
+            if existing_task_id:
+                return {"task_id": existing_task_id, "is_new": False, "error": None}
+
         # Import here to avoid circular imports
         try:
             from app.tasks.graph_tasks import build_graph_task
@@ -203,10 +218,9 @@ class TaskManager:
             )
             task_id = task.id
             
-            # Set the lock to prevent duplicate tasks
+            # Update the lock with the real task ID (replaces "building" placeholder)
             if self.redis_client:
-                lock_key = self._get_lock_key(region_name, greenness_mode, elevation_mode)
-                self.redis_client.setex(lock_key, self.lock_timeout, task_id)
+                self.redis_client.set(lock_key, task_id, px=ttl_ms)
                 logger.info(f"[TaskManager] Set lock {lock_key} for task {task_id}")
             
             logger.info(f"[TaskManager] Enqueued new task {task_id} for {region_name}")
@@ -358,16 +372,31 @@ class TaskManager:
         Returns:
             Dictionary with task_id, is_new, and error (if any).
         """
-        # Check for existing task first
-        existing_task_id = self.get_existing_tile_task(tile_id, region_name, greenness_mode, elevation_mode)
-        if existing_task_id:
-            logger.info(f"[TaskManager] Reusing existing task {existing_task_id} for tile {tile_id}")
-            return {
-                'task_id': existing_task_id,
-                'is_new': False,
-                'error': None
-            }
-        
+        # Atomically claim the tile build slot BEFORE enqueueing.
+        # A single SET key placeholder NX PX ttl_ms call is indivisible:
+        # only one of N simultaneous callers succeeds; the rest return
+        # immediately with the winner's task ID once the key is updated.
+        lock_key = self._get_tile_lock_key(tile_id, region_name, greenness_mode, elevation_mode)
+        ttl_ms = self.lock_timeout * 1000
+
+        if self.redis_client:
+            claimed = self.redis_client.set(lock_key, "building", nx=True, px=ttl_ms)
+            if not claimed:
+                # Lost the race — return whoever won
+                existing = self.redis_client.get(lock_key)
+                if existing:
+                    existing_id = existing.decode("utf-8")
+                    if existing_id != "building":
+                        logger.info(f"[TaskManager] Reusing existing task {existing_id} for tile {tile_id}")
+                        return {"task_id": existing_id, "is_new": False, "error": None}
+                # Placeholder still set (winner not yet written real task_id)
+                # Fall through — rare edge case: let this caller also enqueue
+        else:
+            # No Redis — non-atomic fallback
+            existing_task_id = self.get_existing_tile_task(tile_id, region_name, greenness_mode, elevation_mode)
+            if existing_task_id:
+                return {"task_id": existing_task_id, "is_new": False, "error": None}
+
         # Import here to avoid circular imports
         try:
             from app.tasks.graph_tasks import build_tile_task
@@ -392,10 +421,9 @@ class TaskManager:
             )
             task_id = task.id
             
-            # Set the lock to prevent duplicate tasks
+            # Update the lock with the real task ID (replaces "building" placeholder)
             if self.redis_client:
-                lock_key = self._get_tile_lock_key(tile_id, region_name, greenness_mode, elevation_mode)
-                self.redis_client.setex(lock_key, self.lock_timeout, task_id)
+                self.redis_client.set(lock_key, task_id, px=ttl_ms)
                 logger.info(f"[TaskManager] Set tile lock {lock_key} for task {task_id}")
             
             logger.info(f"[TaskManager] Enqueued new tile task {task_id} for tile {tile_id}")

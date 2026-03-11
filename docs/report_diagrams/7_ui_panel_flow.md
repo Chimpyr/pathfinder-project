@@ -16,88 +16,88 @@ flowchart TD
     classDef detail fill:#CC79A7,stroke:#000,stroke-width:2px,color:#000
 
     %% ── Map View (always visible background) ─────────────────────
-    Map["Map View\n(full-screen Leaflet.js)\nid: #map"]:::map
+    Map["Map View (full-screen Leaflet.js) id: #map"]:::map
 
     %% ── Navigation Rail (left edge) ──────────────────────────────
-    NavRail["Nav Rail\nid: #nav-rail\n6 buttons"]:::nav
+    NavRail["Nav Rail id: #nav-rail 6 buttons"]:::nav
     Map --- NavRail
 
     %% ── Sidebar Container ────────────────────────────────────────
-    Sidebar["Sidebar\nid: #sidebar\nResizable panel"]:::nav
+    Sidebar["Sidebar id: #sidebar Resizable panel"]:::nav
     NavRail --> Sidebar
 
     %% ── Panel: Finder ────────────────────────────────────────────
-    Finder["Finder\ndata-view: finder-view\nid: #finder-view"]:::panel
+    Finder["Finder data-view: finder-view id: #finder-view"]:::panel
     Sidebar --> Finder
 
-    ModeToggle{"Routing Mode\n#mode-standard / #mode-loop"}:::sub
+    ModeToggle{"Routing Mode #mode-standard / #mode-loop"}:::sub
     Finder --> ModeToggle
 
-    Standard["Standard Route\nStart + End inputs\nCoords + Weight sliders\n6 criteria: distance, greenness,\nwater, quietness, social, slope"]:::sub
-    Loop["Round Trip (Loop)\nStart input only\nDistance slider (1–30 km)\nDirectional bias (N/S/E/W/none)\nVariety level (0–3)\nSmart bearings toggle"]:::sub
+    Standard["Standard Route Start + End inputs Coords + Weight sliders 6 criteria: distance, greenness, water, quietness, social, slope"]:::sub
+    Loop["Round Trip (Loop) Start input only Distance slider (1–30 km) Directional bias (N/S/E/W/none) Variety level (0–3) Smart bearings toggle"]:::sub
 
     ModeToggle -->|"data-mode: standard"| Standard
     ModeToggle -->|"data-mode: loop"| Loop
 
-    AdvOpts["Advanced Options\n(shared — both modes)\nPrefer paths & trails\nPrefer paved surfaces\nPrefer lit streets\nHeavily avoid unlit"]:::detail
+    AdvOpts["Advanced Options (shared — both modes) Prefer paths & trails Prefer paved surfaces Prefer lit streets Heavily avoid unlit"]:::detail
     Standard --> AdvOpts
     Loop --> AdvOpts
 
-    FindBtn["Find Route Button\nid: #find-route-btn"]:::sub
+    FindBtn["Find Route Button id: #find-route-btn"]:::sub
     AdvOpts --> FindBtn
 
     %% ── Panel: Routes ────────────────────────────────────────────
-    Routes["Routes\ndata-view: routes-view\nid: #routes-view"]:::panel
+    Routes["Routes data-view: routes-view id: #routes-view"]:::panel
     Sidebar --> Routes
 
-    RouteList["Route Candidate Cards\nDistance, scenic cost, ETA\nAccept / Reject actions\nSave route (if logged in)"]:::sub
+    RouteList["Route Candidate Cards Distance, scenic cost, ETA Accept / Reject actions Save route (if logged in)"]:::sub
     Routes --> RouteList
 
     %% ── Panel: Saved ─────────────────────────────────────────────
-    Saved["Saved\ndata-view: saved-view\nid: #saved-view"]:::panel
+    Saved["Saved data-view: saved-view id: #saved-view"]:::panel
     Sidebar --> Saved
 
     LoginGate{"Logged in?"}:::detail
     Saved --> LoginGate
 
-    LoginPrompt["Sign-in prompt\nid: #saved-login-prompt"]:::detail
+    LoginPrompt["Sign-in prompt id: #saved-login-prompt"]:::detail
     LoginGate -->|"No"| LoginPrompt
 
-    SavedTabs{"Saved Tabs\ndata-saved-tab"}:::sub
+    SavedTabs{"Saved Tabs data-saved-tab"}:::sub
     LoginGate -->|"Yes"| SavedTabs
 
-    Pins["Pins Tab\nid: #saved-tab-pins\nList of SavedPin items"]:::sub
-    SavedRoutes["Routes Tab\nid: #saved-tab-routes\nList of SavedQuery items"]:::sub
+    Pins["Pins Tab id: #saved-tab-pins List of SavedPin items"]:::sub
+    SavedRoutes["Routes Tab id: #saved-tab-routes List of SavedQuery items"]:::sub
 
     SavedTabs -->|"pins"| Pins
     SavedTabs -->|"routes"| SavedRoutes
 
     %% ── Panel: Settings ──────────────────────────────────────────
-    Settings["Settings\ndata-view: settings-view\nid: #settings-view"]:::panel
+    Settings["Settings data-view: settings-view id: #settings-view"]:::panel
     Sidebar --> Settings
 
-    MapStyle["Map Appearance\nTile layer selector:\nOSM Standard, Carto Light,\nCarto Dark, Carto Voyager"]:::sub
-    Overlays["Map Overlays\nStreet Lighting toggle\n(colour pickers, line weight)\nTile Cache visualisation toggle"]:::sub
+    MapStyle["Map Appearance Tile layer selector: OSM Standard, Carto Light, Carto Dark, Carto Voyager"]:::sub
+    Overlays["Map Overlays Street Lighting toggle (colour pickers, line weight) Tile Cache visualisation toggle"]:::sub
 
     Settings --> MapStyle
     Settings --> Overlays
 
     %% ── Panel: Account ───────────────────────────────────────────
-    Account["Account\ndata-view: account-view\nid: #account-view"]:::panel
+    Account["Account data-view: account-view id: #account-view"]:::panel
     Sidebar --> Account
 
     AuthState{"Auth state?"}:::detail
     Account --> AuthState
 
-    LoginForm["Login / Register forms\nid: #auth-login / #auth-register"]:::sub
-    Profile["Logged-in profile\nEmail display, Logout button"]:::sub
+    LoginForm["Login / Register forms id: #auth-login / #auth-register"]:::sub
+    Profile["Logged-in profile Email display, Logout button"]:::sub
 
     AuthState -->|"Not authenticated"| LoginForm
     AuthState -->|"Authenticated"| Profile
 
     %% ── External: Admin ──────────────────────────────────────────
-    Admin["Admin Panel\nhref: /admin/\n(external link)"]:::external
-    NavRail -->|"Admin button\n(opens new page)"| Admin
+    Admin["Admin Panel href: /admin/ (external link)"]:::external
+    NavRail -->|"Admin button (opens new page)"| Admin
 ```
 
 ## Cross-Reference: `data-view` IDs

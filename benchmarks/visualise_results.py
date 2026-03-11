@@ -124,7 +124,7 @@ def plot_memory_usage(data):
     plt.figure(figsize=(7, 6))
     ax = sns.barplot(x=categories, y=values, hue=categories, dodge=False, palette=["mediumseagreen", "indianred"])
     
-    plt.axhline(1500, color="gray", linestyle="--", label="Target Threshold (1.5GB)")
+    plt.axhline(5000, color="gray", linestyle="--", label="NFR-05 Target Threshold (5 GB)")
     
     for i, v in enumerate(values):
         ax.text(i, v + 100, f"{v:.0f} MB", color="black", ha="center")

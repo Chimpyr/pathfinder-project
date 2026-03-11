@@ -99,6 +99,8 @@ EXCLUDED_SERVICE_TAGS: set[str] = RESTRICTED_SERVICE
 # Without such a tag these ways are assumed cyclist/motor-only.
 CONDITIONAL_HIGHWAY_TAGS: set[str] = {
     "cycleway",  # shared-use cycleways — the key fix (§2a)
+    "trunk",     # major A-roads: kept only when foot=yes/designated is tagged
+    "trunk_link",  # trunk slip roads / roundabout links (e.g. Frenchay)
 }
 
 # ``foot`` values that confirm a way is accessible to pedestrians.

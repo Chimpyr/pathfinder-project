@@ -26,14 +26,16 @@ API_BASE = os.environ.get("API_BASE", "http://localhost:5000")
 CONCURRENT_REQUESTS = 4
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 
-# Use a unique bbox that won't have a cached graph
-# (offset slightly from standard Bristol test coordinates to avoid cache hits)
+# Use Portishead (North Somerset) — a region that is in a DIFFERENT 15 km tile
+# from the standard Bristol benchmark area (51.42–51.48, -2.65–-2.55).
+# Portishead centre is ~19 km west of Bristol: guaranteed cold cache.
+# Both points are within england.osm.pbf coverage.
 # API expects use_wsm flag + nested weights dict (see app/routes.py)
 TEST_PAYLOAD = {
-    "start_lat": 51.4300,
-    "start_lon": -2.6100,
-    "end_lat": 51.4400,
-    "end_lon": -2.5900,
+    "start_lat": 51.4870,
+    "start_lon": -2.7620,
+    "end_lat": 51.4950,
+    "end_lon": -2.7450,
     "use_wsm": True,
     "weights": {
         "distance": 3,
@@ -45,8 +47,31 @@ TEST_PAYLOAD = {
     },
 }
 
+# HTTP timeout: long enough to receive a 202 Accepted for a cold-cache build.
+# 120 s covers the full Celery task submission cycle (task enqueue + ack).
+# A cold graph build takes ~300 s total but the 202 is returned within seconds.
+HTTP_TIMEOUT_S = 120
+
 # Barrier ensures all threads start their HTTP request simultaneously
 _barrier = threading.Barrier(CONCURRENT_REQUESTS)
+
+
+def _wait_for_api(max_attempts: int = 10, interval_s: float = 3.0) -> bool:
+    """
+    Poll the API health endpoint until it responds or max_attempts is exhausted.
+    Returns True if the API is alive, False if it never responded.
+    """
+    for attempt in range(1, max_attempts + 1):
+        try:
+            r = requests.get(f"{API_BASE}/", timeout=5)
+            if r.status_code < 500:
+                print(f"  [Health] API alive (attempt {attempt}, status {r.status_code})")
+                return True
+        except Exception:
+            pass
+        print(f"  [Health] API not ready — waiting {interval_s:.0f}s (attempt {attempt}/{max_attempts})")
+        time.sleep(interval_s)
+    return False
 
 
 def send_request(request_id: int, results: list):
@@ -70,7 +95,7 @@ def send_request(request_id: int, results: list):
 
     start = time.perf_counter()
     try:
-        resp = requests.post(f"{API_BASE}/api/route", json=TEST_PAYLOAD, timeout=30)
+        resp = requests.post(f"{API_BASE}/api/route", json=TEST_PAYLOAD, timeout=HTTP_TIMEOUT_S)
         elapsed_ms = (time.perf_counter() - start) * 1000
         data = resp.json()
         results.append({
@@ -99,6 +124,14 @@ def run_benchmark():
     print(f"Target: exactly 1 Celery task for {CONCURRENT_REQUESTS} simultaneous requests")
     print(f"Synchronisation: threading.Barrier({CONCURRENT_REQUESTS})")
     print("=" * 60)
+
+    # Verify the API is alive before firing — if it's unresponsive (e.g. after
+    # OOM recovery from a prior benchmark) the test would produce misleading timeouts.
+    print("\n[Pre-flight] Checking API health...")
+    if not _wait_for_api():
+        print("[ERROR] API health check failed — aborting concurrency benchmark.")
+        print("[ERROR] Ensure the Flask API container is running and responsive.")
+        return
 
     # Fire concurrent requests
     print(f"\n[Benchmark] Firing {CONCURRENT_REQUESTS} simultaneous requests...")

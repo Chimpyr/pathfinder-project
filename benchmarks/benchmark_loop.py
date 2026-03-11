@@ -115,7 +115,13 @@ def _test_loop(bias: str, target_km: float) -> dict:
         stats = data.get("stats", {})
         actual_distance_km = float(stats.get("distance_km", data.get("actual_distance_km", 0)))
 
-        coordinates = data.get("route_coords", data.get("coordinates", []))
+        # Loop API returns multi_loop format: coordinates are nested under loops[0].route_coords
+        # Fall back to legacy top-level keys for compatibility
+        loops_list = data.get("loops", [])
+        coordinates = (
+            loops_list[0].get("route_coords", []) if loops_list
+            else data.get("route_coords", data.get("coordinates", []))
+        )
 
         # Check if loop closes (start ≈ end)
         loop_closes = False

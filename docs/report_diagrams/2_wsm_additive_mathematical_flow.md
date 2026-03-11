@@ -8,89 +8,45 @@
 ```mermaid
 flowchart TD
     %% ── Okabe-Ito Accessible Colour Palette ──────────────────────
-    classDef input fill:#E69F00,stroke:#000000,stroke-width:2px,color:#000000
-    classDef weight fill:#56B4E9,stroke:#000000,stroke-width:2px,color:#000000
+    classDef input    fill:#E69F00,stroke:#000000,stroke-width:2px,color:#000000
     classDef operator fill:#009E73,stroke:#000000,stroke-width:2px,color:#FFFFFF
-    classDef process fill:#0072B2,stroke:#000000,stroke-width:2px,color:#FFFFFF
-    classDef output fill:#D55E00,stroke:#000000,stroke-width:2px,color:#FFFFFF
+    classDef process  fill:#0072B2,stroke:#000000,stroke-width:2px,color:#FFFFFF
+    classDef output   fill:#D55E00,stroke:#000000,stroke-width:2px,color:#FFFFFF
     classDef decision fill:#CC79A7,stroke:#000000,stroke-width:2px,color:#000000
 
-    %% ── Raw Inputs (6 normalised cost values 0=good 1=bad) ──────
-    L(["Edge Length (dist)"]):::input
-    G(["Green Cost (C_g)"]):::input
-    W(["Water Cost (C_w)"]):::input
-    Q(["Quiet Cost (C_q)"]):::input
-    S(["Social Cost (C_s)"]):::input
-    E(["Slope Cost (C_e)"]):::input
+    %% ── Entry: six normalised scores ────────────────────────────
+    Inputs(["Six normalised edge scores: N(dist), N(Cg), N(Cw), N(Cq), N(Cs), N(Ce) — each in [0 = good, 1 = bad]"]):::input
 
-    %% ── User-Interface Weight Sliders ────────────────────────────
-    uL[/"Distance Wgt (w_d)"\]:::weight
-    uNature[/"Nature Wgt (w_n)"\]:::weight
-    uQ[/"Quietness Wgt (w_q)"\]:::weight
-    uS[/"Social Wgt (w_s)"\]:::weight
-    uE[/"Slope Wgt (w_e)  — signed"\]:::weight
+    %% ── Additive cost terms (criteria 1–4) ───────────────────────
+    subgraph Additive ["Additive Cost Terms  (criteria 1–4)"]
+        direction TB
+        DistCost["1  Distance:   w_d × N(dist)"]:::process
+        NatureCost["2  Nature:     w_n × min(N(Cg), N(Cw))  —  rewards water OR green edge"]:::process
+        QuietCost["3  Quietness:  w_q × N(Cq)"]:::process
+        SocialCost["4  Social:     w_s × N(Cs)"]:::process
+    end
 
-    %% ── Normalisation Functions ──────────────────────────────────
-    NormL["Normalise Length\nN(dist)"]:::process
-    NormG["Normalise Cost\nN(C_g)"]:::process
-    NormW["Normalise Cost\nN(C_w)"]:::process
-    NormQ["Normalise Cost\nN(C_q)"]:::process
-    NormS["Normalise Cost\nN(C_s)"]:::process
-    NormE["Normalise Cost\nN(C_e)"]:::process
+    %% ── Slope: signed-weight branch (criterion 5) ────────────────
+    %% cost_wsm_additive() cost_calculator.py line 113:
+    %%   if slope_weight >= 0: cost += w_e * norm_slope
+    %%   else:                 cost += abs(w_e) * (1 - norm_slope)
+    subgraph SlopeGroup ["Slope Cost  (criterion 5 — signed weight)"]
+        direction TB
+        SlopeDecision{"w_e >= 0 ?"}:::decision
+        SlopeAvoid["Avoid steepness:   w_e x N(Ce)"]:::process
+        SlopePrefer["Prefer steepness:  |w_e| x (1 - N(Ce))"]:::process
+        SlopeDecision -->|"Yes — penalise steep"| SlopeAvoid
+        SlopeDecision -->|"No — penalise flat"| SlopePrefer
+    end
 
-    L --> NormL
-    G --> NormG
-    W --> NormW
-    Q --> NormQ
-    S --> NormS
-    E --> NormE
+    %% ── Final sum ────────────────────────────────────────────────
+    Add{{"Sum all five cost terms"}}:::operator
+    EdgeCost(["Final WSM A* Edge Cost"]):::output
 
-    %% ── Group Nature Logic (Disjunctive OR Semantics) ────────────
-    MinOp{{"Minimum Operator\n(Best of Nature)\nmin(N(C_g), N(C_w))"}}:::operator
-    NormG --> MinOp
-    NormW --> MinOp
-
-    %% ── Linear Multiplications ───────────────────────────────────
-    Mult1["Baseline Cost\nw_d × N(dist)"]:::process
-    Mult2["Nature Cost\nw_n × min(C_g, C_w)"]:::process
-    Mult3["Quietness Cost\nw_q × N(C_q)"]:::process
-    Mult4["Social Cost\nw_s × N(C_s)"]:::process
-
-    NormL --> Mult1
-    uL -.-> Mult1
-
-    MinOp --> Mult2
-    uNature -.->|"Slider Value"| Mult2
-
-    NormQ --> Mult3
-    uQ -.->|"Slider Value"| Mult3
-
-    NormS --> Mult4
-    uS -.->|"Slider Value"| Mult4
-
-    %% ── Slope: Signed-Weight Conditional Branch ──────────────────
-    %% Source: cost_wsm_additive() in cost_calculator.py
-    %% if slope_weight >= 0: cost += w_e × norm_slope   (penalise steepness)
-    %% if slope_weight <  0: cost += |w_e| × (1 - norm_slope)  (penalise flatness)
-    SlopeDecision{"w_e ≥ 0 ?"}:::decision
-    uE -.-> SlopeDecision
-    NormE --> SlopeDecision
-
-    SlopeAvoid["Avoid Slope\n|w_e| × N(C_e)"]:::process
-    SlopePrefer["Prefer Slope\n|w_e| × (1 − N(C_e))"]:::process
-
-    SlopeDecision -->|"Yes — penalise steepness"| SlopeAvoid
-    SlopeDecision -->|"No — penalise flatness"| SlopePrefer
-
-    %% ── Final Additive Combination (AND Semantics) ───────────────
-    Add{{"Total Edge Cost\n(+)"}}:::operator
-    Mult1 -->|"Add"| Add
-    Mult2 -->|"Add"| Add
-    Mult3 -->|"Add"| Add
-    Mult4 -->|"Add"| Add
-    SlopeAvoid -->|"Add"| Add
-    SlopePrefer -->|"Add"| Add
-
-    EdgeCost(["Final Cost for\nWSM A* Node Traversal"]):::output
+    %% ── Connections ──────────────────────────────────────────────
+    Inputs --> Additive
+    Inputs --> SlopeGroup
+    Additive --> Add
+    SlopeGroup --> Add
     Add --> EdgeCost
 ```

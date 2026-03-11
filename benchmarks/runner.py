@@ -18,12 +18,16 @@ import os
 import time
 from datetime import datetime, timezone
 
-# Benchmarks available in the module
+# Benchmarks available in the module.
+# ORDER MATTERS for --all runs:
+#   benchmark_concurrency MUST run before benchmark_memory — the memory benchmark
+#   attempts an unclipped build that may OOM-kill the container, leaving the API
+#   unresponsive. Concurrency needs a live API to test the Redis lock.
 AVAILABLE_BENCHMARKS = [
     "benchmark_route",
     "benchmark_graph_build",
+    "benchmark_concurrency",   # << before memory — needs live API
     "benchmark_memory",
-    "benchmark_concurrency",
     "benchmark_extraction",
     "benchmark_loop",
     "benchmark_pruning",

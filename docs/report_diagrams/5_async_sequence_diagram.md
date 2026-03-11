@@ -1,79 +1,111 @@
 # Async Request Flow Sequence Diagram
 
-This sequence diagram illustrates the decoupled architecture of the Scenic Pathfinding Engine, showcasing how heavy geospatial processing is offloaded to Celery workers while the Flask API remains responsive. Note the distinct separation between the Redis Message Broker (which also handles concurrency locks) and the Disk-based Pickle Cache.
+This sequence diagram illustrates the decoupled architecture of the Scenic Pathfinding Engine. The full flow is split across three diagrams for A4 readability: this **overview** plus **Detail A** (Enqueue & Lock) and **Detail B** (Async Graph Build).
+
+---
+
+## Overview — Three-Phase Request Lifecycle
 
 ```mermaid
 sequenceDiagram
     autonumber
-
     actor Client as Web Client
     participant Flask as Flask API
-    participant TaskManager as TaskManager (Python)
-    participant Redis as Redis (Broker & Locks)
+    participant Redis as Redis
+    participant Disk as Pickle Cache
+
+    rect rgb(230, 159, 0)
+        Note over Client,Flask: Phase 1 — Cold Cache Request
+        Client->>Flask: POST /api/route (start, end, weights)
+        Flask->>Disk: is_cache_valid()?
+        Disk-->>Flask: False — tile missing
+        Flask-->>Client: 202 Accepted (task_id)
+        Note over Flask,Redis: See Detail A — Enqueue and Lock
+    end
+
+    rect rgb(86, 180, 233)
+        Note over Client,Redis: Phase 2 — Async Build and Polling
+        loop Poll every 3s
+            Client->>Flask: GET /api/task/{task_id}
+            Flask->>Redis: AsyncResult(task_id).state
+            Redis-->>Flask: PENDING or BUILDING
+            Flask-->>Client: 200 OK status: building
+        end
+        Note over Redis: See Detail B — Async Graph Build
+        Client->>Flask: GET /api/task/{task_id}
+        Flask->>Redis: AsyncResult(task_id).state
+        Redis-->>Flask: SUCCESS
+        Flask-->>Client: 200 OK status: complete
+    end
+
+    rect rgb(0, 158, 115)
+        Note over Client,Disk: Phase 3 — Fast-Path Cache Hit
+        Client->>Flask: POST /api/route (start, end, weights)
+        Flask->>Disk: is_cache_valid()?
+        Disk-->>Flask: True — graph ready
+        Flask->>Disk: get_graph_for_route()
+        Disk-->>Flask: NetworkX graph (deserialised)
+        Flask->>Flask: Execute WSM A* pathfinding
+        Flask-->>Client: 200 OK (route_coords, stats)
+    end
+```
+
+---
+
+## Detail A — Enqueue and Redis Lock
+
+Expands Phase 1, Steps 4–5. Shows how `TaskManager` prevents duplicate concurrent tile builds via a Redis `setex` lock (NFR-03).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Flask as Flask API
+    participant TM as TaskManager
+    participant Redis as Redis (Broker + Locks)
+
+    Flask->>TM: enqueue_tile_build(tile_id, region)
+    TM->>Redis: GET building_tile:region:tile_id
+    Redis-->>TM: None (no existing lock)
+    TM->>Redis: LPUSH — push build_tile_task to Celery queue
+    TM->>Redis: SETEX building_tile:region:tile_id lock_timeout task_id
+    TM-->>Flask: Return task_id
+    Flask-->>Flask: (Already returned 202 to client)
+```
+
+> **Concurrency note (ADR-005):** If a second request arrives for the same tile while the lock exists, `GET building_tile:…` returns the existing `task_id`. No duplicate task is enqueued — all concurrent callers poll the same Celery job.
+
+---
+
+## Detail B — Async Graph Build
+
+Expands Phase 2 background work. Shows the Celery worker parsing `.pbf`, building the graph, and releasing the Redis lock.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Redis as Redis
     participant Celery as Celery Worker
     participant Disk as Pickle Cache (Disk)
+    participant TM as TaskManager
 
-    %% Initial Request Phase
-    Client->>Flask: POST /api/route (start, end, weights)
-    activate Flask
-    Flask->>Flask: Calculate Required Tiles
-    Flask->>Disk: CacheManager.is_cache_valid(manifest.json)
-    Disk-->>Flask: False (Missing Tiles)
-
-    %% Enqueue Tasks Phase with Locks
-    Flask->>TaskManager: enqueue_tile_build(tile_id, region)
-    activate TaskManager
-    TaskManager->>Redis: get(building_tile:region:tile_id)
-    Redis-->>TaskManager: None (No existing lock)
-    TaskManager->>Redis: Celery API: Push task to queue
-    TaskManager->>Redis: setex(building_tile:region:tile_id, lock_timeout, task_id)
-    TaskManager-->>Flask: Returns new Task ID
-    deactivate TaskManager
-
-    Flask-->>Client: 202 Accepted (task_id: "...", status: "processing")
-    deactivate Flask
-
-    %% Async Processing Phase & Polling
-    note over Client, Flask: Polling Loop Begins
-    Client->>Flask: GET /api/task/{task_id}
-    Flask->>Redis: AsyncResult(task_id).state
-    Redis-->>Flask: State: PENDING / BUILDING
-    Flask-->>Client: 200 OK (status: "building")
-
-    note over Celery, Disk: Asynchronous Graph Building
-    activate Celery
-    Redis-->>Celery: Retrieve build_tile_task from queue
-    Celery->>Disk: Extract network & features from local .pbf (pyrosm)
-    Disk-->>Celery: Spatial Features (Parks, Lights, Water)
-    Celery->>Celery: build_graph() / Interpolate Edge Weights
-    Celery->>Disk: CacheManager.save_graph() (Pickle Serialization)
-    Disk-->>Celery: Write Successful
-    Celery->>TaskManager: task_manager.clear_tile_lock(tile_id)
-    TaskManager->>Redis: delete(building_tile:region:tile_id)
-    Celery->>Redis: Update Task State to SUCCESS
-    deactivate Celery
-
-    %% Completion Polling
-    Client->>Flask: GET /api/task/{task_id}
-    Flask->>Redis: AsyncResult(task_id).state
-    Redis-->>Flask: State: SUCCESS
-    Flask-->>Client: 200 OK (status: "complete")
-
-    %% Final Route Request
-    Client->>Flask: POST /api/route (start, end, weights)
-    activate Flask
-    Flask->>Disk: CacheManager.is_cache_valid()
-    Disk-->>Flask: True (Cache Hit)
-    Flask->>Disk: GraphManager.get_graph_for_route()
-    Disk-->>Flask: NetworkX Graph Object (Deserialised)
-    Flask->>Flask: Execute A* / WSM Pathfinding
-    Flask-->>Client: 200 OK (route_coords, stats)
-    deactivate Flask
+    Redis->>Celery: Dispatch build_tile_task
+    Celery->>Disk: Parse .pbf via pyrosm (no PostGIS)
+    Disk-->>Celery: Raw spatial features (parks, lights, water)
+    Celery->>Celery: build_graph() — interpolate WSM edge weights
+    Celery->>Disk: save_graph() — Pickle serialise NetworkX graph
+    Disk-->>Celery: Write confirmed
+    Celery->>TM: clear_tile_lock(tile_id)
+    TM->>Redis: DEL building_tile:region:tile_id
+    Celery->>Redis: Set AsyncResult state = SUCCESS
 ```
+
+> **Decoupling rationale:** `build_graph()` takes 60–120 seconds for large regions. Offloading to Celery means the Flask API never blocks, achieving NFR-01 (warm-cache sub-2s) alongside NFR-02 (build under 120s).
+
+---
 
 ## Architectural Justification
 
-- **Decoupling:** The heavy `build_graph()` process (which involves parsing OSM `.pbf` data natively via `pyrosm`) can take over 60 seconds for large regions. By offloading this to Celery (Steps 14-22), the Flask API never blocks or hits a gateway timeout.
-- **Concurrency Control (ADR-005):** The introduction of the `TaskManager` interacting with Redis locks (Steps 6-9) guarantees `<NFR-03>`: If 4 users request a route through the same uncached area simultaneously, only 1 Celery worker builds the tile; the other 3 requests share the lock and poll the same `task_id`.
-- **Polling:** The client manages latency through active asynchronous polling (Steps 11-13), providing UI feedback ("Building network...") rather than a frozen browser page.
-- **Caching Strategy (ADR-007):** The second `POST` request (Step 26) leverages the Disk Cache generated by the worker. The Flask API immediately jumps into memory-bound A\* traversal, achieving the sub-2-second `<NFR-01>` response goal.
+- **Decoupling:** The heavy `build_graph()` process (parsing OSM `.pbf` via `pyrosm`) can take over 60 seconds. Offloading to Celery means Flask never blocks or hits a gateway timeout.
+- **Concurrency Control (ADR-005):** The `TaskManager` Redis lock guarantees NFR-03: 4 concurrent requests for the same uncached tile result in exactly 1 Celery task execution.
+- **Polling:** The client polls actively (Phase 2), providing UI feedback rather than a frozen page.
+- **Caching Strategy (ADR-007):** Phase 3 leverages the graph written by the worker. Flask immediately enters memory-bound A\* traversal, achieving the sub-2-second NFR-01 goal.

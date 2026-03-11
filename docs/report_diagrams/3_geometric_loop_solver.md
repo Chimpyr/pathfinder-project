@@ -27,15 +27,15 @@ flowchart TD
 
     %% ── Entry ────────────────────────────────────────────────────
     Start(["User requests loop route"]):::entry
-    Solve["solve(target_distance,\nvariety_level, directional_bias)"]:::process
+    Solve["solve(target_distance, variety_level, directional_bias)"]:::process
     Start --> Solve
 
     %% ── Bearing Selection ────────────────────────────────────────
-    BearingCheck{"directional_bias\nset?"}:::decision
+    BearingCheck{"directional_bias set?"}:::decision
     Solve --> BearingCheck
 
-    SmartBearings["_analyze_scenic_sectors()\n12 sectors × 30° slices\nRank by scenic density"]:::process
-    EquiBearings["Equidistant bearings\n(0°, 60°, 120°, …)"]:::process
+    SmartBearings["_analyze_scenic_sectors() 12 sectors × 30° slices Rank by scenic density"]:::process
+    EquiBearings["Equidistant bearings (0°, 60°, 120°, …)"]:::process
     BearingCheck -->|"Yes"| SmartBearings
     BearingCheck -->|"No"| EquiBearings
 
@@ -44,55 +44,55 @@ flowchart TD
     SmartBearings --> ConfigGate
     EquiBearings --> ConfigGate
 
-    V0["configs = Triangle (N=3)\narc=90° irr=0.05"]:::process
-    V1["configs = Triangle + Quad (N=4)\narc=110° irr=0.15"]:::process
-    V2["configs = Tri + Quad + Pentagon (N=5)\narc=130° irr=0.25"]:::process
+    V0["configs = Triangle (N=3) arc=90° irr=0.05"]:::process
+    V1["configs = Triangle + Quad (N=4) arc=110° irr=0.15"]:::process
+    V2["configs = Tri + Quad + Pentagon (N=5) arc=130° irr=0.25"]:::process
 
     ConfigGate -->|"0"| V0
     ConfigGate -->|"≥ 1"| V1
     ConfigGate -->|"≥ 2"| V2
 
     %% ── Per-Bearing Loop ─────────────────────────────────────────
-    ForBearing["For each bearing\n& shape config"]:::process
+    ForBearing["For each bearing & shape config"]:::process
     V0 --> ForBearing
     V1 --> ForBearing
     V2 --> ForBearing
 
     %% ── Waypoint Projection & Snap ──────────────────────────────
-    GenWP["generate_waypoints()\nProject N vertices on skeleton\nτ = DEFAULT_TAU (1.25)"]:::process
+    GenWP["generate_waypoints() Project N vertices on skeleton τ = DEFAULT_TAU (1.25)"]:::process
     ForBearing --> GenWP
 
-    Snap["_smart_snap()\nKDTree nearest SNAP_K=50 nodes\n135° anti-U-turn penalty\n(flow_penalty = 500.0)"]:::process
+    Snap["_smart_snap() KDTree nearest SNAP_K=50 nodes 135° anti-U-turn penalty (flow_penalty = 500.0)"]:::process
     GenWP --> Snap
 
     %% ── Try Polygon ──────────────────────────────────────────────
-    TryPoly["_try_polygon(N vertices)\nRoute: Start→W1→W2→…→Start\nCritical-leg-first ordering"]:::process
+    TryPoly["_try_polygon(N vertices) Route: Start→W1→W2→…→Start Critical-leg-first ordering"]:::process
     Snap --> TryPoly
 
     %% ── Prune & Measure ──────────────────────────────────────────
-    Prune["_prune_spurs()\nRemove A→B→A artifacts\nRecalculate distance"]:::process
+    Prune["_prune_spurs() Remove A→B→A artifacts Recalculate distance"]:::process
     TryPoly --> Prune
 
     %% ── Distance Check ───────────────────────────────────────────
     DistCheck{"−5% ≤ deviation ≤ +15%?"}:::decision
     Prune --> DistCheck
 
-    Accept["Candidate accepted\nStore (route, distance,\nscenic_cost, metadata)"]:::success
+    Accept["Candidate accepted Store (route, distance, scenic_cost, metadata)"]:::success
     DistCheck -->|"Yes"| Accept
 
     %% ── τ Feedback Loop ──────────────────────────────────────────
-    RetryCheck{"retry < 5\n(MAX_FEEDBACK_RETRIES)?"}:::decision
+    RetryCheck{"retry < 5 (MAX_FEEDBACK_RETRIES)?"}:::decision
     DistCheck -->|"No"| RetryCheck
 
-    TauUpdate["τ_new = τ × clamp(\nactual / target,\n0.85, 1.15)"]:::feedback
+    TauUpdate["τ_new = τ × clamp( actual / target, 0.85, 1.15)"]:::feedback
     RetryCheck -->|"Yes"| TauUpdate
     TauUpdate -->|"Retry with adjusted τ"| GenWP
 
     %% ── All Polygon Attempts Failed ──────────────────────────────
-    OABFallback["_try_out_and_back()\nSingle waypoint at bearing\nRoute: Start→Far→Start"]:::process
+    OABFallback["_try_out_and_back() Single waypoint at bearing Route: Start→Far→Start"]:::process
     RetryCheck -->|"No — all retries exhausted"| OABFallback
 
-    OABCheck{"Within distance\ntolerance?"}:::decision
+    OABCheck{"Within distance tolerance?"}:::decision
     OABFallback --> OABCheck
 
     OABAccept["Out-and-back accepted"]:::success
@@ -101,7 +101,7 @@ flowchart TD
     OABCheck -->|"No"| OABReject
 
     %% ── Next Bearing ────────────────────────────────────────────
-    NextBearing{"More bearings\nto try?"}:::decision
+    NextBearing{"More bearings to try?"}:::decision
     Accept --> NextBearing
     OABAccept --> NextBearing
     OABReject --> NextBearing
@@ -109,10 +109,10 @@ flowchart TD
     NextBearing -->|"Yes"| ForBearing
 
     %% ── Final Selection ──────────────────────────────────────────
-    SelectDiv["select_diverse_candidates()\nPick top-K by quality_score\nMaximise bearing diversity"]:::process
+    SelectDiv["select_diverse_candidates() Pick top-K by quality_score Maximise bearing diversity"]:::process
     NextBearing -->|"No"| SelectDiv
 
-    Result(["Return K loop candidates\nto client"]):::entry
+    Result(["Return K loop candidates to client"]):::entry
     SelectDiv --> Result
 ```
 
