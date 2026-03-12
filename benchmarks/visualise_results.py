@@ -142,46 +142,55 @@ def plot_extraction_comparison(data):
     """T-PERF-04: Extraction Methods (Side-by-Side Bar Charts)"""
     if "methods" not in data:
         return
-        
-    methods = [m["method"].split(" (")[0] for m in data["methods"]]
-    times = [m["time_s"] for m in data["methods"]]
-    edges_per_sec = [m["edges_per_second"] for m in data["methods"]]
-    
+
+    methods_raw = data["methods"]
+    labels = [m["method"].split(" (")[0] for m in methods_raw]
+    times = [m["time_s"] for m in methods_raw]
+    edges_per_sec = [m["edges_per_second"] for m in methods_raw]
+    is_extrapolated = [m.get("extrapolated", False) for m in methods_raw]
+
     # Create figure with 2 subplots side-by-side
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-    
-    x = np.arange(len(methods))
+
+    x = np.arange(len(labels))
     width = 0.6
-    
+
     # Plot 1: Execution Time
     color1 = sns.color_palette("muted")[0]
     bars1 = ax1.bar(x, times, width, color=color1)
     ax1.set_title("Execution Time (Seconds)")
     ax1.set_ylabel("Seconds (Log Scale)")
     ax1.set_xticks(x)
-    ax1.set_xticklabels(methods, rotation=15, ha='right')
+    ax1.set_xticklabels(labels, rotation=15, ha='right')
     ax1.set_yscale("log")
-    
-    # Add value labels on top of bars
-    for bar in bars1:
+
+    for i, bar in enumerate(bars1):
         yval = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width()/2, yval * 1.1, f'{yval:,.1f}s', ha='center', va='bottom', fontweight='bold')
-    
+        label_text = f'{yval:,.1f}s'
+        if is_extrapolated[i]:
+            label_text += '\n(extrapolated)'
+        ax1.text(bar.get_x() + bar.get_width()/2, yval * 1.1, label_text,
+                 ha='center', va='bottom', fontweight='bold', fontsize=8)
+
     # Plot 2: Throughput (Edges/Second)
     color2 = sns.color_palette("muted")[1]
     bars2 = ax2.bar(x, edges_per_sec, width, color=color2)
     ax2.set_title("Processing Throughput (Edges / Second)")
     ax2.set_ylabel("Edges/s (Log Scale)")
     ax2.set_xticks(x)
-    ax2.set_xticklabels(methods, rotation=15, ha='right')
+    ax2.set_xticklabels(labels, rotation=15, ha='right')
     ax2.set_yscale("log")
-    
-    for bar in bars2:
+
+    for i, bar in enumerate(bars2):
         yval = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width()/2, yval * 1.1, f'{int(yval):,}/s', ha='center', va='bottom', fontweight='bold')
-    
+        label_text = f'{int(yval):,}/s'
+        if is_extrapolated[i]:
+            label_text += '\n(extrapolated)'
+        ax2.text(bar.get_x() + bar.get_width()/2, yval * 1.1, label_text,
+                 ha='center', va='bottom', fontweight='bold', fontsize=8)
+
     fig.suptitle("Spatial Extraction Methodology Comparison (T-PERF-04)", fontsize=16, fontweight='bold', y=1.05)
-    
+
     out_path = os.path.join(VIS_DIR, "t_perf_04_extraction.png")
     fig.tight_layout()
     fig.savefig(out_path)

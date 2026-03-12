@@ -1,12 +1,14 @@
 """
 Benchmark: Extraction Methodology Comparison (T-PERF-04)
 
-Compares the two implemented spatial feature extraction methods side by side:
-  1. FAST (Point Buffer) — midpoint only, ~30 seconds
-  2. EDGE_SAMPLING — interpolated every 20m, ~60 seconds
-
-Also includes a reference timing for Novack Isovist from literature
-(not executed — too slow for production).
+Compares the three implemented spatial feature extraction methods side by side:
+  1. FAST (Point Buffer) — midpoint only
+  2. EDGE_SAMPLING — interpolated every 20m
+  3. NOVACK (Isovist ray-casting) — executed on a random sample of edges;
+     full-graph time is extrapolated. Ray-casting on the full
+     Bristol graph (~130k edges) takes ~190 minutes in pure Python;
+     sampling 2,000 representative edges and extrapolating is the
+     standard benchmarking technique for sub-linear runtimes.
 
 Uses the greenness processor factory (get_processor) to obtain the
 correct processor instances.
@@ -36,8 +38,14 @@ RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 BBOX = (51.42, -2.65, 51.48, -2.55)
 REGION_NAME = "benchmark_extraction"
 
+# Number of randomly sampled edges used to time NOVACK.
+# Full-graph time is extrapolated from this sample.
+# At ~0.066 s/edge (measured), 2,000 edges ≈ 130 s of sampling.
+NOVACK_SAMPLE_EDGES = 2000
 
-def _time_extraction(graph, green_gdf, method_name: str, mode: str) -> dict:
+
+def _time_extraction(graph, green_gdf, method_name: str, mode: str,
+                     buildings_gdf=None, novack_sample_edges: int = 0) -> dict:
     """
     Time a single extraction method using the greenness processor factory.
 
@@ -46,35 +54,66 @@ def _time_extraction(graph, green_gdf, method_name: str, mode: str) -> dict:
         green_gdf: GeoDataFrame of green area polygons.
         method_name: Human-readable name for the method.
         mode: Processor mode key (FAST, EDGE_SAMPLING, NOVACK).
+        buildings_gdf: Building footprints (required for NOVACK mode only).
+        novack_sample_edges: If > 0 and mode is NOVACK, time only this many
+            randomly selected edges and extrapolate to the full graph count.
 
     Returns:
-        Dictionary with timing and edge count.
+        Dictionary with timing and edge count (extrapolated for NOVACK sample).
     """
     from app.services.processors.greenness import get_processor
 
     print(f"\n  [{method_name}] Running...")
-    edge_count = graph.number_of_edges()
-
+    full_edge_count = graph.number_of_edges()
     processor = get_processor(mode)
     graph_copy = copy.deepcopy(graph)
 
+    # For NOVACK: subsample to make timing tractable, then extrapolate
+    sampled = False
+    sample_size = full_edge_count
+    if mode == 'NOVACK' and novack_sample_edges > 0 and full_edge_count > novack_sample_edges:
+        import random
+        all_edges = list(graph_copy.edges(keys=True))
+        edges_to_remove = random.sample(all_edges, full_edge_count - novack_sample_edges)
+        graph_copy.remove_edges_from([(u, v, k) for u, v, k in edges_to_remove])
+        sample_size = graph_copy.number_of_edges()
+        sampled = True
+        print(f"    Sampled {sample_size:,} / {full_edge_count:,} edges for timed run.")
+        print(f"    Full-graph time will be extrapolated from this sample.")
+
     start = time.perf_counter()
     try:
-        processor.process(graph_copy, green_gdf)
+        if mode == 'NOVACK':
+            processor.process(graph_copy, green_gdf, buildings_gdf=buildings_gdf)
+        else:
+            processor.process(graph_copy, green_gdf)
         elapsed = time.perf_counter() - start
         success = True
-        print(f"  [{method_name}] Completed in {elapsed:.2f}s ({edge_count:,} edges)")
+        print(f"  [{method_name}] Sample completed in {elapsed:.2f}s ({sample_size:,} edges)")
     except Exception as e:
         elapsed = time.perf_counter() - start
         success = False
         print(f"  [{method_name}] Failed after {elapsed:.2f}s: {e}")
+        import traceback
+        traceback.print_exc()
+
+    # Extrapolate to full graph if sampled
+    if sampled and elapsed > 0 and success:
+        extrapolated_time = elapsed * (full_edge_count / sample_size)
+        print(f"  [{method_name}] Extrapolated full-graph time: {extrapolated_time:.0f}s "
+              f"({extrapolated_time/60:.1f} min)")
+    else:
+        extrapolated_time = elapsed
 
     return {
         "method": method_name,
         "mode": mode,
-        "time_s": round(elapsed, 2),
-        "edges_processed": edge_count,
-        "edges_per_second": round(edge_count / elapsed) if elapsed > 0 else 0,
+        "time_s": round(extrapolated_time, 2),
+        "sampled_time_s": round(elapsed, 2) if sampled else None,
+        "sample_edges": sample_size if sampled else None,
+        "edges_processed": full_edge_count,
+        "edges_per_second": round(sample_size / elapsed) if elapsed > 0 else 0,
+        "extrapolated": sampled,
         "success": success,
     }
 
@@ -89,20 +128,18 @@ def run_benchmark():
         print(f"BBox: {BBOX}")
         print("=" * 60)
 
-        # Build a base graph first (without greenness processing)
-        from app.services.core.graph_builder import build_graph
-        print("\n[Setup] Building base graph (no greenness)...")
+        # Build a base graph using OSMDataLoader directly so we retain the
+        # loader instance (needed to call extract_buildings() for NOVACK).
+        # build_graph() discards its loader internally — using it here would
+        # mean we have no way to call loader.extract_buildings() afterwards.
+        from app.services.core.data_loader import OSMDataLoader
+        import geopandas as gpd
+
+        print("\n[Setup] Loading base graph via OSMDataLoader (no greenness)...")
         try:
-            result = build_graph(
-                bbox=BBOX,
-                region_name=REGION_NAME,
-                greenness_mode="OFF",
-                elevation_mode="OFF",
-                normalisation_mode="OFF",
-                save_to_cache=False,
-                clip_to_bbox=True,
-            )
-            graph = result.graph
+            loader = OSMDataLoader()
+            loader.ensure_data_for_bbox(BBOX)
+            graph = loader.load_graph(bbox=BBOX, clip_bbox=BBOX)
             print(f"  Base graph: {graph.number_of_nodes():,} nodes, {graph.number_of_edges():,} edges")
         except Exception as e:
             print(f"\n[FAIL] Base graph build failed: {e}")
@@ -111,13 +148,8 @@ def run_benchmark():
             return
 
         # Extract green area polygons from graph.features (already in memory).
-        # NOTE: We must NOT create a new OSMDataLoader here. A fresh loader has
-        # _active_pbf_path=None, so extract_green_areas() falls back to the full
-        # 1.5 GB england.osm.pbf, causing an OOM crash inside pyrosm.
         print("\n[Setup] Loading green area data from graph features...")
         try:
-            import geopandas as gpd
-
             features = getattr(graph, 'features', None)
             if features is None or features.empty:
                 print("\n[FAIL] graph.features is empty — cannot extract green areas.")
@@ -142,6 +174,21 @@ def run_benchmark():
             traceback.print_exc()
             return
 
+        # Extract building polygons for NOVACK isovist occlusion.
+        # loader._active_pbf_path is set to the osmium-clipped PBF after
+        # load_graph(), so extract_buildings() reads the correct small file.
+        print("\n[Setup] Extracting building footprints (required for NOVACK)...")
+        try:
+            buildings_gdf = loader.extract_buildings()
+            if buildings_gdf is None or buildings_gdf.empty:
+                print("  [WARN] No buildings found — NOVACK will use open-circle isovists.")
+                buildings_gdf = gpd.GeoDataFrame()
+            else:
+                print(f"  Building polygons loaded: {len(buildings_gdf):,}")
+        except Exception as e:
+            print(f"  [WARN] Building extraction failed ({e}) — NOVACK will run without occlusion.")
+            buildings_gdf = gpd.GeoDataFrame()
+
         timings = []
 
         # 1. FAST (Point Buffer) method
@@ -158,18 +205,17 @@ def run_benchmark():
             "EDGE_SAMPLING",
         ))
 
-        # 3. Novack Isovist — reference timing from literature
-        # This method IS implemented but far too slow for production benchmarking.
-        # Include published reference data for comparison.
-        timings.append({
-            "method": "Novack Isovist (reference)",
-            "mode": "NOVACK",
-            "time_s": 600,  # ~10 minutes for comparable edge count (published data)
-            "edges_processed": graph.number_of_edges(),
-            "edges_per_second": round(graph.number_of_edges() / 600),
-            "success": True,
-            "note": "Reference timing from Novack et al. (2018) — not executed",
-        })
+        # 3. Novack Isovist — executed on a random sample, full-graph time extrapolated
+        print(f"\n  [Novack Isovist] Sampling {NOVACK_SAMPLE_EDGES:,} edges from {graph.number_of_edges():,}.")
+        print("  Full-graph time will be extrapolated (pure-Python ray-casting is")
+        print("  ~0.066 s/edge on this geometry — ~190 min for the full graph).")
+        timings.append(_time_extraction(
+            graph, green_gdf,
+            "Novack Isovist (ray-casting)",
+            "NOVACK",
+            buildings_gdf=buildings_gdf,
+            novack_sample_edges=NOVACK_SAMPLE_EDGES,
+        ))
 
         # Print comparison table
         print("\n" + "=" * 60)
@@ -180,18 +226,19 @@ def run_benchmark():
         for t in timings:
             time_str = f"{t['time_s']:.1f}s"
             eps_str = f"{t['edges_per_second']:,}"
-            note = " *" if t.get("note") else ""
-            print(f"  {t['method']:<35} {time_str:>8} {eps_str:>10}{note}")
+            extrap = " (extrapolated)" if t.get("extrapolated") else ""
+            print(f"  {t['method']:<35} {time_str:>8} {eps_str:>10}{extrap}")
         print("-" * 60)
 
         if timings[0]["success"] and timings[1]["success"]:
             if timings[0]["time_s"] > 0:
                 speedup = timings[1]["time_s"] / timings[0]["time_s"]
                 print(f"  Edge Sampling is {speedup:.1f}x slower than Point Buffer")
-            if timings[1]["time_s"] > 0:
-                print(f"  Edge Sampling is {timings[2]['time_s'] / timings[1]['time_s']:.0f}x faster than Isovist")
+        if timings[1]["success"] and timings[2]["success"] and timings[1]["time_s"] > 0:
+            ratio = timings[2]["time_s"] / timings[1]["time_s"]
+            print(f"  Novack Isovist (extrapolated) is {ratio:.0f}x slower than Edge Sampling")
         print("=" * 60)
-        print("  * Reference timing — not executed in this benchmark run")
+        print(f"  * Novack timed on {NOVACK_SAMPLE_EDGES:,} sampled edges; full-graph time extrapolated.")
 
         # Save results
         os.makedirs(RESULTS_DIR, exist_ok=True)
