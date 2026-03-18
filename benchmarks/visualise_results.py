@@ -385,6 +385,87 @@ def plot_wsm_efficacy(data):
         plt.close(fig2)
         print(f"Generated: {out_path2}")
 
+def plot_water_verification(data):
+    """T-ENG-09: Water Proximity Score Distribution (Histogram + spatial bar)"""
+    t2 = data.get("t2_range", {})
+    t3 = data.get("t3_near_water", {})
+    t4 = data.get("t4_spatial", {})
+    histogram = data.get("score_distribution_histogram", {})
+
+    if not histogram:
+        print("[WARN] Water verification data missing histogram. Skipping plot.")
+        return
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+    # --- Panel A: score distribution histogram ---
+    buckets = list(histogram.keys())
+    counts  = list(histogram.values())
+    # Colour bins by zone: low (≤0.2) = aqua, high (≥0.8) = muted grey, mid = steelblue
+    palette = []
+    for b in buckets:
+        lo = float(b.split("-")[0])
+        if lo < 0.2:
+            palette.append("#17becf")   # aqua — near water
+        elif lo >= 0.8:
+            palette.append("#aec7e8")   # light blue — far from water
+        else:
+            palette.append("steelblue")
+
+    axes[0].bar(range(len(buckets)), counts, color=palette, edgecolor="white", linewidth=0.6)
+    axes[0].set_xticks(range(len(buckets)))
+    axes[0].set_xticklabels(buckets, rotation=45, ha="right", fontsize=9)
+    axes[0].set_xlabel("raw_water_cost value range")
+    axes[0].set_ylabel("Number of graph edges")
+    axes[0].set_title(
+        "raw_water_cost Distribution Across All Edges (T-ENG-09)\n"
+        f"min={t2.get('score_min', '?'):.3f}  mean={t2.get('score_mean', '?'):.3f}  max={t2.get('score_max', '?'):.3f}",
+        fontsize=11,
+    )
+    # Annotate near / far counts
+    near = t3.get("near_water_edges_lt_0_10", 0)
+    far  = t3.get("far_water_edges_gt_0_90", 0)
+    axes[0].text(0.03, 0.95, f"score < 0.10: {near:,} edges\nscore > 0.90: {far:,} edges",
+                 transform=axes[0].transAxes, va="top", fontsize=9,
+                 bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8))
+
+    # --- Panel B: riverside vs inland mean score bar ---
+    river_mean  = t4.get("riverside_mean_score")
+    inland_mean = t4.get("inland_mean_score")
+    if river_mean is not None and inland_mean is not None:
+        labels = ["Riverside\n(< 80 m from Avon)", "Inland\n(> 400 m from Avon)"]
+        values = [river_mean, inland_mean]
+        bar_colors = ["#17becf", "#aec7e8"]
+        bars = axes[1].bar(labels, values, color=bar_colors, edgecolor="grey", width=0.5)
+        axes[1].set_ylim(0, 1.05)
+        axes[1].set_ylabel("Mean raw_water_cost")
+        axes[1].set_title(
+            "Spatial Validation: Riverside vs Inland Mean Score (T4)\n"
+            "Lower score confirms proximity-based scoring correctness",
+            fontsize=11,
+        )
+        for bar, val in zip(bars, values):
+            axes[1].text(bar.get_x() + bar.get_width() / 2, val + 0.02,
+                         f"{val:.3f}", ha="center", va="bottom", fontweight="bold")
+        r_n = t4.get("riverside_edge_count", "?")
+        i_n = t4.get("inland_edge_count", "?")
+        axes[1].text(0.03, 0.95,
+                     f"n riverside = {r_n}\nn inland    = {i_n}",
+                     transform=axes[1].transAxes, va="top", fontsize=9,
+                     bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8))
+    else:
+        axes[1].text(0.5, 0.5, "Spatial data\nnot available\n(skipped)",
+                     ha="center", va="center", transform=axes[1].transAxes, fontsize=12, color="grey")
+        axes[1].set_title("Spatial Validation (T4) — Skipped", fontsize=11)
+
+    fig.suptitle("Water Proximity Processor Verification — T-ENG-09", fontsize=13, fontweight="bold", y=1.02)
+    out_path = os.path.join(VIS_DIR, "t_eng_09_water.png")
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
+    print(f"Generated: {out_path}")
+
+
 def run_visualisation():
     print("="*60)
     print("Generating Academic Visualisations from Benchmarks")
@@ -431,7 +512,12 @@ def run_visualisation():
     wsm_data = safe_load_json("wsm_efficacy.json")
     if wsm_data:
         plot_wsm_efficacy(wsm_data)
-        
+
+    # T-ENG-09
+    water_data = safe_load_json("water_verification.json")
+    if water_data:
+        plot_water_verification(water_data)
+
     print("="*60)
     print(f"All visualisations saved to: {VIS_DIR}")
 

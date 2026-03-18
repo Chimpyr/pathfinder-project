@@ -43,6 +43,9 @@ docker compose exec api python -m benchmarks.benchmark_loop
 
 # Graph pruning verification (T-ENG-03 / FR-09)
 docker compose exec api python -m benchmarks.benchmark_pruning
+
+# Water proximity scoring verification (T-ENG-09 / FR-01)
+docker compose exec api python -m benchmarks.benchmark_water
 ```
 
 ## Script Summary
@@ -57,6 +60,7 @@ docker compose exec api python -m benchmarks.benchmark_pruning
 | `benchmark_loop.py` | T-PERF-05 | FR-03 | Loop convergence, timing, accuracy, self-intersection |
 | `benchmark_pruning.py` | T-ENG-03 | FR-09 | Walking filter verification (scripted, not manual) |
 | `benchmark_wsm.py` | T-ENG-01, T-ENG-04, T-ENG-05, T-ENG-06, T-ENG-07 | FR-01, FR-10, FR-14 | WSM mathematical efficacy and path geometry distinctness |
+| `benchmark_water.py` | T-ENG-09 | FR-01 | Water proximity scoring: 100% edge coverage, [0,1] range, riverside < inland mean score (Bristol Avon) |
 
 ## Output
 

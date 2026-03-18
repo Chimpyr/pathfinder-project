@@ -157,7 +157,7 @@ class Config:
     
     # =========================================================================
     # Async Pipeline Configuration (Celery + Redis)
-    # =========================================================================
+# =========================================================================
     
     # Enable async graph building
     # When True: Cache misses enqueue a Celery task and return task_id

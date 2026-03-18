@@ -32,6 +32,7 @@ AVAILABLE_BENCHMARKS = [
     "benchmark_loop",
     "benchmark_pruning",
     "benchmark_wsm",
+    "benchmark_water",
 ]
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
