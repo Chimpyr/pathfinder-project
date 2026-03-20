@@ -105,6 +105,27 @@ def generate_extremist_weights(user_weights: Dict[str, float]) -> Tuple[Dict[str
     
     return weights, dominant
 
+def generate_max_scenic_weights(user_weights: Dict[str, float]) -> Tuple[Dict[str, float], str]:
+    """
+    Generate weights for route that maximises scenic value.
+    
+    Args:
+        user_weights: Dictionary of user-provided feature weights.
+    
+    Returns:
+        Tuple of (weight dictionary).
+    """
+
+    weights = {
+        'distance': 0.1,  # Small but non-zero for heuristic admissibility
+        'greenness': 1.0,
+        'water': 1.0,
+        'quietness': 0.0,
+        'social': 0.0,
+        'slope': 0.0,
+    }
+    
+    return weights
 
 def get_extremist_colour(dominant_feature: str) -> str:
     """
@@ -184,16 +205,15 @@ def find_distinct_paths(
     }
     
     # Run 2: Extremist (maximise strongest preference)
-    extremist_weights, dominant_feature = generate_extremist_weights(user_weights)
+    extremist_weights = generate_max_scenic_weights(user_weights)
     if verbose:
         print(f"[Distinct Paths] Run 2 - Extremist weights: {extremist_weights}")
-        print(f"[Distinct Paths] Dominant feature: {dominant_feature}")
     
     route_extremist, _, _, dist_extremist, time_extremist = route_finder.find_route(
         start_point, end_point,
         use_wsm=True,
         weights=extremist_weights,
-        combine_nature=combine_nature,
+        combine_nature=True,
         prefer_lit=prefer_lit,
         heavily_avoid_unlit=heavily_avoid_unlit,
         prefer_pedestrian=prefer_pedestrian,
@@ -203,9 +223,30 @@ def find_distinct_paths(
         'route': route_extremist,
         'distance': dist_extremist,
         'time_seconds': time_extremist,
-        'dominant_feature': dominant_feature,
-        'colour': get_extremist_colour(dominant_feature),
+        'colour': ROUTE_COLOURS['greenness'],  # Use green for max scenic route
     }
+    #  extremist_weights, dominant_feature = generate_extremist_weights(user_weights)
+    # if verbose:
+    #     print(f"[Distinct Paths] Run 2 - Extremist weights: {extremist_weights}")
+    #     print(f"[Distinct Paths] Dominant feature: {dominant_feature}")
+    
+    # route_extremist, _, _, dist_extremist, time_extremist = route_finder.find_route(
+    #     start_point, end_point,
+    #     use_wsm=True,
+    #     weights=extremist_weights,
+    #     combine_nature=combine_nature,
+    #     prefer_lit=prefer_lit,
+    #     heavily_avoid_unlit=heavily_avoid_unlit,
+    #     prefer_pedestrian=prefer_pedestrian,
+    # )
+    
+    # result['extremist'] = {
+    #     'route': route_extremist,
+    #     'distance': dist_extremist,
+    #     'time_seconds': time_extremist,
+    #     'dominant_feature': dominant_feature,
+    #     'colour': get_extremist_colour(dominant_feature),
+    # }
     
     # Run 3: Balanced (user's actual configuration)
     if verbose:
