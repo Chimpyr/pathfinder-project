@@ -6,6 +6,7 @@ import { routeState, loopState, startState, endState, appState } from './state.j
 import { ROUTE_CONFIG } from './config.js';
 import { mapController } from './map_manager.js';
 import { showToast, isAuthenticated } from './ui_common.js';
+import { buildGpxXml, buildExportFilename, downloadGpx } from './gpx_export.js';
 
 // DOM Elements
 const routeOptionsList = document.getElementById("route-options-list");
@@ -14,6 +15,7 @@ const routesEmptyState = document.getElementById("routes-empty-state");
 const routeStatsContainer = document.getElementById("route-stats");
 const statDistance = document.getElementById("stat-distance");
 const statTime = document.getElementById("stat-time");
+const exportGpxBtn = document.getElementById("export-gpx-btn");
 
 // ============================================================================
 // SAVE QUERY LOGIC
@@ -372,6 +374,63 @@ function handleLoopVisibilityToggle(loopId, loops) {
     if (mapController) mapController.setLoopVisibility(loopId, !isVisible);
     renderLoopOptions(loops);
 }
+
+function getCurrentExportContext() {
+    if (appState.routingMode === "loop") {
+        const selectedLoop = loopState.loops?.find(l => l.id === loopState.selectedId);
+        if (!selectedLoop) return null;
+        return {
+            routeData: selectedLoop,
+            label: selectedLoop.label || "loop",
+            distanceKm: selectedLoop.distance_km,
+            name: selectedLoop.label || "Loop Route"
+        };
+    }
+
+    const selectedType = routeState.selected;
+    const selectedRoute = routeState.routes?.[selectedType];
+    if (!selectedType || !selectedRoute) return null;
+    return {
+        routeData: selectedRoute,
+        label: selectedType,
+        distanceKm: selectedRoute.stats?.distance_km,
+        name: ROUTE_CONFIG[selectedType]?.name || selectedType
+    };
+}
+
+function hasValidRouteCoords(routeData) {
+    const coords = routeData?.route_coords || routeData?.coordinates;
+    return Array.isArray(coords) && coords.length >= 2;
+}
+
+function initGpxExport() {
+    if (!exportGpxBtn) return;
+    exportGpxBtn.addEventListener("click", () => {
+        const context = getCurrentExportContext();
+        if (!context) {
+            showToast("Select a route before exporting.", "info");
+            return;
+        }
+        if (!hasValidRouteCoords(context.routeData)) {
+            showToast("Route data unavailable for GPX export.", "error");
+            return;
+        }
+
+        const routePayload = {
+            ...context.routeData,
+            name: context.name
+        };
+        const xml = buildGpxXml(routePayload);
+        const filename = buildExportFilename({
+            label: context.label,
+            distanceKm: context.distanceKm
+        });
+        downloadGpx(xml, filename);
+        showToast("GPX exported successfully.", "success");
+    });
+}
+
+initGpxExport();
 
 
 export function hideResults() {

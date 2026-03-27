@@ -400,19 +400,21 @@ function onLoopSuccess(result) {
     if (result.loops && Array.isArray(result.loops)) {
       // New Multi-loop response
       console.log("[RoutingUI] Displaying multiple loops:", result.loops);
+      loopState.loops = result.loops;
       mapController.displayMultipleLoops(result.loops);
-
-      // Render loop cards
-      renderLoopOptions(result.loops);
 
       // Set initial selection logic if needed
       if (result.loops.length > 0) {
         loopState.selectedId = result.loops[0].id;
       }
+      // Render loop cards
+      renderLoopOptions(result.loops);
     } else {
       // Legacy single loop or wrapped result
       console.log("[RoutingUI] Displaying single loop result");
       const loops = [result];
+      loopState.loops = loops;
+      loopState.selectedId = result?.id || null;
       mapController.displayMultipleLoops(loops);
       renderLoopOptions(loops);
     }
