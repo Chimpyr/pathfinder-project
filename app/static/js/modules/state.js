@@ -21,7 +21,7 @@ export const routeState = {
 // Multi-loop state (Round Trip Mode)
 export const loopState = {
     loops: null,
-    selected: null,
+    selectedId: null,
     visibility: {},
 };
 
@@ -41,7 +41,7 @@ export function resetRouteState() {
     routeState.duplicates = {};
 
     loopState.loops = null;
-    loopState.selected = null;
+    loopState.selectedId = null;
     loopState.visibility = {};
     
     // Note: UI updates should be handled by the caller/subscribers
