@@ -9,6 +9,7 @@ flowchart TD
     classDef entry fill:#E69F00,stroke:#000,stroke-width:2px,color:#000
     classDef process fill:#0072B2,stroke:#000,stroke-width:2px,color:#FFF
     classDef decision fill:#CC79A7,stroke:#000,stroke-width:2px,color:#000
+    classDef success fill:#009E73,stroke:#000,stroke-width:2px,color:#FFF
 
     Start(["User requests loop route"]):::entry
     Solve["solve(target_distance, variety_level, directional_bias)"]:::process
@@ -59,24 +60,27 @@ flowchart TD
     classDef entry fill:#E69F00,stroke:#000,stroke-width:2px,color:#000
     classDef process fill:#0072B2,stroke:#000,stroke-width:2px,color:#FFF
     classDef decision fill:#CC79A7,stroke:#000,stroke-width:2px,color:#000
+    classDef success fill:#009E73,stroke:#000,stroke-width:2px,color:#FFF
+    classDef fail fill:#D55E00,stroke:#000,stroke-width:2px,color:#FFF
+    classDef feedback fill:#56B4E9,stroke:#000,stroke-width:2px,color:#000
 
     FromP1Yes(["◀ A-Yes from Panel 1"]):::entry
     FromP1No(["◀ A-No from Panel 1"]):::entry
 
-    Accept["Candidate accepted\nStore(route, distance, scenic_cost, metadata)"]:::process
+    Accept["Candidate accepted\nStore(route, distance, scenic_cost, metadata)"]:::success
     RetryCheck{"retry < 5?"}:::decision
 
     FromP1Yes --> Accept
     FromP1No --> RetryCheck
 
-    TauUpdate["τ_new = τ × clamp(actual/target, 0.85, 1.15)"]:::process
+    TauUpdate["τ_new = τ × clamp(actual/target, 0.85, 1.15)"]:::feedback
     ToRetry(["◀ Return to Panel 1 at generate_waypoints()"]):::entry
     RetryCheck -->|"Yes"| TauUpdate -->|"Retry with adjusted τ"| ToRetry
 
     OABFallback["_try_out_and_back()\nStart→Far→Start"]:::process
     OABCheck{"Within distance tolerance?"}:::decision
-    OABAccept["Out-and-back accepted"]:::process
-    OABReject["Bearing abandoned"]:::process
+    OABAccept["Out-and-back accepted"]:::success
+    OABReject["Bearing abandoned"]:::fail
 
     RetryCheck -->|"No — retries exhausted"| OABFallback --> OABCheck
     OABCheck -->|"Yes"| OABAccept

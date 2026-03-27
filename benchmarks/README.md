@@ -50,17 +50,17 @@ docker compose exec api python -m benchmarks.benchmark_water
 
 ## Script Summary
 
-| Script | Test ID | Requirement | What It Measures |
-|--------|---------|-------------|------------------|
-| `benchmark_route.py` | T-PERF-01 | NFR-01 | Route latency (min/max/mean/p95 over 30 iterations) |
-| `benchmark_graph_build.py` | T-PERF-02 | NFR-02 | Graph build time + per-stage breakdown |
-| `benchmark_memory.py` | T-PERF-03 | NFR-05 | Peak process RSS with/without BBox clipping |
-| `benchmark_concurrency.py` | T-REL-01 | NFR-03 | Redis lock prevents duplicate builds (barrier-synchronised) |
-| `benchmark_extraction.py` | T-PERF-04 | — | Point Buffer vs Edge Sampling vs Isovist timing |
-| `benchmark_loop.py` | T-PERF-05 | FR-03 | Loop convergence, timing, accuracy, self-intersection |
-| `benchmark_pruning.py` | T-ENG-03 | FR-09 | Walking filter verification (scripted, not manual) |
-| `benchmark_wsm.py` | T-ENG-01, T-ENG-04, T-ENG-05, T-ENG-06, T-ENG-07 | FR-01, FR-10, FR-14 | WSM mathematical efficacy and path geometry distinctness |
-| `benchmark_water.py` | T-ENG-09 | FR-01 | Water proximity scoring: 100% edge coverage, [0,1] range, riverside < inland mean score (Bristol Avon) |
+| Script                     | Test ID                                          | Requirement         | What It Measures                                                                                       |
+| -------------------------- | ------------------------------------------------ | ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `benchmark_route.py`       | T-PERF-01                                        | NFR-01              | Route latency (min/max/mean/p95 over 30 iterations)                                                    |
+| `benchmark_graph_build.py` | T-PERF-02                                        | NFR-02              | Graph build time + per-stage breakdown                                                                 |
+| `benchmark_memory.py`      | T-PERF-03                                        | NFR-05              | Peak process RSS with/without BBox clipping                                                            |
+| `benchmark_concurrency.py` | T-REL-01                                         | NFR-03              | Redis lock prevents duplicate builds (barrier-synchronised)                                            |
+| `benchmark_extraction.py`  | T-PERF-04                                        | —                   | Point Buffer vs Edge Sampling vs Isovist timing                                                        |
+| `benchmark_loop.py`        | T-PERF-05                                        | FR-03               | Loop convergence, timing, accuracy, self-intersection                                                  |
+| `benchmark_pruning.py`     | T-ENG-03                                         | FR-09               | Walking filter verification (scripted, not manual)                                                     |
+| `benchmark_wsm.py`         | T-ENG-01, T-ENG-04, T-ENG-05, T-ENG-06, T-ENG-07 | FR-01, FR-10, FR-14 | WSM mathematical efficacy and path geometry distinctness                                               |
+| `benchmark_water.py`       | T-ENG-09                                         | FR-01               | Water proximity scoring: 100% edge coverage, [0,1] range, riverside < inland mean score (Bristol Avon) |
 
 ## Output
 
@@ -68,7 +68,7 @@ Each benchmark prints results to stdout and writes a JSON summary to `benchmarks
 
 ## Visualisations
 
-The JSON outputs can be directly converted into academic, publication-ready graphs mapping to the `REPORT.md` arguments. 
+The JSON outputs can be directly converted into academic, publication-ready graphs mapping to the `REPORT.md` arguments.
 To do this, ensure the visualisation dependencies are installed (these are separate from the core API dependencies):
 
 ```bash

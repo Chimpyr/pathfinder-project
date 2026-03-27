@@ -7,6 +7,21 @@ class Config:
     DEBUG = True
     VERBOSE_LOGGING = True
     WALKING_SPEED_KMH = 5.0
+
+    ACTIVITY_PARAMS = {
+        'walking': {
+            'max_speed': 6.0,
+            'flat_speed': 5.0,
+            'decay_rate': 3.5,
+            'optimal_grade': -0.05
+        },
+        'running': {
+            'max_speed': 15.0,
+            'flat_speed': 12.0,
+            'decay_rate': 2.5,
+            'optimal_grade': -0.10
+        }
+    }
     
     # =========================================================================
     # User Database Configuration (PostgreSQL)
@@ -170,4 +185,6 @@ class Config:
     
     # Task lock timeout (seconds) - prevents duplicate tasks for same region
     TASK_LOCK_TIMEOUT = int(os.environ.get('TASK_LOCK_TIMEOUT', '900'))  # 15 minutes
+
+
 

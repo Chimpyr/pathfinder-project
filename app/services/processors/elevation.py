@@ -46,22 +46,8 @@ BATCH_SIZE = 100
 # Minimum edge length to process (metres) - skip very short edges
 MIN_EDGE_LENGTH = 1.0
 
-# Activity-specific parameters for Tobler's hiking function
-# Structure allows easy extension for running mode in future
-ACTIVITY_PARAMS = {
-    'walking': {
-        'max_speed': 6.0,      # Maximum speed in km/h (on optimal downhill)
-        'flat_speed': 5.0,     # Speed on flat terrain in km/h
-        'decay_rate': 3.5,     # Exponential decay rate
-        'optimal_grade': -0.05 # Gradient with maximum speed (5% downhill)
-    },
-    'running': {
-        'max_speed': 15.0,
-        'flat_speed': 12.0,
-        'decay_rate': 2.5,
-        'optimal_grade': -0.10
-    }
-}
+from config import Config
+ACTIVITY_PARAMS = Config.ACTIVITY_PARAMS
 
 
 def configure_elevation_api() -> None:
