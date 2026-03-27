@@ -44,6 +44,7 @@ export function buildExportFilename(routeContext = {}) {
   const distance = toNumber(routeContext.distanceKm);
   const distancePart = distance !== null ? `-${distance.toFixed(1)}km` : "";
   return `scenicpathfinder-${nameParts.join("-")}${distancePart}-${date}.gpx`;
+  return `scenicpathfinder-${nameParts.join("-")}${distancePart}-${date}.gpx`;
 }
 
 export function buildGpxXml(routePayload = {}) {

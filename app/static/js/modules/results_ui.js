@@ -438,6 +438,53 @@ function inferAreaLabel(startAddress, endAddress) {
   return startParts[1] || endParts[1] || startParts[0] || endParts[0] || "";
 }
 
+function formatDistanceLabel(distanceKm) {
+  const n = Number(distanceKm);
+  return Number.isFinite(n) ? `${n.toFixed(1)} km` : "Unknown distance";
+}
+
+function getLocationLabel(pointState, fallback = "Unknown") {
+  if (pointState?.address && pointState.address.trim()) {
+    return pointState.address.trim();
+  }
+  if (Number.isFinite(pointState?.lat) && Number.isFinite(pointState?.lon)) {
+    return `${pointState.lat.toFixed(4)}, ${pointState.lon.toFixed(4)}`;
+  }
+  return fallback;
+}
+
+function getShortLocationLabel(pointState, fallback = "Unknown") {
+  const full = getLocationLabel(pointState, fallback);
+  const short = full.split(",")[0]?.trim();
+  return short || full;
+}
+
+function getAddressParts(address) {
+  if (!address || typeof address !== "string") return [];
+  return address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => part.toLowerCase());
+}
+
+function inferAreaLabel(startAddress, endAddress) {
+  const startParts = getAddressParts(startAddress);
+  const endParts = getAddressParts(endAddress);
+  if (!startParts.length && !endParts.length) return "";
+
+  // Prefer shared locality components before falling back to a single address.
+  if (startParts.length && endParts.length) {
+    for (const part of startParts) {
+      if (endParts.includes(part) && part.length >= 3) {
+        return part;
+      }
+    }
+  }
+
+  return startParts[1] || endParts[1] || startParts[0] || endParts[0] || "";
+}
+
 function getCurrentExportContext() {
   const startLabel = getShortLocationLabel(startState, "Start");
   const endLabel = getShortLocationLabel(endState, "End");
@@ -476,6 +523,21 @@ function getCurrentExportContext() {
   };
 }
 
+const selectedType = routeState.selected;
+const selectedRoute = routeState.routes?.[selectedType];
+if (!selectedType || !selectedRoute) return null;
+const distanceKm = selectedRoute.stats?.distance_km;
+const areaLabel = inferAreaLabel(startState.address, endState.address);
+return {
+  routeData: selectedRoute,
+  label: selectedType,
+  distanceKm,
+  startLabel,
+  endLabel,
+  areaLabel,
+  name: `${startLabel} -> ${endLabel} | ${formatDistanceLabel(distanceKm)}`,
+};
+
 function hasValidRouteCoords(routeData) {
   const coords = routeData?.route_coords || routeData?.coordinates;
   return Array.isArray(coords) && coords.length >= 2;
@@ -509,6 +571,8 @@ function initGpxExport() {
     downloadGpx(xml, filename);
     showToast("GPX exported successfully.", "success");
   });
+  downloadGpx(xml, filename);
+  showToast("GPX exported successfully.", "success");
 }
 
 initGpxExport();
