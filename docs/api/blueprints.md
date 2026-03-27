@@ -84,7 +84,7 @@ Core user-facing routes.
 | `/api/geocode` | POST | Convert address to coordinates |
 | `/api/route` | POST | Calculate scenic route |
 
-### Admin Blueprint (`admin.py`)
+### Admin Blueprint (`app/blueprints/admin.py`)
 
 Development and monitoring endpoints.
 
@@ -96,7 +96,7 @@ Development and monitoring endpoints.
 | `/admin/workers` | GET | Worker health info (JSON) |
 | `/admin/config` | GET | Current configuration (JSON) |
 
-### Tasks Blueprint (`tasks.py`)
+### Tasks Blueprint (`app/blueprints/tasks.py`)
 
 Async task polling for graph building.
 

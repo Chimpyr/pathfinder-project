@@ -109,7 +109,7 @@ class SavedRoute(db.Model):
 | File | Changes |
 |------|---------|
 | `app/models/saved_route.py` | **[NEW]** SavedRoute model with hybrid storage |
-| `app/blueprints/user_data.py` | **[NEW]** CRUD endpoints accepting both parametrised and geometry data |
+| `.\app\blueprints\user_data.py` | **[NEW]** CRUD endpoints accepting both parametrised and geometry data |
 
 ---
 

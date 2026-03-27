@@ -37,7 +37,7 @@ INFO  [alembic.autogenerate.compare] Detected removed table 'geometry_columns'
 
 ### Implementation
 
-When `flask db init` is run, the generated `migrations/env.py` must be modified:
+When `flask db init` is run, the generated `.\.flowbaby\venv\Lib\site-packages\alembic\templates\async\env.py` must be modified:
 
 ```python
 def include_object(object, name, type_, reflected, compare_to):
@@ -104,7 +104,7 @@ context.configure(
 
 ## Status: Deferred Implementation
 
-The `include_object` hook is documented here for implementation when `flask db init` is first run during Docker deployment. The hook must be applied to `migrations/env.py` immediately after initialisation.
+The `include_object` hook is documented here for implementation when `flask db init` is first run during Docker deployment. The hook must be applied to `.\.flowbaby\venv\Lib\site-packages\alembic\templates\async\env.py` immediately after initialisation.
 
 ---
 

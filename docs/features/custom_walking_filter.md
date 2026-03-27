@@ -32,7 +32,7 @@ For the full investigation, see
 Instead of `osm.get_network(network_type="walking")`, the data loader now
 calls `osm.get_network(network_type="all")` to fetch **all** highway ways,
 then passes the raw edges (and nodes) through our
-[`walking_filter.py`](../../app/services/core/walking_filter.py) module
+[`walking_filter.py`](app\services\core\walking_filter.py) module
 before building the graph.
 
 The filter applies rules in this order:
@@ -89,7 +89,7 @@ etc.) pass through — same as pyrosm's walking filter.
 ## How to extend the filter
 
 All rules are defined as constants at the top of
-[`walking_filter.py`](../../app/services/core/walking_filter.py):
+[`walking_filter.py`](app\services\core\walking_filter.py):
 
 | Constant                        | Purpose                                        | Example change                                    |
 | ------------------------------- | ---------------------------------------------- | ------------------------------------------------- |

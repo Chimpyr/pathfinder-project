@@ -36,6 +36,8 @@ ScenicPathFinder/
 │   │   │   ├── social.py            # POI proximity scoring
 │   │   │   ├── elevation.py         # Gradient calculation
 │   │   │   ├── quietness.py         # Highway noise classification
+│   │   │   ├── normalisation.py     # UI weight & cost normalisation
+│   │   │   ├── normalisation.py     # UI weight & cost normalisation
 │   │   │   └── orchestrator.py      # Scenic pipeline coordinator
 │   │   │
 │   │   ├── routing/                 # Pathfinding
@@ -153,7 +155,7 @@ map_html = MapRenderer.render_map(graph, route, start, end)
 
 ## Core Services
 
-### OSMDataLoader (`core/data_loader.py`)
+### OSMDataLoader (`app/services/core/data_loader.py`)
 
 Downloads and parses OpenStreetMap data.
 
@@ -171,7 +173,7 @@ I found this was much slower, having to request large chunks via the api.
 
 ---
 
-### GraphManager (`core/graph_manager.py`)
+### GraphManager (`app/services/core/graph_manager.py`)
 
 Orchestrates graph loading with two-tier caching.
 
@@ -188,7 +190,7 @@ Orchestrates graph loading with two-tier caching.
 
 ---
 
-### CacheManager (`core/cache_manager.py`)
+### CacheManager (`app/services/core/cache_manager.py`)
 
 Handles disk serialisation and cache invalidation.
 
@@ -202,7 +204,7 @@ Handles disk serialisation and cache invalidation.
 
 ## Processor Modules
 
-### ScenicOrchestrator (`processors/orchestrator.py`)
+### ScenicOrchestrator (`app/services/processors/orchestrator.py`)
 
 Coordinates the scenic processing pipeline based on configuration.
 
@@ -214,7 +216,7 @@ Coordinates the scenic processing pipeline based on configuration.
 
 ---
 
-### QuietnessProcessor (`processors/quietness.py`)
+### QuietnessProcessor (`app/services/processors/quietness.py`)
 
 Classifies highway types by expected noise level based on Wang et al. (2021) research.
 
@@ -246,7 +248,7 @@ Calculates green space proximity/visibility scores using pluggable strategies.
 
 ---
 
-### WaterProcessor (`processors/water.py`)
+### WaterProcessor (`app/services/processors/water.py`)
 
 Calculates proximity to water features using minimum distance scoring.
 
@@ -261,7 +263,7 @@ Calculates proximity to water features using minimum distance scoring.
 
 ---
 
-### SocialProcessor (`processors/social.py`)
+### SocialProcessor (`app/services/processors/social.py`)
 
 Calculates proximity to tourist and social POIs with distance-weighted scoring.
 
@@ -280,7 +282,7 @@ Calculates proximity to tourist and social POIs with distance-weighted scoring.
 
 ---
 
-### ElevationProcessor (`processors/elevation.py`)
+### ElevationProcessor (`app/services/processors/elevation.py`)
 
 Fetches elevation data and calculates edge gradients with Tobler's hiking function.
 
@@ -302,7 +304,7 @@ Fetches elevation data and calculates edge gradients with Tobler's hiking functi
 
 ---
 
-### RouteFinder (`routing/route_finder.py`)
+### RouteFinder (`app/services/routing/route_finder.py`)
 
 A\* pathfinding with pluggable cost functions.
 

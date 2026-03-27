@@ -1,6 +1,7 @@
 # Graph Caching Architecture
 
 The routing engine uses a **two-tier caching system**:
+
 1. **Memory cache** (LRU) - Fast runtime lookups
 2. **Disk cache** (Pickle) - Persistence across restarts
 
@@ -38,6 +39,7 @@ app/data/cache/
 ## Cache Invalidation
 
 Disk cache invalidates automatically when:
+
 - `CACHE_VERSION` changes (code updates)
 - PBF file modified time changes
 - `GREENNESS_MODE` changes
@@ -45,8 +47,8 @@ Disk cache invalidates automatically when:
 ## API Methods
 
 ```python
-from app.services.graph_manager import GraphManager
-from app.services.cache_manager import get_cache_manager
+from app.services.core.graph_manager import GraphManager
+from app.services.core.cache_manager import get_cache_manager
 
 # Get graph (uses cache automatically)
 graph = GraphManager.get_graph(bbox)
@@ -63,10 +65,10 @@ get_cache_manager().get_cache_stats()
 
 ## Memory Considerations
 
-| Cache Type | Typical Size |
-|------------|--------------|
-| Memory | 100-300 MB per region |
-| Disk | 50-150 MB per pickle |
+| Cache Type | Typical Size          |
+| ---------- | --------------------- |
+| Memory     | 100-300 MB per region |
+| Disk       | 50-150 MB per pickle  |
 
 ## Implementation Notes
 
@@ -82,14 +84,15 @@ bbox_hash = md5("51.41_-2.61_51.57_-2.46")[:8]  # Deterministic
 
 > [!IMPORTANT]
 > `clip_bbox` must be computed consistently across all code paths:
+>
 > - `routes.py` (cache check before async)
 > - `GraphBuilder.build_graph` (save)
 > - `GraphManager.get_graph` (load)
 
 ### Known Issues (Fixed)
 
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| Cache miss after async build | `GraphManager` didn't pass `clip_bbox` to `is_cache_valid` | Added `clip_bbox` calculation to `get_graph()` |
-| Infinite loop after cache delete | Redis task locks persisted after completion | `TaskManager` checks task state before returning locked ID |
-| Admin crash on cache list | `CacheManager` used string paths | Updated to `pathlib.Path` |
+| Issue                            | Cause                                                      | Fix                                                        |
+| -------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
+| Cache miss after async build     | `GraphManager` didn't pass `clip_bbox` to `is_cache_valid` | Added `clip_bbox` calculation to `get_graph()`             |
+| Infinite loop after cache delete | Redis task locks persisted after completion                | `TaskManager` checks task state before returning locked ID |
+| Admin crash on cache list        | `CacheManager` used string paths                           | Updated to `pathlib.Path`                                  |

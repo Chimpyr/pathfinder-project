@@ -76,7 +76,7 @@ SQLALCHEMY_DATABASE_URI = "postgresql://{user}:{password}@{host}:{port}/user_db"
 | `config.py` | Added `SQLALCHEMY_DATABASE_URI` pointing to `user_db` |
 | `docker-compose.yml` | Added `POSTGRES_DB_HOST`, `USER_DB_NAME` env vars to api/worker services |
 | `.env` / `.env.example` | Added `USER_DB_NAME=user_db` |
-| `app/__init__.py` | Initialises SQLAlchemy against `user_db` URI |
+| `.\.flowbaby\venv\Lib\site-packages\adodbapi\__init__.py` | Initialises SQLAlchemy against `user_db` URI |
 
 ---
 

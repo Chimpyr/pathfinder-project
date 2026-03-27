@@ -31,7 +31,7 @@ This manual intervention:
 
 ## Decision
 
-**Implement a pre-flight Python bootstrap script (`scripts/db_bootstrap.py`) that runs before the Flask application fully initialises, using a raw `psycopg2` connection with autocommit isolation level.**
+**Implement a pre-flight Python bootstrap script (`.\scripts\db_bootstrap.py`) that runs before the Flask application fully initialises, using a raw `psycopg2` connection with autocommit isolation level.**
 
 ### Implementation
 
@@ -98,8 +98,8 @@ If PostgreSQL is unreachable (e.g., running locally without Docker), the script 
 
 | File | Changes |
 |------|---------|
-| `scripts/db_bootstrap.py` | **[NEW]** Bootstrap script with `ensure_user_db()` |
-| `app/__init__.py` | Calls `ensure_user_db()` before `db.init_app(app)` |
+| `.\scripts\db_bootstrap.py` | **[NEW]** Bootstrap script with `ensure_user_db()` |
+| `.\.flowbaby\venv\Lib\site-packages\adodbapi\__init__.py` | Calls `ensure_user_db()` before `db.init_app(app)` |
 | `docker-compose.yml` | Both `api` and `worker` depend on `db: service_healthy` |
 
 ---

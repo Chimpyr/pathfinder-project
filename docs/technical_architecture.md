@@ -5,7 +5,7 @@
 The system does **not** use OSMnx or purely custom scripts for data ingestion. Instead, it leverages high-performance libraries for processing OpenStreetMap Protocol Buffer (PBF) files.
 
 - **Acquisition**:
-  - The `OSMDataLoader` class (`app/services/core/data_loader.py`) downloads the **Geofabrik Index** to identify the appropriate PBF file for a requested bounding box (e.g., `bristol-latest.osm.pbf` or fallback to `england-latest.osm.pbf`).
+  - The `OSMDataLoader` class (`.\app\services\core\data_loader.py`) downloads the **Geofabrik Index** to identify the appropriate PBF file for a requested bounding box (e.g., `bristol-latest.osm.pbf` or fallback to `england-latest.osm.pbf`).
   - Files are downloaded directly from Geofabrik to `app/data`.
 
 - **Processing**:
@@ -77,11 +77,11 @@ User accounts, saved map pins, and saved route configurations are stored in a de
   - Separate databases enable independent `pg_dump` backups and prevent `osm2pgsql --create` from affecting user data.
 
 - **Bootstrap**:
-  - `scripts/db_bootstrap.py` auto-creates `user_db` if missing, using a raw `psycopg2` connection with `ISOLATION_LEVEL_AUTOCOMMIT` (PostgreSQL requires autocommit for `CREATE DATABASE`).
+  - `.\scripts\db_bootstrap.py` auto-creates `user_db` if missing, using a raw `psycopg2` connection with `ISOLATION_LEVEL_AUTOCOMMIT` (PostgreSQL requires autocommit for `CREATE DATABASE`).
   - Called from the Flask application factory (`create_app()`) before SQLAlchemy initialisation.
 
 - **ORM & Extensions**:
-  - `app/extensions.py` centralises `SQLAlchemy`, `Migrate`, and `LoginManager` instances to avoid circular imports.
+  - `.\.flowbaby\venv\Lib\site-packages\cryptography\x509\extensions.py` centralises `SQLAlchemy`, `Migrate`, and `LoginManager` instances to avoid circular imports.
   - Models: `User` (email, hashed password), `SavedPin` (lat/lon, label), `SavedRoute` (parametrised inputs + optional geometry).
 
 - **Connection Pooling**:

@@ -21,19 +21,29 @@ All normalised values use **cost semantics** (0 = good, 1 = bad) so the WSM form
 
 ---
 
-## Formula (OR Semantics)
+## Formula (Configurable Semantics)
 
-The WSM uses **MIN-based OR semantics** for scenic criteria: an edge is rewarded if it's good at ANY active criterion.
+The API supports multiple cost function semantics (configured via COST_FUNCTION in config.py), defaulting to **MIN-based OR semantics** (Hybrid Disjunctive) for scenic criteria: an edge is rewarded if it's good at ANY active criterion.
 
-```
-scenic_cost = (w_g + w_w + w_s + w_q + w_e) × min(active_scenic_values)
-Cost = (w_d × l̂) + scenic_cost
-```
+### Default: Hybrid Disjunctive (OR Semantics)
+
+`	ext
+scenic_cost = (w_g + w_w + w_s + w_q + w_e) * min(active_scenic_values)
+Cost = (w_d * length_norm) + scenic_cost
+`
+
+### Alternative: WSM Additive (AND Semantics)
+
+`	ext
+Cost = (w_d * length_norm) + (w_g * norm_green) + (w_w * norm_water) + ...
+`
 
 Where:
-- `l̂` = normalised edge length (0 = short, 1 = long)
-- `active_scenic_values` = only normalised costs for criteria with weight > 0
-- `w_*` = user-configurable weights (must sum to 1.0)
+- length_norm = normalised edge length (0 = short, 1 = long)
+- ctive_scenic_values = only normalised costs for criteria with weight > 0
+- w_* = user-configurable weights (must sum to 1.0)
+- **Group Nature**: The engine supports combining water and greenness into a single 
+ature_cost = min(norm_green, norm_water).
 
 ### Why OR Semantics?
 

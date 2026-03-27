@@ -128,7 +128,7 @@ class MyMethodProcessor(GreennessProcessor):
 ```
 
 ```python
-# greenness/__init__.py (add to registry)
+# app\__init__.py (add to registry)
 from .my_method import MyMethodProcessor
 
 _PROCESSOR_REGISTRY['MY_METHOD'] = MyMethodProcessor

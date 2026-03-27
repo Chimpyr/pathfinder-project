@@ -173,7 +173,7 @@ sequenceDiagram
 |------|---------|
 | `celery_app.py` | Celery application factory and configuration |
 | `app/tasks/__init__.py` | Task package initialisation |
-| `app/tasks/graph_tasks.py` | Celery tasks for graph building |
+| `app/tasks/graph_blueprints/tasks.py` | Celery tasks for graph building |
 | `docker-compose.yml` | Container orchestration |
 | `Dockerfile` | Application container build |
 | `docker/Dockerfile.worker` | Worker-specific container (optional) |
@@ -202,7 +202,7 @@ sequenceDiagram
  │   │   └── ...
 +│   ├── tasks/
 +│   │   ├── __init__.py
-+│   │   └── graph_tasks.py          # Celery task definitions
++│   │   └── graph_blueprints/tasks.py          # Celery task definitions
  │   ├── routes.py
  │   └── ...
 +├── celery_app.py                    # Celery application factory
@@ -252,7 +252,7 @@ def make_celery():
 celery = make_celery()
 ```
 
-### 5.2 Graph Building Task (`app/tasks/graph_tasks.py`)
+### 5.2 Graph Building Task (`app/tasks/graph_blueprints/tasks.py`)
 
 ```python
 from celery_app import celery
@@ -437,7 +437,7 @@ flowchart LR
 +│   ├── __init__.py
 +│   ├── main.py           # Index route, map UI
 +│   ├── routing.py        # Route calculation endpoints
-+│   ├── tasks.py          # Task status polling
++│   ├── blueprints/tasks.py          # Task status polling
 +│   └── admin.py          # Admin panel endpoints
  ├── routes.py             # Legacy (to be deprecated/refactored)
  ├── templates/
@@ -796,7 +796,7 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 )
 
-# In graph_tasks.py
+# In graph_blueprints/tasks.py
 import logging
 logger = logging.getLogger(__name__)
 
@@ -1111,7 +1111,7 @@ Based on risk mitigation and incremental validation, follow this order:
 ```
 [ ] Install Redis locally (or via Docker single container)
 [ ] Create celery_app.py with minimal config
-[ ] Create app/tasks/graph_tasks.py with build_graph_task
+[ ] Create app/tasks/graph_blueprints/tasks.py with build_graph_task
 [ ] Test task execution manually: celery -A celery_app worker
 ```
 

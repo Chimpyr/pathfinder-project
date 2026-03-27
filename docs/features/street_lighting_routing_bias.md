@@ -224,11 +224,11 @@ When either toggle is active, both `WSMNetworkXAStar` and
 
 | File                                                    | Role                                                   |
 | ------------------------------------------------------- | ------------------------------------------------------ |
-| `app/services/routing/astar/wsm_astar.py`               | Penalty tables, `_compute_lit_multiplier()`, A\* apply |
-| `app/services/routing/route_finder.py`                  | Passes both params to A\* and loop solver              |
-| `app/services/routing/loop_solvers/geometric_solver.py` | Threads params through entire leg-routing chain        |
-| `app/services/routing/loop_solvers/base.py`             | Abstract `find_loops()` signature                      |
-| `app/services/routing/distinct_paths_runner.py`         | Forwards to all three A\* calls in multi-route mode    |
-| `app/routes.py`                                         | Parses `prefer_lit` / `heavily_avoid_unlit` from JSON  |
+| `.\app\services\routing\astar\wsm_astar.py`               | Penalty tables, `_compute_lit_multiplier()`, A\* apply |
+| `.\app\services\routing\route_finder.py`                  | Passes both params to A\* and loop solver              |
+| `.\app\services\routing\loop_solvers\geometric_solver.py` | Threads params through entire leg-routing chain        |
+| `.\.flowbaby\venv\Lib\site-packages\aiofiles\base.py`             | Abstract `find_loops()` signature                      |
+| `.\app\services\routing\distinct_paths_runner.py`         | Forwards to all three A\* calls in multi-route mode    |
+| `.\app\routes.py`                                         | Parses `prefer_lit` / `heavily_avoid_unlit` from JSON  |
 | `app/static/js/modules/routing_ui.js`                   | Mutual exclusivity logic, payload construction         |
 | `app/templates/index.html`                              | UI toggles (sun icon / moon icon)                      |

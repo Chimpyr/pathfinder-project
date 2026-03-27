@@ -71,7 +71,7 @@ min_distance / max_distance  # On river → distance 0 → score 0.0
 
 ## Related Components
 
-- **Data Loader** (`app/services/core/data_loader.py`): Extracts and buffers water features
-- **Water Processor** (`app/services/processors/water.py`): Scores edges by distance to water
-- **Normalisation** (`app/services/processors/normalisation.py`): Copies `raw_water_cost` to `norm_water`
-- **WSM A\*** (`app/services/routing/astar/wsm_astar.py`): Uses `norm_water` in cost calculation
+- **Data Loader** (`.\app\services\core\data_loader.py`): Extracts and buffers water features
+- **Water Processor** (`.\app\services\processors\water.py`): Scores edges by distance to water
+- **Normalisation** (`.\app\services\processors\normalisation.py`): Copies `raw_water_cost` to `norm_water`
+- **WSM A\*** (`.\app\services\routing\astar\wsm_astar.py`): Uses `norm_water` in cost calculation
