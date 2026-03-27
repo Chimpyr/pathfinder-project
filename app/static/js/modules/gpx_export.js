@@ -16,16 +16,36 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-export function buildExportFilename(routeContext = {}) {
-  const date = new Date().toISOString().slice(0, 10);
-  const label = (routeContext.label || "route")
-    .toString()
+function slugifyPart(value) {
+  const text = String(value || "")
     .toLowerCase()
+    .trim();
+  if (!text) return "";
+  return text
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+export function buildExportFilename(routeContext = {}) {
+  const date = new Date().toISOString().slice(0, 10);
+  const start = slugifyPart(routeContext.startLabel);
+  const end = slugifyPart(routeContext.endLabel);
+  const area = slugifyPart(routeContext.areaLabel);
+  const label = slugifyPart(routeContext.label || "route");
+
+  const nameParts = [];
+  if (start && end) {
+    nameParts.push(start, "to", end);
+  } else {
+    if (start) nameParts.push(start);
+    if (end) nameParts.push(end);
+  }
+  if (area) nameParts.push(area);
+  if (!nameParts.length) nameParts.push(label || "route");
+
   const distance = toNumber(routeContext.distanceKm);
   const distancePart = distance !== null ? `-${distance.toFixed(1)}km` : "";
-  return `scenicpathfinder-${label || "route"}${distancePart}-${date}.gpx`;
+  return `scenicpathfinder-${nameParts.join("-")}${distancePart}-${date}.gpx`;
 }
 
 export function buildGpxXml(routePayload = {}) {
