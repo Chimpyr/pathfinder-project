@@ -604,6 +604,78 @@ class OSMDataLoader:
             self.log(f"  [Error] POI extraction failed: {e}")
             return gpd.GeoDataFrame()
 
+    def extract_streetlights(self) -> 'gpd.GeoDataFrame':
+        """
+        Extract council streetlight points from the canonical GeoPackage.
+
+        Expected source file:
+        - app/data/streetlight/combined_streetlights.gpkg
+
+        Returns:
+            GeoDataFrame of streetlight points projected to EPSG:32630 (metres).
+            Returns an empty GeoDataFrame if the file is missing or unreadable.
+        """
+        import geopandas as gpd
+
+        gpkg_path = os.path.join(
+            self.data_dir,
+            'streetlight',
+            'combined_streetlights.gpkg'
+        )
+
+        if not os.path.exists(gpkg_path):
+            self.log(
+                f"[OSMDataLoader] Streetlight dataset not found: {gpkg_path} "
+                "(skipping council lighting augmentation)."
+            )
+            return gpd.GeoDataFrame(geometry=[], crs='EPSG:32630')
+
+        self.log(
+            f"[OSMDataLoader] Extracting council streetlights from: "
+            f"{os.path.basename(gpkg_path)}"
+        )
+
+        try:
+            # Prefer explicit layer name; fallback to default layer if needed.
+            try:
+                gdf = gpd.read_file(gpkg_path, layer='combined_streetlights')
+            except Exception:
+                gdf = gpd.read_file(gpkg_path)
+
+            if gdf is None or gdf.empty:
+                self.log("  [Warn] Streetlight GeoPackage is empty.")
+                return gpd.GeoDataFrame(geometry=[], crs='EPSG:32630')
+
+            if gdf.geometry.name != 'geometry':
+                gdf = gdf.rename_geometry('geometry')
+
+            gdf = gdf[gdf.geometry.notna()].copy()
+
+            # Keep point geometries only; explode multipoints into points.
+            multipoint_mask = gdf.geometry.geom_type == 'MultiPoint'
+            if multipoint_mask.any():
+                gdf = gdf.explode(index_parts=False).reset_index(drop=True)
+
+            gdf = gdf[gdf.geometry.geom_type == 'Point'].copy()
+
+            if gdf.crs is None:
+                gdf = gdf.set_crs('EPSG:4326')
+
+            # Processors work in metres; align to existing processor convention.
+            gdf = gdf.to_crs('EPSG:32630')
+
+            if 'lit' not in gdf.columns:
+                gdf['lit'] = 'yes'
+            if 'source' not in gdf.columns:
+                gdf['source'] = 'unknown'
+
+            self.log(f"  > Extracted {len(gdf)} council streetlight points.")
+            return gdf
+
+        except Exception as e:
+            self.log(f"  [Error] Streetlight extraction failed: {e}")
+            return gpd.GeoDataFrame(geometry=[], crs='EPSG:32630')
+
     def _load_geofabrik_index(self):
         """Load and cache the Geofabrik index data."""
         index_path = os.path.join(self.data_dir, self.INDEX_FILE)

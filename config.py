@@ -71,6 +71,12 @@ class Config:
     # - OFF: Skip water processing (no water proximity data)
     # - FAST: Buffer intersection for water features
     WATER_MODE = 'FAST'
+
+    # Council streetlight augmentation mode
+    # Options: 'OFF', 'FAST'
+    # - OFF: Use only OSM `lit` tags
+    # - FAST: Snap council light points to nearby edges and set lit='yes'
+    STREETLIGHT_MODE = 'FAST'
     
     # Social/POI proximity processing mode
     # Options: 'OFF', 'FAST'

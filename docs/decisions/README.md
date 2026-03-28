@@ -33,6 +33,7 @@ Each ADR follows this structure:
 | [ADR-015](ADR-015-connection-pool-tuning.md)                                 | Connection Pool Tuning for Dual-Database Architecture  | Accepted | 2026-02-22 |
 | [ADR-016](ADR-016-alembic-migration-safety.md)                               | Alembic Migration Safety — include_object Firewall     | Accepted | 2026-02-22 |
 | [ADR-018](ADR-018-dynamic-movement-speed-profiles-and-unit-normalization.md) | Dynamic Movement Speed Profiles and Unit Normalization | Proposed | 2026-03-28 |
+| [ADR-019](ADR-019-council-streetlight-data.md)                               | Council Streetlight Data Integration                   | Proposed | 2026-03-28 |
 
 ## Related Documentation
 

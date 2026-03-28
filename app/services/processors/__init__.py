@@ -13,6 +13,7 @@ from app.services.processors.greenness import (
     NovackIsovistProcessor,
 )
 from app.services.processors.water import process_graph_water
+from app.services.processors.streetlights import process_graph_streetlights
 from app.services.processors.social import process_graph_social
 from app.services.processors.elevation import process_graph_elevation
 from app.services.processors.quietness import process_graph_quietness
@@ -25,6 +26,7 @@ __all__ = [
     'EdgeSamplingProcessor',
     'NovackIsovistProcessor',
     'process_graph_water',
+    'process_graph_streetlights',
     'process_graph_social',
     'process_graph_elevation',
     'process_graph_quietness',

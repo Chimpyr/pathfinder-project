@@ -7,6 +7,7 @@ Calls enabled processors in sequence and manages data extraction.
 Processor modes are read from Flask config:
 - GREENNESS_MODE: OFF | FAST | EDGE_SAMPLING | NOVACK
 - WATER_MODE: OFF | FAST
+- STREETLIGHT_MODE: OFF | FAST
 - SOCIAL_MODE: OFF | FAST
 """
 
@@ -16,6 +17,7 @@ import networkx as nx
 
 from app.services.processors.greenness import get_processor as get_greenness_processor
 from app.services.processors.water import process_graph_water
+from app.services.processors.streetlights import process_graph_streetlights
 from app.services.processors.social import process_graph_social
 
 try:
@@ -48,6 +50,11 @@ def get_social_mode() -> str:
     return _get_config('SOCIAL_MODE', 'FAST').upper()
 
 
+def get_streetlight_mode() -> str:
+    """Get the configured council streetlight processing mode."""
+    return _get_config('STREETLIGHT_MODE', 'FAST').upper()
+
+
 def process_scenic_attributes(
     graph: nx.MultiDiGraph,
     loader,
@@ -56,7 +63,7 @@ def process_scenic_attributes(
     """
     Run all enabled scenic processors on the graph.
     
-    Reads config for GREENNESS_MODE, WATER_MODE, SOCIAL_MODE
+    Reads config for GREENNESS_MODE, WATER_MODE, STREETLIGHT_MODE, SOCIAL_MODE
     and calls corresponding processors in sequence.
     
     Args:
@@ -78,10 +85,11 @@ def process_scenic_attributes(
     
     greenness_mode = get_greenness_mode()
     water_mode = get_water_mode()
+    streetlight_mode = get_streetlight_mode()
     social_mode = get_social_mode()
     
     print(f"[ScenicOrchestrator] Modes: GREENNESS={greenness_mode}, "
-          f"WATER={water_mode}, SOCIAL={social_mode}")
+            f"WATER={water_mode}, STREETLIGHT={streetlight_mode}, SOCIAL={social_mode}")
     
     # Process greenness using strategy pattern
     if greenness_mode != 'OFF':
@@ -130,6 +138,21 @@ def process_scenic_attributes(
         
     else:
         print("[ScenicOrchestrator] Water processing disabled.")
+
+    # Process council streetlights
+    if streetlight_mode == 'FAST':
+        print("[ScenicOrchestrator] Processing council streetlights (FAST mode)...")
+        t0 = time.perf_counter()
+
+        streetlight_gdf = loader.extract_streetlights()
+        timings['Extract Streetlights'] = time.perf_counter() - t0
+
+        t0 = time.perf_counter()
+        graph = process_graph_streetlights(graph, streetlight_gdf)
+        timings['Streetlight Processing'] = time.perf_counter() - t0
+
+    else:
+        print("[ScenicOrchestrator] Streetlight processing disabled.")
     
     # Process social/POI
     if social_mode == 'FAST':
