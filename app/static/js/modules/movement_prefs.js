@@ -10,6 +10,7 @@ const PROFILE_STORAGE_KEY = "travelProfile:selected";
 const DISTANCE_UNITS = new Set(["km", "mi"]);
 const TRAVEL_PROFILES = new Set(["walking", "running_easy", "running_race"]);
 const KM_PER_MILE = 1.609344;
+const MIN_POSITIVE_SPEED_KMH = 0.01;
 
 const DEFAULT_PREFS = {
   preferred_distance_unit: "km",
@@ -58,7 +59,7 @@ function normalisePrefs(raw = {}) {
   );
   merged.walking_speed_kmh = clamp(
     safeNumber(merged.walking_speed_kmh, DEFAULT_PREFS.walking_speed_kmh),
-    2.0,
+    MIN_POSITIVE_SPEED_KMH,
     9.0,
   );
   merged.running_easy_speed_kmh = clamp(
@@ -66,7 +67,7 @@ function normalisePrefs(raw = {}) {
       merged.running_easy_speed_kmh,
       DEFAULT_PREFS.running_easy_speed_kmh,
     ),
-    4.0,
+    MIN_POSITIVE_SPEED_KMH,
     20.0,
   );
   merged.running_race_speed_kmh = clamp(
@@ -74,7 +75,7 @@ function normalisePrefs(raw = {}) {
       merged.running_race_speed_kmh,
       DEFAULT_PREFS.running_race_speed_kmh,
     ),
-    6.0,
+    MIN_POSITIVE_SPEED_KMH,
     30.0,
   );
 

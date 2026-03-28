@@ -29,8 +29,10 @@ import {
 import { switchView } from "./layout_ui.js";
 import {
   buildMovementRequestPayload,
+  getMovementPrefs,
   getSelectedTravelProfile,
   setSelectedTravelProfile,
+  speedKmhToDisplay,
 } from "./movement_prefs.js";
 
 // Elements
@@ -69,8 +71,37 @@ export function initRoutingUI() {
   initFormSubmit();
 }
 
+function updateTravelProfileOptionLabels(prefs = getMovementPrefs()) {
+  if (!travelProfileSelect) return;
+
+  const unit = prefs?.preferred_distance_unit === "mi" ? "mi" : "km";
+  const speedUnit = unit === "mi" ? "mph" : "km/h";
+
+  const profileConfig = [
+    ["walking", "Walking", prefs?.walking_speed_kmh],
+    ["running_easy", "Running (Easy)", prefs?.running_easy_speed_kmh],
+    ["running_race", "Running (Race)", prefs?.running_race_speed_kmh],
+  ];
+
+  profileConfig.forEach(([value, label, speedKmh]) => {
+    const option = travelProfileSelect.querySelector(
+      `option[value="${value}"]`,
+    );
+    if (!option) return;
+
+    const speedDisplay = speedKmhToDisplay(speedKmh, unit);
+    const speedText = Number.isFinite(speedDisplay)
+      ? speedDisplay.toFixed(1)
+      : "-";
+
+    option.textContent = `${label} (${speedText} ${speedUnit})`;
+  });
+}
+
 function initTravelProfileControl() {
   if (!travelProfileSelect) return;
+
+  updateTravelProfileOptionLabels(getMovementPrefs());
 
   const selected = getSelectedTravelProfile();
   if (selected) {
@@ -79,6 +110,12 @@ function initTravelProfileControl() {
 
   travelProfileSelect.addEventListener("change", () => {
     setSelectedTravelProfile(travelProfileSelect.value);
+  });
+
+  document.addEventListener("movement-prefs-changed", (event) => {
+    updateTravelProfileOptionLabels(
+      event?.detail?.preferences || getMovementPrefs(),
+    );
   });
 }
 

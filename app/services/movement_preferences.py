@@ -27,9 +27,9 @@ PROFILE_TO_SPEED_FIELD = {
     'running_race': 'running_race_speed_kmh',
 }
 SPEED_LIMITS = {
-    'walking_speed_kmh': (2.0, 9.0),
-    'running_easy_speed_kmh': (4.0, 20.0),
-    'running_race_speed_kmh': (6.0, 30.0),
+    'walking_speed_kmh': (0.01, 9.0),
+    'running_easy_speed_kmh': (0.01, 20.0),
+    'running_race_speed_kmh': (0.01, 30.0),
 }
 
 
@@ -115,7 +115,7 @@ def validate_preferences_payload(
         else:
             normalised['preferred_distance_unit'] = unit_norm
 
-    for field, (min_val, max_val) in SPEED_LIMITS.items():
+    for field, (_min_val, max_val) in SPEED_LIMITS.items():
         if field not in payload:
             continue
 
@@ -126,8 +126,12 @@ def validate_preferences_payload(
             errors[field] = 'Must be a numeric value.'
             continue
 
-        if value < min_val or value > max_val:
-            errors[field] = f'Must be between {min_val:.1f} and {max_val:.1f} km/h.'
+        if value <= 0:
+            errors[field] = 'Must be greater than 0.'
+            continue
+
+        if value > max_val:
+            errors[field] = f'Must not exceed {max_val:.1f} km/h.'
             continue
 
         normalised[field] = value

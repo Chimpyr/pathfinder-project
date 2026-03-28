@@ -12,10 +12,10 @@ import {
   syncMovementPreferencesWithServer,
 } from "./movement_prefs.js";
 
-const SPEED_LIMITS = {
-  walking_speed_kmh: [2.0, 9.0],
-  running_easy_speed_kmh: [4.0, 20.0],
-  running_race_speed_kmh: [6.0, 30.0],
+const SPEED_MAX_LIMITS = {
+  walking_speed_kmh: 9.0,
+  running_easy_speed_kmh: 20.0,
+  running_race_speed_kmh: 30.0,
 };
 
 export function initAuthUI() {
@@ -47,6 +47,8 @@ export function initAuthUI() {
   const raceSpeedInput = document.getElementById("running-race-speed-input");
   const racePaceInput = document.getElementById("running-race-pace-input");
   const racePaceSuffix = document.getElementById("running-race-pace-suffix");
+
+  let displayedFormUnit = unitSelect?.value === "mi" ? "mi" : "km";
 
   if (!loginForm) return;
 
@@ -203,13 +205,63 @@ export function initAuthUI() {
     return `${whole}:${String(seconds).padStart(2, "0")}`;
   }
 
-  function populateMovementForm(prefs) {
+  function applyUnitDisplayFormatting(unit) {
+    if (easyPaceSuffix) easyPaceSuffix.textContent = `/ ${unit}`;
+    if (racePaceSuffix) racePaceSuffix.textContent = `/ ${unit}`;
+
+    document.querySelectorAll(".dyn-speed-suffix").forEach((el) => {
+      el.textContent = unit === "km" ? "km/h" : "mph";
+    });
+
+    if (walkingSpeedInput)
+      walkingSpeedInput.placeholder = unit === "km" ? "e.g. 5.0" : "e.g. 3.1";
+    if (easySpeedInput)
+      easySpeedInput.placeholder = unit === "km" ? "e.g. 9.5" : "e.g. 5.9";
+    if (raceSpeedInput)
+      raceSpeedInput.placeholder = unit === "km" ? "e.g. 12.5" : "e.g. 7.8";
+  }
+
+  function convertDisplayedValuesBetweenUnits(fromUnit, toUnit) {
+    if (fromUnit === toUnit) return;
+
+    const convertSpeedInput = (inputEl) => {
+      const raw = Number(inputEl?.value);
+      if (!Number.isFinite(raw) || raw <= 0) return;
+
+      const kmh = speedDisplayToKmh(raw, fromUnit);
+      if (!Number.isFinite(kmh) || kmh <= 0) return;
+
+      inputEl.value = speedKmhToDisplay(kmh, toUnit).toFixed(1);
+    };
+
+    const convertPaceInput = (inputEl) => {
+      const text = (inputEl?.value || "").trim();
+      if (!text) return;
+
+      const kmh = parsePaceToKmh(text, fromUnit);
+      if (!Number.isFinite(kmh) || kmh <= 0) return;
+
+      inputEl.value = paceInputValue(kmh, toUnit);
+    };
+
+    convertSpeedInput(walkingSpeedInput);
+    convertSpeedInput(easySpeedInput);
+    convertSpeedInput(raceSpeedInput);
+    convertPaceInput(easyPaceInput);
+    convertPaceInput(racePaceInput);
+  }
+
+  function populateMovementForm(prefs, displayUnitOverride = null) {
     if (!movementForm) return;
 
     const safePrefs = prefs || getMovementPrefs();
-    const unit = safePrefs.preferred_distance_unit || "km";
+    const prefsUnit = safePrefs.preferred_distance_unit || "km";
+    const unit = displayUnitOverride || prefsUnit;
+    displayedFormUnit = unit;
 
     if (unitSelect) unitSelect.value = unit;
+
+    applyUnitDisplayFormatting(unit);
 
     if (walkingSpeedInput) {
       walkingSpeedInput.value = speedKmhToDisplay(
@@ -230,14 +282,6 @@ export function initAuthUI() {
         unit,
       ).toFixed(1);
     }
-
-    if (easyPaceSuffix) easyPaceSuffix.textContent = `/ ${unit}`;
-    if (racePaceSuffix) racePaceSuffix.textContent = `/ ${unit}`;
-
-    // Update dynamic speed suffixes
-    document.querySelectorAll(".dyn-speed-suffix").forEach((el) => {
-      el.textContent = unit === "km" ? "km/h" : "mph";
-    });
 
     if (easyPaceInput) {
       easyPaceInput.value = paceInputValue(
@@ -304,9 +348,13 @@ export function initAuthUI() {
       return `${field} is not a valid number.`;
     }
 
-    const [min, max] = SPEED_LIMITS[field];
-    if (valueKmh < min || valueKmh > max) {
-      return `${field.replaceAll("_", " ")} must be between ${min.toFixed(1)} and ${max.toFixed(1)} km/h.`;
+    if (valueKmh <= 0) {
+      return `${field.replaceAll("_", " ")} must be greater than 0.`;
+    }
+
+    const max = SPEED_MAX_LIMITS[field];
+    if (valueKmh > max) {
+      return `${field.replaceAll("_", " ")} must not exceed ${max.toFixed(1)} km/h.`;
     }
 
     return null;
@@ -392,8 +440,24 @@ export function initAuthUI() {
     handleMovementSave();
   });
 
-  unitSelect?.addEventListener("change", () => {
-    populateMovementForm(getMovementPrefs());
+  function handleUnitPreviewChange() {
+    const selectedUnit = unitSelect?.value === "mi" ? "mi" : "km";
+    const sourceUnit = displayedFormUnit === "mi" ? "mi" : "km";
+
+    convertDisplayedValuesBetweenUnits(sourceUnit, selectedUnit);
+    applyUnitDisplayFormatting(selectedUnit);
+
+    displayedFormUnit = selectedUnit;
+    if (unitSelect) unitSelect.value = selectedUnit;
+  }
+
+  unitSelect?.addEventListener("change", handleUnitPreviewChange);
+  unitSelect?.addEventListener("input", handleUnitPreviewChange);
+  unitSelect?.addEventListener("blur", handleUnitPreviewChange);
+  movementForm?.addEventListener("change", (event) => {
+    if (event.target === unitSelect) {
+      handleUnitPreviewChange();
+    }
   });
 
   easyModeSelect?.addEventListener("change", applyRunningModeVisibility);
