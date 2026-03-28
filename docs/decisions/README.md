@@ -4,7 +4,7 @@ This folder contains records of significant architectural and design decisions m
 
 ## What is an ADR?
 
-An Architectural Decision Record captures a decision that has significant impact on the system's design, along with the context and consequences. This helps future developers understand *why* decisions were made, not just *what* was implemented.
+An Architectural Decision Record captures a decision that has significant impact on the system's design, along with the context and consequences. This helps future developers understand _why_ decisions were made, not just _what_ was implemented.
 
 ## ADR Format
 
@@ -19,19 +19,20 @@ Each ADR follows this structure:
 
 ## Index
 
-| ID | Title | Status | Date |
-|----|-------|--------|------|
-| [ADR-001](ADR-001-wsm-or-semantics.md) | WSM OR-Semantics for Multi-Criteria Routing | Accepted | 2026-01-19 |
-| [ADR-002](ADR-002-greenness-detection-method.md) | Greenness Detection Method Selection | Accepted | 2025-11 |
-| [ADR-003](ADR-003-weighted-min-and-slider-scale.md) | Weighted-MIN Algorithm and 0-5 Slider Scale | Accepted | 2026-01-19 |
-| [ADR-004](ADR-004-bbox-clipping.md) | Bounding Box Clipping for Graph Loading | Accepted | 2026-01-30 |
-| [ADR-005](ADR-005-async-task-cache-reliability.md) | Async Task Lock Management and Cache Reliability | Accepted | 2026-01-30 |
-| [ADR-011](ADR-011-restricted-access-pruning.md) | Restricted-Access Edge and Node Pruning | Accepted | 2026-02-22 |
-| [ADR-012](ADR-012-dual-database-segregation.md) | Dual-Database Segregation for User Persistence | Accepted | 2026-02-22 |
-| [ADR-013](ADR-013-automated-database-bootstrapping.md) | Automated Database Bootstrapping | Accepted | 2026-02-22 |
-| [ADR-014](ADR-014-parametrised-route-storage.md) | Parametrised Route Storage Strategy | Accepted | 2026-02-22 |
-| [ADR-015](ADR-015-connection-pool-tuning.md) | Connection Pool Tuning for Dual-Database Architecture | Accepted | 2026-02-22 |
-| [ADR-016](ADR-016-alembic-migration-safety.md) | Alembic Migration Safety — include_object Firewall | Accepted | 2026-02-22 |
+| ID                                                                           | Title                                                  | Status   | Date       |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------ | -------- | ---------- |
+| [ADR-001](ADR-001-wsm-or-semantics.md)                                       | WSM OR-Semantics for Multi-Criteria Routing            | Accepted | 2026-01-19 |
+| [ADR-002](ADR-002-greenness-detection-method.md)                             | Greenness Detection Method Selection                   | Accepted | 2025-11    |
+| [ADR-003](ADR-003-weighted-min-and-slider-scale.md)                          | Weighted-MIN Algorithm and 0-5 Slider Scale            | Accepted | 2026-01-19 |
+| [ADR-004](ADR-004-bbox-clipping.md)                                          | Bounding Box Clipping for Graph Loading                | Accepted | 2026-01-30 |
+| [ADR-005](ADR-005-async-task-cache-reliability.md)                           | Async Task Lock Management and Cache Reliability       | Accepted | 2026-01-30 |
+| [ADR-011](ADR-011-restricted-access-pruning.md)                              | Restricted-Access Edge and Node Pruning                | Accepted | 2026-02-22 |
+| [ADR-012](ADR-012-dual-database-segregation.md)                              | Dual-Database Segregation for User Persistence         | Accepted | 2026-02-22 |
+| [ADR-013](ADR-013-automated-database-bootstrapping.md)                       | Automated Database Bootstrapping                       | Accepted | 2026-02-22 |
+| [ADR-014](ADR-014-parametrised-route-storage.md)                             | Parametrised Route Storage Strategy                    | Accepted | 2026-02-22 |
+| [ADR-015](ADR-015-connection-pool-tuning.md)                                 | Connection Pool Tuning for Dual-Database Architecture  | Accepted | 2026-02-22 |
+| [ADR-016](ADR-016-alembic-migration-safety.md)                               | Alembic Migration Safety — include_object Firewall     | Accepted | 2026-02-22 |
+| [ADR-018](ADR-018-dynamic-movement-speed-profiles-and-unit-normalization.md) | Dynamic Movement Speed Profiles and Unit Normalization | Proposed | 2026-03-28 |
 
 ## Related Documentation
 
