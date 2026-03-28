@@ -33,6 +33,7 @@ import {
   getSelectedTravelProfile,
   setSelectedTravelProfile,
   speedKmhToDisplay,
+  syncMovementPreferencesWithServer,
 } from "./movement_prefs.js";
 
 // Elements
@@ -62,6 +63,9 @@ const heavilyAvoidUnlitToggle = document.getElementById(
 );
 const avoidUnsafeToggle = document.getElementById("avoid-unsafe-toggle");
 const groupNatureToggle = document.getElementById("group-nature-toggle");
+const finderNavBtn = document.querySelector(
+  '.nav-rail-btn[data-view="finder-view"]',
+);
 
 export function initRoutingUI() {
   initModeToggles();
@@ -98,15 +102,38 @@ function updateTravelProfileOptionLabels(prefs = getMovementPrefs()) {
   });
 }
 
-function initTravelProfileControl() {
+function refreshTravelProfileSelection() {
   if (!travelProfileSelect) return;
-
-  updateTravelProfileOptionLabels(getMovementPrefs());
 
   const selected = getSelectedTravelProfile();
   if (selected) {
     travelProfileSelect.value = selected;
   }
+}
+
+function refreshTravelProfileFromLocalPrefs() {
+  updateTravelProfileOptionLabels(getMovementPrefs());
+  refreshTravelProfileSelection();
+}
+
+async function refreshTravelProfileFromSyncedPrefs() {
+  try {
+    const prefs = await syncMovementPreferencesWithServer();
+    updateTravelProfileOptionLabels(prefs);
+  } catch {
+    updateTravelProfileOptionLabels(getMovementPrefs());
+  }
+
+  refreshTravelProfileSelection();
+}
+
+function initTravelProfileControl() {
+  if (!travelProfileSelect) return;
+
+  refreshTravelProfileFromLocalPrefs();
+
+  // Ensure labels are based on latest merged local/server prefs.
+  refreshTravelProfileFromSyncedPrefs();
 
   travelProfileSelect.addEventListener("change", () => {
     setSelectedTravelProfile(travelProfileSelect.value);
@@ -116,7 +143,41 @@ function initTravelProfileControl() {
     updateTravelProfileOptionLabels(
       event?.detail?.preferences || getMovementPrefs(),
     );
+    refreshTravelProfileSelection();
   });
+
+  document.addEventListener("movement-prefs-saved", (event) => {
+    updateTravelProfileOptionLabels(
+      event?.detail?.preferences || getMovementPrefs(),
+    );
+    refreshTravelProfileSelection();
+  });
+
+  // Fallback refresh in case event timing was missed.
+  travelProfileSelect.addEventListener("focus", () => {
+    refreshTravelProfileFromLocalPrefs();
+  });
+
+  // Always rehydrate labels when user navigates back to Finder.
+  finderNavBtn?.addEventListener("click", () => {
+    refreshTravelProfileFromLocalPrefs();
+    refreshTravelProfileFromSyncedPrefs();
+  });
+
+  const finderView = document.getElementById("finder-view");
+  if (finderView) {
+    new MutationObserver((mutations) => {
+      mutations.forEach((m) => {
+        if (
+          m.attributeName === "class" &&
+          !finderView.classList.contains("hidden")
+        ) {
+          refreshTravelProfileFromLocalPrefs();
+          refreshTravelProfileFromSyncedPrefs();
+        }
+      });
+    }).observe(finderView, { attributes: true });
+  }
 }
 
 function initModeToggles() {
@@ -489,16 +550,39 @@ function onLoopSuccess(result) {
     }
   }
 
-  // Update stats manually for loop (since it doesn't use the standard multi-route card UI yet)
-  // Or if it does, adapt here.
-  if (result.stats) {
-    const statDistance = document.getElementById("stat-distance");
-    const statTime = document.getElementById("stat-time");
-    if (statDistance) statDistance.textContent = result.stats.distance_km;
-    if (statTime) statTime.textContent = result.stats.time_min;
+  // Keep Selected Route Details in sync with the chosen loop payload.
+  if (loopState.loops && loopState.loops.length > 0 && loopState.selectedId) {
+    const selected = loopState.loops.find((l) => l.id === loopState.selectedId);
+    if (selected) {
+      const statDistance = document.getElementById("stat-distance");
+      const statDistanceUnit = document.getElementById("stat-distance-unit");
+      const statTime = document.getElementById("stat-time");
+      const statProfile = document.getElementById("stat-profile");
+      const statSpeed = document.getElementById("stat-speed");
+      const statSpeedUnit = document.getElementById("stat-speed-unit");
+      const statPace = document.getElementById("stat-pace");
+      const routeStats = document.getElementById("route-stats");
 
-    const routeStats = document.getElementById("route-stats");
-    if (routeStats) routeStats.classList.remove("hidden");
+      if (statDistance)
+        statDistance.textContent = String(
+          selected.distance ?? selected.distance_km ?? "?",
+        );
+      if (statDistanceUnit)
+        statDistanceUnit.textContent = selected.distance_unit || "km";
+      if (statTime) statTime.textContent = String(selected.time_min ?? "?");
+      if (statProfile)
+        statProfile.textContent = String(
+          selected.travel_profile || "walking",
+        ).replaceAll("_", " ");
+      if (statSpeed)
+        statSpeed.textContent = String(selected.assumed_speed ?? "?");
+      if (statSpeedUnit)
+        statSpeedUnit.textContent =
+          selected.speed_unit ||
+          (selected.distance_unit === "mi" ? "mph" : "km/h");
+      if (statPace) statPace.textContent = selected.assumed_pace || "n/a";
+      if (routeStats) routeStats.classList.remove("hidden");
+    }
   }
 }
 
