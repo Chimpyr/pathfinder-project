@@ -1,5 +1,57 @@
 from flask import Flask
+from sqlalchemy import inspect, text
+
 from config import Config
+
+
+def _ensure_movement_pref_columns(app, db):
+    """Best-effort compatibility patch for existing user databases."""
+    try:
+        inspector = inspect(db.engine)
+        if 'users' not in inspector.get_table_names():
+            return
+
+        columns = {col['name'] for col in inspector.get_columns('users')}
+        statements = []
+
+        if 'preferred_distance_unit' not in columns:
+            statements.append(
+                "ALTER TABLE users ADD COLUMN preferred_distance_unit VARCHAR(2) NOT NULL DEFAULT 'km'"
+            )
+        if 'walking_speed_kmh' not in columns:
+            statements.append(
+                "ALTER TABLE users ADD COLUMN walking_speed_kmh DOUBLE PRECISION NOT NULL DEFAULT 5.0"
+            )
+        if 'running_easy_speed_kmh' not in columns:
+            statements.append(
+                "ALTER TABLE users ADD COLUMN running_easy_speed_kmh DOUBLE PRECISION NOT NULL DEFAULT 9.5"
+            )
+        if 'running_race_speed_kmh' not in columns:
+            statements.append(
+                "ALTER TABLE users ADD COLUMN running_race_speed_kmh DOUBLE PRECISION NOT NULL DEFAULT 12.5"
+            )
+        if 'movement_prefs_updated_at' not in columns:
+            statements.append(
+                "ALTER TABLE users ADD COLUMN movement_prefs_updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()"
+            )
+
+        if not statements:
+            return
+
+        for statement in statements:
+            db.session.execute(text(statement))
+        db.session.commit()
+
+        app.logger.info(
+            "Applied movement preference schema compatibility patch (%d column changes).",
+            len(statements),
+        )
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.warning(
+            "Movement preference schema compatibility patch skipped: %s",
+            exc,
+        )
 
 
 def create_app(config_class=Config):
@@ -63,6 +115,7 @@ def create_app(config_class=Config):
     with app.app_context():
         try:
             db.create_all()
+            _ensure_movement_pref_columns(app, db)
         except Exception:
             app.logger.warning(
                 "Could not create user database tables. "

@@ -14,6 +14,7 @@ from app.services.routing.cost_calculator import (
     validate_weights,
     get_active_cost_function,
 )
+from app.services.processors.elevation import calculate_tobler_cost
 from math import radians, cos, sin, asin, sqrt
 from typing import Dict, Optional, Union
 
@@ -86,6 +87,7 @@ class WSMNetworkXAStar(AStar):
         prefer_lit: bool = False,
         heavily_avoid_unlit: bool = False,
         prefer_pedestrian: bool = False,
+        activity: str = 'walking',
     ):
         """
         Initialise WSM A* solver.
@@ -103,6 +105,8 @@ class WSMNetworkXAStar(AStar):
         self.prefer_lit = prefer_lit
         self.heavily_avoid_unlit = heavily_avoid_unlit
         self.prefer_pedestrian = prefer_pedestrian
+        activity_norm = str(activity or 'walking').strip().lower()
+        self.activity = 'running' if activity_norm.startswith('running') else 'walking'
         
         # Validate and set weights
         if weights is None:
@@ -119,13 +123,64 @@ class WSMNetworkXAStar(AStar):
         # Log which cost function algorithm is being used (once per route)
         cost_func = get_active_cost_function()
         lit_mode = 'heavily_avoid_unlit' if heavily_avoid_unlit else ('prefer_lit' if prefer_lit else 'off')
-        print(f"[WSM A*] Using cost function: {cost_func.value}, lit_mode: {lit_mode}")
+        print(f"[WSM A*] Using cost function: {cost_func.value}, lit_mode: {lit_mode}, activity: {self.activity}")
         
         # Get or compute length range for normalisation
         if length_range is not None:
             self.min_length, self.max_length = length_range
         else:
             self.min_length, self.max_length = find_length_range(graph)
+
+        # Walking already matches precomputed norm_slope in graph edges.
+        # Running profiles need activity-aware Tobler re-scaling for slope cost.
+        self.activity_slope_range = None
+        if self.activity != 'walking':
+            self.activity_slope_range = self._calculate_activity_slope_range()
+
+    def _calculate_activity_slope_range(self) -> Optional[tuple[float, float]]:
+        """Compute graph-wide Tobler slope-cost range for current activity."""
+        min_cost = float('inf')
+        max_cost = float('-inf')
+
+        for _, _, _, data in self.graph.edges(keys=True, data=True):
+            uphill = data.get('uphill_gradient')
+            downhill = data.get('downhill_gradient')
+            if uphill is None and downhill is None:
+                continue
+
+            signed_gradient = float(uphill or 0.0) - float(downhill or 0.0)
+            slope_cost = calculate_tobler_cost(signed_gradient, activity=self.activity)
+            min_cost = min(min_cost, slope_cost)
+            max_cost = max(max_cost, slope_cost)
+
+        if min_cost == float('inf') or max_cost == float('-inf'):
+            return None
+
+        return (min_cost, max_cost)
+
+    def _resolve_norm_slope(self, data: dict) -> float:
+        """Return edge slope cost normalised for configured activity."""
+        default_norm_slope = float(data.get('norm_slope', 0.5))
+
+        if self.activity == 'walking':
+            return default_norm_slope
+
+        uphill = data.get('uphill_gradient')
+        downhill = data.get('downhill_gradient')
+        if uphill is None and downhill is None:
+            return default_norm_slope
+
+        if not self.activity_slope_range:
+            return default_norm_slope
+
+        min_cost, max_cost = self.activity_slope_range
+        if max_cost <= min_cost:
+            return default_norm_slope
+
+        signed_gradient = float(uphill or 0.0) - float(downhill or 0.0)
+        slope_cost = calculate_tobler_cost(signed_gradient, activity=self.activity)
+        norm_slope = (slope_cost - min_cost) / (max_cost - min_cost)
+        return max(0.0, min(1.0, norm_slope))
 
     def neighbors(self, node):
         """
@@ -174,7 +229,7 @@ class WSMNetworkXAStar(AStar):
             norm_water = data.get('norm_water', 0.5)
             norm_social = data.get('norm_social', 0.5)
             norm_quiet = data.get('norm_quiet', 0.5)
-            norm_slope = data.get('norm_slope', 0.5)
+            norm_slope = self._resolve_norm_slope(data)
             
             # Compute WSM cost
             cost = compute_wsm_cost(

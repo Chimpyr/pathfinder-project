@@ -27,6 +27,11 @@ import {
   hideResults,
 } from "./results_ui.js";
 import { switchView } from "./layout_ui.js";
+import {
+  buildMovementRequestPayload,
+  getSelectedTravelProfile,
+  setSelectedTravelProfile,
+} from "./movement_prefs.js";
 
 // Elements
 const modeStandardBtn = document.getElementById("mode-standard");
@@ -36,6 +41,7 @@ const loopDistanceGroup = document.getElementById("loop-distance-group");
 const btnText = document.getElementById("btn-text");
 const errorMsg = document.getElementById("error-message");
 const routeForm = document.getElementById("route-form");
+const travelProfileSelect = document.getElementById("travel-profile-select");
 
 // Loop specific elements
 const loopDistanceSlider = document.getElementById("loop-distance-slider");
@@ -58,8 +64,22 @@ const groupNatureToggle = document.getElementById("group-nature-toggle");
 export function initRoutingUI() {
   initModeToggles();
   initLoopControls();
+  initTravelProfileControl();
   initLitToggles();
   initFormSubmit();
+}
+
+function initTravelProfileControl() {
+  if (!travelProfileSelect) return;
+
+  const selected = getSelectedTravelProfile();
+  if (selected) {
+    travelProfileSelect.value = selected;
+  }
+
+  travelProfileSelect.addEventListener("change", () => {
+    setSelectedTravelProfile(travelProfileSelect.value);
+  });
 }
 
 function initModeToggles() {
@@ -91,7 +111,9 @@ function switchRoutingMode(mode) {
   if (swapRow) swapRow.classList.toggle("hidden", !isStandard);
 
   // Notify other modules of mode change
-  document.dispatchEvent(new CustomEvent("routing-mode-changed", { detail: { mode } }));
+  document.dispatchEvent(
+    new CustomEvent("routing-mode-changed", { detail: { mode } }),
+  );
 
   console.log(`[App] Routing mode: ${mode}`);
 }
@@ -210,6 +232,9 @@ async function handleStandardSubmit() {
     start_lon: startState.lon,
     end_lat: endState.lat,
     end_lon: endState.lon,
+    ...buildMovementRequestPayload(
+      travelProfileSelect?.value || getSelectedTravelProfile(),
+    ),
   };
 
   const scenicWeights = getScenicWeights();
@@ -289,6 +314,9 @@ async function handleLoopSubmit() {
     start_lon: startState.lon,
     distance_km: distKm,
     directional_bias: appState.selectedDirection,
+    ...buildMovementRequestPayload(
+      travelProfileSelect?.value || getSelectedTravelProfile(),
+    ),
     variety_level: varietyLevelSlider ? parseInt(varietyLevelSlider.value) : 0,
     prefer_pedestrian: preferPedestrianToggle
       ? preferPedestrianToggle.checked

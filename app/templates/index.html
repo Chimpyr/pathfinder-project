@@ -467,6 +467,33 @@
                             </p>
                         </div>
 
+                        <!-- Travel Profile Selector -->
+                        <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <label for="travel-profile-select" class="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center">
+                                    <i class="fas fa-person-walking mr-2 text-primary-500"></i>
+                                    Travel Type
+                                </label>
+                                <button
+                                    type="button"
+                                    class="text-xs text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 hover:underline"
+                                    title="Configure travel speeds in Account > Movement Preferences"
+                                    onclick="document.querySelector('[data-view=\'account-view\']')?.click()"
+                                >
+                                    <i class="fas fa-circle-info mr-1"></i>Speed settings
+                                </button>
+                            </div>
+                            <select
+                                id="travel-profile-select"
+                                class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm"
+                            >
+                                <option value="walking">Walking</option>
+                                <option value="running_easy">Running (Easy)</option>
+                                <option value="running_race">Running (Race)</option>
+                            </select>
+                            <p class="text-xs text-gray-400">Your selected profile affects ETA and slope effort scoring during routing.</p>
+                        </div>
+
                         <!-- Action Buttons -->
                         <div class="flex gap-3 pt-2">
                             <button type="submit" id="find-route-btn"
@@ -544,14 +571,21 @@
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Distance</p>
-                                    <p class="text-xl font-bold text-primary-600 dark:text-primary-400"><span id="stat-distance"></span> km</p>
+                                    <p class="text-xl font-bold text-primary-600 dark:text-primary-400">
+                                        <span id="stat-distance"></span>
+                                        <span id="stat-distance-unit">km</span>
+                                    </p>
                                 </div>
                                 <div>
                                     <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Est. Time</p>
                                     <p class="text-xl font-bold text-primary-600 dark:text-primary-400"><span id="stat-time"></span> min</p>
                                 </div>
                             </div>
-                            <p class="text-xs text-gray-400 mt-2 italic">Assuming pace of <span id="stat-pace"></span> km/h</p>
+                            <p class="text-xs text-gray-400 mt-2 italic">
+                                <span id="stat-profile" class="capitalize">walking</span>
+                                at <span id="stat-speed"></span> <span id="stat-speed-unit">km/h</span>
+                                (<span id="stat-pace"></span>)
+                            </p>
                         </div>
 
                         <div id="debug-info" class="hidden p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
@@ -934,8 +968,8 @@
                     </div>
 
                     <!-- Logged-in Profile -->
-                    <div id="auth-profile" class="hidden">
-                        <div class="text-center mb-6">
+                    <div id="auth-profile" class="hidden space-y-7">
+                        <div class="text-center mb-2 pb-6 border-b border-gray-200 dark:border-gray-700">
                             <div class="w-20 h-20 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
                                 <i class="fas fa-user-check text-3xl text-primary-600 dark:text-primary-400"></i>
                             </div>
@@ -944,7 +978,12 @@
                         </div>
 
                         <div class="space-y-3">
-                            <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <div class="space-y-1">
+                                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Saved Snapshot</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Quick totals for your pins and stored routes.</p>
+                            </div>
+
+                            <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center">
                                         <i class="fas fa-map-pin text-red-500 mr-3"></i>
@@ -953,7 +992,8 @@
                                     <span id="profile-pin-count" class="text-sm font-bold text-primary-600 dark:text-primary-400">—</span>
                                 </div>
                             </div>
-                            <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+
+                            <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center">
                                         <i class="fas fa-route text-blue-500 mr-3"></i>
@@ -964,8 +1004,129 @@
                             </div>
                         </div>
 
+                        <div class="mt-8 p-7 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                            <div class="flex items-start gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-gray-700">
+                                <div class="w-10 h-10 shrink-0 rounded-full bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400 flex items-center justify-center pb-[2px] shadow-sm">
+                                    <i class="fas fa-gauge-high text-lg flex items-center justify-center"></i>
+                                </div>
+                                <div class="pt-0.5">
+                                    <h3 class="text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wide">Movement Preferences</h3>
+                                    <p class="text-[12px] text-gray-500 dark:text-gray-400 mt-1 leading-relaxed border-0 bg-transparent p-0 m-0">
+                                        Configure baseline travel modes for accurate ETAs and effort estimates across your routes.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div id="movement-prefs-message" class="hidden mb-4 p-3 rounded-lg text-xs font-medium"></div>
+
+                            <form id="movement-prefs-form" class="space-y-7">
+                                
+                                <!-- General Section -->
+                                <div class="space-y-3 pt-1">
+                                    <h4 class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest pl-1">General Routing</h4>
+                                    <div class="p-6 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700 space-y-5">
+                                        <!-- Distance Unit -->
+                                        <div class="space-y-2.5 focus-within:text-primary-600 transition-colors">
+                                            <label for="preferred-distance-unit" class="text-xs font-semibold text-gray-700 dark:text-gray-300 transition-colors pl-0.5">Distance Unit</label>
+                                            <select id="preferred-distance-unit" class="w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-sm shadow-sm cursor-pointer hover:border-gray-300">
+                                                <option value="km">Metric Profile (km, km/h)</option>
+                                                <option value="mi">Imperial Profile (mi, mph)</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- Walking Speed -->
+                                        <div class="space-y-2.5 focus-within:text-primary-600 transition-colors">
+                                            <label for="walking-speed-input" class="text-xs font-semibold text-gray-700 dark:text-gray-300 transition-colors pl-0.5">Walking Speed</label>
+                                            <div class="relative flex items-center group">
+                                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-primary-500 transition-colors">
+                                                    <i class="fas fa-person-walking w-4 text-center"></i>
+                                                </div>
+                                                <input id="walking-speed-input" type="number" min="2" max="9" step="0.1" class="w-full pl-11 pr-14 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-sm shadow-sm placeholder-gray-300 dark:placeholder-gray-500 hover:border-gray-300" placeholder="e.g. 5.0" />
+                                                <span class="absolute right-4 text-[11px] font-medium text-gray-400 pointer-events-none dyn-speed-suffix">km/h</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Running Details Section -->
+                                <div class="space-y-3 mt-8">
+                                    <h4 class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest pl-1">Running Profiles</h4>
+                                    <div class="p-6 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700 space-y-6">
+                                        
+                                        <!-- Running Easy -->
+                                        <div class="space-y-3 group/easy">
+                                            <div class="flex items-center justify-between pb-1">
+                                                <label class="text-[12px] font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2 group-focus-within/easy:text-primary-600 transition-colors">
+                                                    <i class="fas fa-person-running text-gray-400 group-focus-within/easy:text-primary-500 transition-colors w-4 text-center"></i> 
+                                                    Easy / Recovery
+                                                </label>
+                                                <select id="running-easy-input-mode" class="pl-3 pr-7 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-[11px] font-semibold text-gray-600 dark:text-gray-400 shadow-sm outline-none focus:ring-2 focus:ring-primary-500 hover:border-gray-300 transition-all cursor-pointer appearance-none bg-no-repeat w-auto" style="background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWNhM2FmIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBvbHlsaW5lIHBvaW50cz0iNiA5IDEyIDE1IDE4IDkiLz48L3N2Zz4='); background-position: right 0.35rem center; background-size: 1rem;">
+                                                    <option value="speed">Speed Mode</option>
+                                                    <option value="pace">Pace Mode</option>
+                                                </select>
+                                            </div>
+                                            <div id="running-easy-speed-row" class="transition-all duration-200">
+                                                <div class="relative flex items-center">
+                                                    <input id="running-easy-speed-input" type="number" min="4" max="20" step="0.1" placeholder="e.g. 9.5" class="w-full pl-4 pr-16 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-sm shadow-sm placeholder-gray-300 dark:placeholder-gray-500 hover:border-gray-300" />
+                                                    <span class="absolute right-4 text-[11px] font-medium text-gray-400 pointer-events-none dyn-speed-suffix">km/h</span>
+                                                </div>
+                                            </div>
+                                            <div id="running-easy-pace-row" class="hidden transition-all duration-200">
+                                                <div class="relative flex items-center">
+                                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                                                        <i class="far fa-clock w-4 text-center"></i>
+                                                    </div>
+                                                    <input id="running-easy-pace-input" type="text" placeholder="mm:ss" class="w-full pl-11 pr-16 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-sm font-mono tracking-wide shadow-sm placeholder-gray-300 dark:placeholder-gray-500 hover:border-gray-300" />
+                                                    <span id="running-easy-pace-suffix" class="absolute right-4 text-[11px] font-medium text-gray-400 pointer-events-none">/ km</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="border-t border-gray-200 dark:border-gray-700 w-full my-5"></div>
+
+                                        <!-- Running Race -->
+                                        <div class="space-y-3 group/race">
+                                            <div class="flex items-center justify-between pb-1">
+                                                <label class="text-[12px] font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2 group-focus-within/race:text-primary-600 transition-colors">
+                                                    <i class="fas fa-stopwatch text-gray-400 group-focus-within/race:text-primary-500 transition-colors w-4 text-center"></i> 
+                                                    Tempo / Race
+                                                </label>
+                                                <select id="running-race-input-mode" class="pl-3 pr-7 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-[11px] font-semibold text-gray-600 dark:text-gray-400 shadow-sm outline-none focus:ring-2 focus:ring-primary-500 hover:border-gray-300 transition-all cursor-pointer appearance-none bg-no-repeat w-auto" style="background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWNhM2FmIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBvbHlsaW5lIHBvaW50cz0iNiA5IDEyIDE1IDE4IDkiLz48L3N2Zz4='); background-position: right 0.35rem center; background-size: 1rem;">
+                                                    <option value="speed">Speed Mode</option>
+                                                    <option value="pace">Pace Mode</option>
+                                                </select>
+                                            </div>
+                                            <div id="running-race-speed-row" class="transition-all duration-200">
+                                                <div class="relative flex items-center">
+                                                    <input id="running-race-speed-input" type="number" min="6" max="30" step="0.1" placeholder="e.g. 12.5" class="w-full pl-4 pr-16 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-sm shadow-sm placeholder-gray-300 dark:placeholder-gray-500 hover:border-gray-300" />
+                                                    <span class="absolute right-4 text-[11px] font-medium text-gray-400 pointer-events-none dyn-speed-suffix">km/h</span>
+                                                </div>
+                                            </div>
+                                            <div id="running-race-pace-row" class="hidden transition-all duration-200">
+                                                <div class="relative flex items-center">
+                                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                                                        <i class="far fa-clock w-4 text-center"></i>
+                                                    </div>
+                                                    <input id="running-race-pace-input" type="text" placeholder="mm:ss" class="w-full pl-11 pr-16 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-sm font-mono tracking-wide shadow-sm placeholder-gray-300 dark:placeholder-gray-500 hover:border-gray-300" />
+                                                    <span id="running-race-pace-suffix" class="absolute right-4 text-[11px] font-medium text-gray-400 pointer-events-none">/ km</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="pt-2">
+                                    <button id="save-movement-prefs-btn" type="submit" class="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold rounded-xl transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 flex items-center justify-center gap-2 hover:shadow-lg active:scale-[0.98]">
+                                        <i class="fas fa-floppy-disk text-[#A3E635]"></i>
+                                        <span>Save Movement Preferences</span>
+                                        <i id="save-movement-prefs-spinner" class="fas fa-circle-notch fa-spin hidden ml-1"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
                         <button id="logout-btn"
-                            class="w-full mt-6 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors flex justify-center items-center">
+                            class="w-full mt-8 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors flex justify-center items-center">
                             <i class="fas fa-sign-out-alt mr-2"></i> Log Out
                         </button>
                     </div>

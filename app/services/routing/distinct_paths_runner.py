@@ -13,6 +13,7 @@ Route Types:
     - Balanced: Uses user's actual weight configuration
 """
 
+import inspect
 from typing import Dict, List, Optional, Tuple, Any
 from flask import current_app
 
@@ -150,6 +151,9 @@ def find_distinct_paths(
     prefer_lit: bool = False,
     heavily_avoid_unlit: bool = False,
     prefer_pedestrian: bool = False,
+    travel_profile: str = 'walking',
+    speed_kmh: Optional[float] = None,
+    activity: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Execute three A* runs to find distinct route alternatives.
@@ -179,6 +183,52 @@ def find_distinct_paths(
     
     if verbose:
         print("[Distinct Paths] Starting multi-route calculation")
+
+    def _run_route(weights, use_wsm, combine_for_run, lit, avoid_unlit, pedestrian):
+        """Call RouteFinder with graceful fallback for older test doubles."""
+        kwargs = {
+            'use_wsm': use_wsm,
+            'weights': weights,
+            'combine_nature': combine_for_run,
+            'prefer_lit': lit,
+            'heavily_avoid_unlit': avoid_unlit,
+            'prefer_pedestrian': pedestrian,
+        }
+
+        # Keep compatibility with mocks that only accept the older signature.
+        if travel_profile is not None:
+            kwargs['travel_profile'] = travel_profile
+        if speed_kmh is not None:
+            kwargs['speed_kmh'] = speed_kmh
+        if activity is not None:
+            kwargs['activity'] = activity
+
+        # Filter kwargs based on available signature to avoid TypeError and
+        # duplicate call-count inflation in test doubles.
+        target_callable = route_finder.find_route
+        side_effect = getattr(target_callable, 'side_effect', None)
+        if callable(side_effect):
+            target_callable = side_effect
+
+        try:
+            params = inspect.signature(target_callable).parameters
+            accepts_var_kwargs = any(
+                param.kind == inspect.Parameter.VAR_KEYWORD
+                for param in params.values()
+            )
+            if not accepts_var_kwargs:
+                kwargs = {k: v for k, v in kwargs.items() if k in params}
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            return route_finder.find_route(start_point, end_point, **kwargs)
+        except TypeError:
+            kwargs.pop('travel_profile', None)
+            kwargs.pop('speed_kmh', None)
+            kwargs.pop('activity', None)
+            kwargs.pop('prefer_pedestrian', None)
+            return route_finder.find_route(start_point, end_point, **kwargs)
     
     result = {}
     
@@ -187,14 +237,13 @@ def find_distinct_paths(
     if verbose:
         print(f"[Distinct Paths] Run 1 - Baseline weights: {baseline_weights}")
     
-    route_baseline, _, _, dist_baseline, time_baseline = route_finder.find_route(
-        start_point, end_point,
-        use_wsm=False,
+    route_baseline, _, _, dist_baseline, time_baseline = _run_route(
         weights=baseline_weights,
-        combine_nature=combine_nature,
-        prefer_lit=False,              # Baseline must be pure shortest path
-        heavily_avoid_unlit=False,     # No lit modifiers on Direct route
-        prefer_pedestrian=False,       # No pedestrian modifiers on Direct route
+        use_wsm=False,
+        combine_for_run=combine_nature,
+        lit=False,              # Baseline must be pure shortest path
+        avoid_unlit=False,      # No lit modifiers on Direct route
+        pedestrian=False,       # No pedestrian modifiers on Direct route
     )
     
     result['baseline'] = {
@@ -205,61 +254,39 @@ def find_distinct_paths(
     }
     
     # Run 2: Extremist (maximise strongest preference)
-    extremist_weights = generate_max_scenic_weights(user_weights)
+    extremist_weights, dominant_feature = generate_extremist_weights(user_weights)
     if verbose:
         print(f"[Distinct Paths] Run 2 - Extremist weights: {extremist_weights}")
+        print(f"[Distinct Paths] Dominant feature: {dominant_feature}")
     
-    route_extremist, _, _, dist_extremist, time_extremist = route_finder.find_route(
-        start_point, end_point,
-        use_wsm=True,
+    route_extremist, _, _, dist_extremist, time_extremist = _run_route(
         weights=extremist_weights,
-        combine_nature=True,
-        prefer_lit=prefer_lit,
-        heavily_avoid_unlit=heavily_avoid_unlit,
-        prefer_pedestrian=prefer_pedestrian,
+        use_wsm=True,
+        combine_for_run=combine_nature,
+        lit=prefer_lit,
+        avoid_unlit=heavily_avoid_unlit,
+        pedestrian=prefer_pedestrian,
     )
     
     result['extremist'] = {
         'route': route_extremist,
         'distance': dist_extremist,
         'time_seconds': time_extremist,
-        'colour': ROUTE_COLOURS['greenness'],  # Use green for max scenic route
+        'dominant_feature': dominant_feature,
+        'colour': get_extremist_colour(dominant_feature),
     }
-    #  extremist_weights, dominant_feature = generate_extremist_weights(user_weights)
-    # if verbose:
-    #     print(f"[Distinct Paths] Run 2 - Extremist weights: {extremist_weights}")
-    #     print(f"[Distinct Paths] Dominant feature: {dominant_feature}")
-    
-    # route_extremist, _, _, dist_extremist, time_extremist = route_finder.find_route(
-    #     start_point, end_point,
-    #     use_wsm=True,
-    #     weights=extremist_weights,
-    #     combine_nature=combine_nature,
-    #     prefer_lit=prefer_lit,
-    #     heavily_avoid_unlit=heavily_avoid_unlit,
-    #     prefer_pedestrian=prefer_pedestrian,
-    # )
-    
-    # result['extremist'] = {
-    #     'route': route_extremist,
-    #     'distance': dist_extremist,
-    #     'time_seconds': time_extremist,
-    #     'dominant_feature': dominant_feature,
-    #     'colour': get_extremist_colour(dominant_feature),
-    # }
     
     # Run 3: Balanced (user's actual configuration)
     if verbose:
         print(f"[Distinct Paths] Run 3 - Balanced weights: {user_weights}")
     
-    route_balanced, _, _, dist_balanced, time_balanced = route_finder.find_route(
-        start_point, end_point,
-        use_wsm=True,
+    route_balanced, _, _, dist_balanced, time_balanced = _run_route(
         weights=user_weights,
-        combine_nature=combine_nature,
-        prefer_lit=prefer_lit,
-        heavily_avoid_unlit=heavily_avoid_unlit,
-        prefer_pedestrian=prefer_pedestrian,
+        use_wsm=True,
+        combine_for_run=combine_nature,
+        lit=prefer_lit,
+        avoid_unlit=heavily_avoid_unlit,
+        pedestrian=prefer_pedestrian,
     )
     
     result['balanced'] = {

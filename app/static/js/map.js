@@ -224,14 +224,18 @@ class MapController {
     // Centre map on the new marker
     this.map.panTo([lat, lon]);
 
-    this.startMarker.bindPopup(this._buildPinPopup("Start Point", lat, lon)).openPopup();
+    this.startMarker
+      .bindPopup(this._buildPinPopup("Start Point", lat, lon))
+      .openPopup();
 
     // Handle drag end
     this.startMarker.on("dragend", (e) => {
       const pos = e.target.getLatLng();
       this.options.onStartSet(pos.lat, pos.lng);
       // Update popup content with new coords
-      this.startMarker.setPopupContent(this._buildPinPopup("Start Point", pos.lat, pos.lng));
+      this.startMarker.setPopupContent(
+        this._buildPinPopup("Start Point", pos.lat, pos.lng),
+      );
     });
 
     // Trigger callback
@@ -270,7 +274,9 @@ class MapController {
       const pos = e.target.getLatLng();
       this.options.onEndSet(pos.lat, pos.lng);
       // Update popup content with new coords
-      this.endMarker.setPopupContent(this._buildPinPopup("End Point", pos.lat, pos.lng));
+      this.endMarker.setPopupContent(
+        this._buildPinPopup("End Point", pos.lat, pos.lng),
+      );
     });
 
     // Trigger callback
@@ -312,7 +318,7 @@ class MapController {
     const btn = container.querySelector(".popup-save-pin-btn");
 
     // Reverse geocode to suggest a meaningful name
-    this._reverseGeocode(lat, lon).then(placeName => {
+    this._reverseGeocode(lat, lon).then((placeName) => {
       if (placeName) {
         input.value = placeName;
         hint.textContent = "Suggested name from location";
@@ -323,7 +329,7 @@ class MapController {
     });
 
     // Check if a pin is already saved at this location
-    this._isPinAlreadySaved(lat, lon).then(alreadySaved => {
+    this._isPinAlreadySaved(lat, lon).then((alreadySaved) => {
       if (alreadySaved) {
         input.style.display = "none";
         hint.style.display = "none";
@@ -349,8 +355,10 @@ class MapController {
       if (!res.ok) return false;
       const data = await res.json();
       const tolerance = 0.0001; // ~11 metres
-      return (data.pins || []).some(p =>
-        Math.abs(p.latitude - lat) < tolerance && Math.abs(p.longitude - lon) < tolerance
+      return (data.pins || []).some(
+        (p) =>
+          Math.abs(p.latitude - lat) < tolerance &&
+          Math.abs(p.longitude - lon) < tolerance,
       );
     } catch {
       return false;
@@ -368,7 +376,7 @@ class MapController {
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=18&addressdetails=1`,
-        { headers: { "Accept-Language": "en" } }
+        { headers: { "Accept-Language": "en" } },
       );
       if (!res.ok) return null;
       const data = await res.json();
@@ -376,9 +384,17 @@ class MapController {
       const addr = data.address || {};
       const parts = [
         addr.road || addr.pedestrian || addr.footway || addr.path || "",
-        addr.suburb || addr.neighbourhood || addr.hamlet || addr.village || addr.town || "",
+        addr.suburb ||
+          addr.neighbourhood ||
+          addr.hamlet ||
+          addr.village ||
+          addr.town ||
+          "",
       ].filter(Boolean);
-      return parts.length > 0 ? parts.join(", ") : (data.display_name || "").split(",").slice(0, 2).join(",").trim() || null;
+      return parts.length > 0
+        ? parts.join(", ")
+        : (data.display_name || "").split(",").slice(0, 2).join(",").trim() ||
+            null;
     } catch {
       return null;
     }
@@ -407,9 +423,10 @@ class MapController {
     const lat = parseFloat(btn.dataset.lat);
     const lon = parseFloat(btn.dataset.lon);
     // Prefer user-typed name, then fall back to data attribute
-    const label = (nameInput && nameInput.value.trim())
-      ? nameInput.value.trim()
-      : btn.dataset.label || `Pin at ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    const label =
+      nameInput && nameInput.value.trim()
+        ? nameInput.value.trim()
+        : btn.dataset.label || `Pin at ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 
     btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
     try {
@@ -459,7 +476,11 @@ class MapController {
       }),
     }).addTo(this.map);
 
-    const popup = this._buildPinPopup(`Pin at ${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng);
+    const popup = this._buildPinPopup(
+      `Pin at ${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      lat,
+      lng,
+    );
     this._contextMarker.bindPopup(popup).openPopup();
 
     // Remove context marker when popup is closed
@@ -486,7 +507,11 @@ class MapController {
       container.className = "toast-container";
       document.body.appendChild(container);
     }
-    const icons = { success: "fa-check-circle", error: "fa-exclamation-circle", info: "fa-info-circle" };
+    const icons = {
+      success: "fa-check-circle",
+      error: "fa-exclamation-circle",
+      info: "fa-info-circle",
+    };
     const toast = document.createElement("div");
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i><span>${message}</span>`;
@@ -700,8 +725,13 @@ class MapController {
       }).addTo(this.map);
 
       // Add hover tooltip with loop info
+      const loopDistance =
+        loop.distance !== undefined && loop.distance !== null
+          ? `${loop.distance} ${loop.distance_unit || "km"}`
+          : `${loop.distance_km || "?"} km`;
+
       layer.bindTooltip(
-        `<strong>${loop.label || loop.id}</strong><br>${loop.distance_km || "?"} km · ${loop.time_min || "?"} min`,
+        `<strong>${loop.label || loop.id}</strong><br>${loopDistance} · ${loop.time_min || "?"} min`,
         { sticky: true },
       );
 
@@ -1144,7 +1174,11 @@ class MapController {
     }).addTo(this.map);
 
     if (label) {
-      this._tempPinMarker.bindTooltip(label, { permanent: true, direction: "top", offset: [0, -8] });
+      this._tempPinMarker.bindTooltip(label, {
+        permanent: true,
+        direction: "top",
+        offset: [0, -8],
+      });
     }
 
     this.map.panTo([lat, lon], { animate: true, duration: 0.4 });
