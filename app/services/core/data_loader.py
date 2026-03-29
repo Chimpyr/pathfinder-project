@@ -226,7 +226,7 @@ class OSMDataLoader:
             # (e.g. 'designation') that pyrosm would not include by default.
             extra_attributes = list(dict.fromkeys(
                 ['surface', 'lit', 'incline', 'smoothness', 'footway',
-                 'sac_scale', 'amenity', 'shop']
+                 'foot', 'sidewalk', 'sac_scale', 'amenity', 'shop']
                 + EXTRA_WALKING_ATTRIBUTES
             ))
             

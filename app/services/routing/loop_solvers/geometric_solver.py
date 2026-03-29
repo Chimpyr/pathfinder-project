@@ -607,7 +607,9 @@ def _route_leg(graph, source: int, target: int,
                weights: Dict[str, float],
                combine_nature: bool = False,
                length_range: Optional[Tuple[float, float]] = None,
+               prefer_paved: bool = False,
                prefer_lit: bool = False,
+               avoid_unsafe_roads: bool = False,
                heavily_avoid_unlit: bool = False,
                activity: str = 'walking',
                ) -> Optional[Tuple[List[int], float, float]]:
@@ -625,7 +627,9 @@ def _route_leg(graph, source: int, target: int,
         solver = WSMNetworkXAStar(
             graph, weights, length_range=length_range,
             combine_nature=combine_nature,
+            prefer_paved=prefer_paved,
             prefer_lit=prefer_lit,
+            avoid_unsafe_roads=avoid_unsafe_roads,
             heavily_avoid_unlit=heavily_avoid_unlit,
             activity=activity,
         )
@@ -696,7 +700,9 @@ def _try_polygon(
     num_vertices: int = 3,  # Total vertices including Start (3=Triangle, 4=Quad)
     arc_angle: float = 90.0,  # Total spread of the shape
     irregularity: float = 0.0,  # 0.0 = perfect symmetry, 1.0 = high jitter
+    prefer_paved: bool = False,
     prefer_lit: bool = False,
+    avoid_unsafe_roads: bool = False,
     heavily_avoid_unlit: bool = False,
     activity: str = 'walking',
 ) -> Optional[Tuple[List[int], float, float, float]]:
@@ -845,7 +851,9 @@ def _try_polygon(
         v = sequence[i+1]
         
         leg_res = _route_leg(graph, u, v, weights, combine_nature, length_range,
+                             prefer_paved=prefer_paved,
                              prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
+                             avoid_unsafe_roads=avoid_unsafe_roads,
                              activity=activity)
         if leg_res is None:
             print(f"[GeometricSolver]   [FAILED] Leg {i+1} ({u}->{v}) failed")
@@ -883,7 +891,9 @@ def _try_out_and_back(
     bearing: float,
     tau: float,
     length_range: Tuple[float, float],
+    prefer_paved: bool = False,
     prefer_lit: bool = False,
+    avoid_unsafe_roads: bool = False,
     heavily_avoid_unlit: bool = False,
     activity: str = 'walking',
 ) -> Optional[Tuple[List[int], float, float]]:
@@ -918,7 +928,9 @@ def _try_out_and_back(
     print(f"[GeometricSolver]   -> Routing outbound leg: S->W")
     leg_out = _route_leg(graph, start_node, w_node, weights,
                          combine_nature, length_range,
+                         prefer_paved=prefer_paved,
                          prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
+                         avoid_unsafe_roads=avoid_unsafe_roads,
                          activity=activity)
     if leg_out is None:
         print(f"[GeometricSolver]   [FAILED] Outbound leg failed")
@@ -927,7 +939,9 @@ def _try_out_and_back(
     print(f"[GeometricSolver]   -> Routing return leg: W->S")
     leg_back = _route_leg(graph, w_node, start_node, weights,
                           combine_nature, length_range,
+                          prefer_paved=prefer_paved,
                           prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
+                          avoid_unsafe_roads=avoid_unsafe_roads,
                           activity=activity)
     if leg_back is None:
         print(f"[GeometricSolver]   [FAILED] Return leg failed")
@@ -1201,7 +1215,9 @@ class GeometricLoopSolver(LoopSolverBase):
                         num_vertices=n_verts,
                         arc_angle=cfg['arc'],
                         irregularity=cfg['irr'],
+                        prefer_paved=prefer_paved,
                         prefer_lit=prefer_lit,
+                        avoid_unsafe_roads=avoid_unsafe_roads,
                         heavily_avoid_unlit=heavily_avoid_unlit,
                         activity=activity,
                     )
@@ -1272,7 +1288,9 @@ class GeometricLoopSolver(LoopSolverBase):
                 oab = _try_out_and_back(
                     graph, start_node, target_distance, weights,
                     combine_nature, bearing, DEFAULT_TAU, length_range,
+                    prefer_paved=prefer_paved,
                     prefer_lit=prefer_lit,
+                    avoid_unsafe_roads=avoid_unsafe_roads,
                     heavily_avoid_unlit=heavily_avoid_unlit,
                     activity=activity,
                 )

@@ -890,12 +890,35 @@ def calculate_route():
         tile_size_km = current_app.config.get('TILE_SIZE_KM', DEFAULT_TILE_SIZE_KM)
         tile_ids = get_tiles_for_route(start_point, end_point, tile_size_km)
         
-        # Parse WSM settings from request
-        use_wsm = data.get('use_wsm', False)
-        combine_nature = data.get('combine_nature', False)
+        # Parse routing settings from request
+        use_wsm = bool(data.get('use_wsm', False))
+        combine_nature = bool(data.get('combine_nature', False))
+        scenic_preferences_enabled = bool(data.get('scenic_preferences_enabled', False))
+
         prefer_lit = bool(data.get('prefer_lit', False))
         heavily_avoid_unlit = bool(data.get('heavily_avoid_unlit', False))
         prefer_pedestrian = bool(data.get('prefer_pedestrian', False))
+        prefer_paved = bool(data.get('prefer_paved', False))
+        avoid_unsafe_roads = bool(data.get('avoid_unsafe_roads', False))
+        advanced_compare_mode = bool(data.get('advanced_compare_mode', False))
+
+        enabled_advanced_modifiers = []
+        if prefer_pedestrian:
+            enabled_advanced_modifiers.append('Prefer paths and trails')
+        if prefer_paved:
+            enabled_advanced_modifiers.append('Prefer paved surfaces')
+        if prefer_lit:
+            enabled_advanced_modifiers.append('Prefer lit streets')
+        if heavily_avoid_unlit:
+            enabled_advanced_modifiers.append('Heavily avoid unlit streets')
+        if avoid_unsafe_roads:
+            enabled_advanced_modifiers.append('Avoid unsafe roads')
+
+        # Advanced compare mode is only meaningful when scenic sliders are off
+        # and at least one advanced option is enabled.
+        if scenic_preferences_enabled or not enabled_advanced_modifiers:
+            advanced_compare_mode = False
+
         weights = None
         
         if use_wsm:
@@ -913,10 +936,130 @@ def calculate_route():
         
         # Initialise route finder
         finder = RouteFinder(graph)
+
+        def _route_context(subtitle, modifiers):
+            return {
+                'subtitle': subtitle,
+                'modifiers': modifiers or [],
+            }
+
+        def build_route_entry(route_data, graph, context=None):
+            """Build JSON entry for a single route."""
+            route = route_data.get('route')
+            if not route:
+                return None
+
+            distance_m = route_data.get('distance', 0)
+            time_seconds = route_data.get('time_seconds', 0)
+
+            entry = {
+                'route_coords': MapRenderer.route_to_coords(graph, route),
+                'stats': _build_stats_payload(
+                    distance_m=distance_m,
+                    time_seconds=time_seconds,
+                    movement_ctx=movement_ctx,
+                    routing_mode='standard',
+                ),
+                'colour': route_data.get('colour', '#808080'),
+            }
+
+            if context is not None:
+                entry['route_context'] = context
+
+            return entry
         
         # Check for multi-route mode
         multi_route_mode = current_app.config.get('MULTI_ROUTE_MODE', False)
         
+        if multi_route_mode and use_wsm and advanced_compare_mode:
+            # Compare mode for advanced toggles with scenic sliders OFF:
+            # always return an explicit baseline route without modifiers plus
+            # the advanced route with modifiers applied.
+            baseline_route, _, _, baseline_dist, baseline_time = finder.find_route(
+                start_point, end_point,
+                use_wsm=False,
+                prefer_lit=False,
+                heavily_avoid_unlit=False,
+                prefer_pedestrian=False,
+                prefer_paved=False,
+                avoid_unsafe_roads=False,
+                travel_profile=movement_ctx['travel_profile'],
+                speed_kmh=movement_ctx['effective_speed_kmh'],
+                activity=movement_ctx['activity'],
+            )
+
+            balanced_route, _, _, balanced_dist, balanced_time = finder.find_route(
+                start_point, end_point,
+                use_wsm=True,
+                weights=weights,
+                combine_nature=combine_nature,
+                prefer_lit=prefer_lit,
+                heavily_avoid_unlit=heavily_avoid_unlit,
+                prefer_pedestrian=prefer_pedestrian,
+                prefer_paved=prefer_paved,
+                avoid_unsafe_roads=avoid_unsafe_roads,
+                travel_profile=movement_ctx['travel_profile'],
+                speed_kmh=movement_ctx['effective_speed_kmh'],
+                activity=movement_ctx['activity'],
+            )
+
+            if not balanced_route:
+                return jsonify({
+                    'error': 'Could not find a route between these locations.'
+                }), 404
+
+            response_data = {
+                'success': True,
+                'multi_route': True,
+                'routes': {
+                    'baseline': build_route_entry(
+                        {
+                            'route': baseline_route,
+                            'distance': baseline_dist,
+                            'time_seconds': baseline_time,
+                            'colour': '#808080',
+                        },
+                        graph,
+                        context=_route_context('Shortest route', []),
+                    ) if baseline_route else None,
+                    'extremist': None,
+                    'balanced': build_route_entry(
+                        {
+                            'route': balanced_route,
+                            'distance': balanced_dist,
+                            'time_seconds': balanced_time,
+                            'colour': '#3B82F6',
+                        },
+                        graph,
+                        context=_route_context('Advanced options', enabled_advanced_modifiers),
+                    ),
+                },
+                'start_point': list(start_point),
+                'end_point': list(end_point),
+                'tiles_required': tile_ids if 'tile_ids' in locals() else [],
+                'movement': _build_movement_payload(movement_ctx),
+            }
+
+            if current_app.config.get('VERBOSE_LOGGING') or current_app.config.get('DEBUG'):
+                response_data['debug_info'] = {
+                    'start_coord': start_point,
+                    'end_coord': end_point,
+                    'node_count_balanced': len(balanced_route) if balanced_route else 0,
+                    'graph_nodes': len(graph.nodes),
+                    'bbox': bbox,
+                    'loaded_pbf': GraphManager.get_loaded_file_path(),
+                    'multi_route_mode': True,
+                    'advanced_compare_mode': True,
+                    'advanced_modifiers': enabled_advanced_modifiers,
+                }
+
+                if balanced_dist < VISUAL_DEBUG_THRESHOLD_M:
+                    all_edges = _extract_edge_features(graph, balanced_route)
+                    response_data['edge_features'] = all_edges
+                    response_data['debug_info']['visual_debug_enabled'] = True
+
+            return jsonify(response_data)
+
         if multi_route_mode and use_wsm:
             # Multi-route mode: run three A* passes
             from app.services.routing.distinct_paths_runner import find_distinct_paths
@@ -927,6 +1070,8 @@ def calculate_route():
                 prefer_lit=prefer_lit,
                 heavily_avoid_unlit=heavily_avoid_unlit,
                 prefer_pedestrian=prefer_pedestrian,
+                prefer_paved=prefer_paved,
+                avoid_unsafe_roads=avoid_unsafe_roads,
                 travel_profile=movement_ctx['travel_profile'],
                 speed_kmh=movement_ctx['effective_speed_kmh'],
                 activity=movement_ctx['activity'],
@@ -938,37 +1083,34 @@ def calculate_route():
                     'error': 'Could not find a route between these locations.'
                 }), 404
             
-            # Build multi-route response
-            def build_route_entry(route_data, graph):
-                """Build JSON entry for a single route."""
-                route = route_data.get('route')
-                if not route:
-                    return None
-
-                distance_m = route_data.get('distance', 0)
-                time_seconds = route_data.get('time_seconds', 0)
-                
-                return {
-                    'route_coords': MapRenderer.route_to_coords(graph, route),
-                    'stats': _build_stats_payload(
-                        distance_m=distance_m,
-                        time_seconds=time_seconds,
-                        movement_ctx=movement_ctx,
-                        routing_mode='standard',
-                    ),
-                    'colour': route_data.get('colour', '#808080'),
-                }
-            
             response_data = {
                 'success': True,
                 'multi_route': True,
                 'routes': {
-                    'baseline': build_route_entry(distinct_result['baseline'], graph),
+                    'baseline': build_route_entry(
+                        distinct_result['baseline'],
+                        graph,
+                        context=_route_context('Shortest route', []),
+                    ),
                     'extremist': {
-                        **build_route_entry(distinct_result['extremist'], graph),
+                        **build_route_entry(
+                            distinct_result['extremist'],
+                            graph,
+                            context=_route_context(
+                                'Scenic emphasis',
+                                enabled_advanced_modifiers,
+                            ),
+                        ),
                         'dominant_feature': distinct_result['extremist'].get('dominant_feature'),
                     } if distinct_result.get('extremist', {}).get('route') else None,
-                    'balanced': build_route_entry(distinct_result['balanced'], graph),
+                    'balanced': build_route_entry(
+                        distinct_result['balanced'],
+                        graph,
+                        context=_route_context(
+                            'Custom mix',
+                            enabled_advanced_modifiers,
+                        ),
+                    ),
                 },
                 'start_point': list(start_point),
                 'end_point': list(end_point),
@@ -1008,6 +1150,8 @@ def calculate_route():
             prefer_lit=prefer_lit,
             heavily_avoid_unlit=heavily_avoid_unlit,
             prefer_pedestrian=prefer_pedestrian,
+            prefer_paved=prefer_paved,
+            avoid_unsafe_roads=avoid_unsafe_roads,
             travel_profile=movement_ctx['travel_profile'],
             speed_kmh=movement_ctx['effective_speed_kmh'],
             activity=movement_ctx['activity'],
@@ -1034,6 +1178,10 @@ def calculate_route():
                         routing_mode='standard',
                     ),
                     'colour': '#3B82F6', # Default blue
+                    'route_context': _route_context(
+                        'Advanced options' if enabled_advanced_modifiers else 'Single route',
+                        enabled_advanced_modifiers,
+                    ),
                 }
             },
             'start_point': list(start_point),

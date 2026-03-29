@@ -36,6 +36,36 @@ _LIT_HEAVY_PENALTY: Dict[str, float] = {
 }
 _LIT_HEAVY_DEFAULT: float = 3.0  # Unknown/missing → assume unlit
 
+# Surface-type multipliers for "prefer paved surfaces"
+_SURFACE_PENALTY: Dict[str, float] = {
+    'paved': 1.0, 'asphalt': 1.0, 'concrete': 1.0,
+    'concrete:plates': 1.0, 'concrete:lanes': 1.0, 'paving_stones': 1.0,
+    'sett': 1.1, 'cobblestone': 1.1, 'cobblestone:flattened': 1.1,
+    'metal': 1.1, 'wood': 1.1,
+    'compacted': 1.3, 'fine_gravel': 1.3, 'gravel': 1.3,
+    'dirt': 2.0, 'earth': 2.0, 'ground': 2.0, 'mud': 2.0,
+    'sand': 2.0, 'grass': 2.0, 'grass_paver': 2.0, 'woodchips': 2.0,
+}
+_SURFACE_DEFAULT: float = 1.2
+
+# Unsafe-road multiplier for "avoid unsafe roads"
+_UNSAFE_HIGHWAY_TAGS = frozenset({
+    'primary', 'primary_link', 'secondary', 'secondary_link',
+    'tertiary', 'tertiary_link',
+})
+_SAFE_SIDEWALK_VALUES = frozenset({'both', 'left', 'right', 'yes', 'separate'})
+_SAFE_FOOT_VALUES = frozenset({'yes', 'designated'})
+_UNSAFE_ROAD_PENALTY: float = 3.5
+
+
+def _primary_tag_value(value):
+    """Normalise scalar/list edge tags to a lowercased comparable string."""
+    if isinstance(value, list):
+        value = value[0] if value else None
+    if value is None:
+        return None
+    return str(value).strip().lower()
+
 
 def _compute_lit_multiplier(edge_data: dict, heavily_avoid: bool = False) -> float:
     """
@@ -62,6 +92,31 @@ def _compute_lit_multiplier(edge_data: dict, heavily_avoid: bool = False) -> flo
     return table.get(tag_lower, default)
 
 
+def _compute_surface_multiplier(edge_data: dict) -> float:
+    """Multiplier for surface preference. Lower is better for paved surfaces."""
+    surface = _primary_tag_value(edge_data.get('surface'))
+    if surface is None:
+        return _SURFACE_DEFAULT
+    return _SURFACE_PENALTY.get(surface, _SURFACE_DEFAULT)
+
+
+def _compute_unsafe_road_multiplier(edge_data: dict) -> float:
+    """Heavy multiplier for major roads without pedestrian safety indicators."""
+    highway = _primary_tag_value(edge_data.get('highway'))
+    if highway not in _UNSAFE_HIGHWAY_TAGS:
+        return 1.0
+
+    sidewalk = _primary_tag_value(edge_data.get('sidewalk'))
+    if sidewalk in _SAFE_SIDEWALK_VALUES:
+        return 1.0
+
+    foot = _primary_tag_value(edge_data.get('foot'))
+    if foot in _SAFE_FOOT_VALUES:
+        return 1.0
+
+    return _UNSAFE_ROAD_PENALTY
+
+
 class WSMNetworkXAStar(AStar):
     """
     A* implementation using Weighted Sum Model cost function.
@@ -76,6 +131,8 @@ class WSMNetworkXAStar(AStar):
         max_length: Maximum edge length in graph (for normalisation).
         prefer_lit: Apply mild lit-preference penalties.
         heavily_avoid_unlit: Apply strong unlit-avoidance penalties.
+        prefer_paved: Prefer paved surfaces by penalising soft/unpaved tags.
+        avoid_unsafe_roads: Penalise major roads lacking foot safety indicators.
     """
 
     def __init__(
@@ -87,6 +144,8 @@ class WSMNetworkXAStar(AStar):
         prefer_lit: bool = False,
         heavily_avoid_unlit: bool = False,
         prefer_pedestrian: bool = False,
+        prefer_paved: bool = False,
+        avoid_unsafe_roads: bool = False,
         activity: str = 'walking',
     ):
         """
@@ -105,6 +164,8 @@ class WSMNetworkXAStar(AStar):
         self.prefer_lit = prefer_lit
         self.heavily_avoid_unlit = heavily_avoid_unlit
         self.prefer_pedestrian = prefer_pedestrian
+        self.prefer_paved = prefer_paved
+        self.avoid_unsafe_roads = avoid_unsafe_roads
         activity_norm = str(activity or 'walking').strip().lower()
         self.activity = 'running' if activity_norm.startswith('running') else 'walking'
         
@@ -123,7 +184,14 @@ class WSMNetworkXAStar(AStar):
         # Log which cost function algorithm is being used (once per route)
         cost_func = get_active_cost_function()
         lit_mode = 'heavily_avoid_unlit' if heavily_avoid_unlit else ('prefer_lit' if prefer_lit else 'off')
-        print(f"[WSM A*] Using cost function: {cost_func.value}, lit_mode: {lit_mode}, activity: {self.activity}")
+        print(
+            f"[WSM A*] Using cost function: {cost_func.value}, "
+            f"lit_mode: {lit_mode}, "
+            f"pedestrian_mode: {'on' if self.prefer_pedestrian else 'off'}, "
+            f"paved_mode: {'on' if self.prefer_paved else 'off'}, "
+            f"unsafe_mode: {'on' if self.avoid_unsafe_roads else 'off'}, "
+            f"activity: {self.activity}"
+        )
         
         # Get or compute length range for normalisation
         if length_range is not None:
@@ -259,6 +327,14 @@ class WSMNetworkXAStar(AStar):
                     cost *= 5.0
                 elif highway in ['pedestrian', 'path', 'footway', 'cycleway', 'track', 'living_street']:
                     cost *= 0.2
+
+            # Apply paved-surface preference multiplier (if enabled)
+            if self.prefer_paved:
+                cost *= _compute_surface_multiplier(data)
+
+            # Apply unsafe-road avoidance multiplier (if enabled)
+            if self.avoid_unsafe_roads:
+                cost *= _compute_unsafe_road_multiplier(data)
             
             # Debug logging for first few edges (to see greenness variance)
             if not hasattr(self, '_debug_count'):

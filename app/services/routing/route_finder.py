@@ -187,6 +187,8 @@ class RouteFinder:
         prefer_lit=False,
         heavily_avoid_unlit=False,
         prefer_pedestrian=False,
+        prefer_paved=False,
+        avoid_unsafe_roads=False,
         travel_profile='walking',
         speed_kmh=None,
         activity=None,
@@ -207,6 +209,8 @@ class RouteFinder:
             prefer_lit (bool): If True, apply mild multiplicative lit-preference penalty.
             heavily_avoid_unlit (bool): If True, apply strong multiplicative unlit-avoidance penalty.
             prefer_pedestrian (bool): If True, apply penalty to primary/secondary roads and bonus to paths.
+            prefer_paved (bool): If True, penalise unpaved/soft surfaces.
+            avoid_unsafe_roads (bool): If True, heavily penalise unsafe major roads.
 
         Returns:
             tuple: (route, start_point, end_point, distance, time_seconds)
@@ -245,6 +249,8 @@ class RouteFinder:
                     self.graph, weights, combine_nature=combine_nature,
                     prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
                     prefer_pedestrian=prefer_pedestrian,
+                    prefer_paved=prefer_paved,
+                    avoid_unsafe_roads=avoid_unsafe_roads,
                     activity=resolved_activity,
                 )
                 

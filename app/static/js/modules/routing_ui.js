@@ -336,24 +336,50 @@ async function handleStandardSubmit() {
   };
 
   const scenicWeights = getScenicWeights();
-  if (scenicWeights) {
+  const scenicPreferencesEnabled = Boolean(scenicWeights);
+  payload.scenic_preferences_enabled = scenicPreferencesEnabled;
+
+  const advancedOptions = {
+    prefer_pedestrian: Boolean(
+      preferPedestrianToggle && preferPedestrianToggle.checked,
+    ),
+    prefer_paved: Boolean(preferPavedToggle && preferPavedToggle.checked),
+    prefer_lit: Boolean(preferLitToggle && preferLitToggle.checked),
+    heavily_avoid_unlit: Boolean(
+      heavilyAvoidUnlitToggle && heavilyAvoidUnlitToggle.checked,
+    ),
+    avoid_unsafe_roads: Boolean(avoidUnsafeToggle && avoidUnsafeToggle.checked),
+  };
+
+  Object.entries(advancedOptions).forEach(([key, enabled]) => {
+    if (enabled) {
+      payload[key] = true;
+    }
+  });
+
+  const advancedOptionsEnabled = Object.values(advancedOptions).some(Boolean);
+
+  if (scenicPreferencesEnabled) {
     payload.use_wsm = true;
     payload.weights = scenicWeights;
+    payload.advanced_compare_mode = false;
     if (groupNatureToggle && groupNatureToggle.checked) {
       payload.combine_nature = true;
     }
+  } else if (advancedOptionsEnabled) {
+    // Advanced options also run on WSM cost path. With scenic sliders OFF,
+    // keep weights distance-dominant and ask backend to return baseline+advanced.
+    payload.use_wsm = true;
+    payload.advanced_compare_mode = true;
+    payload.weights = {
+      distance: 100,
+      greenness: 0,
+      water: 0,
+      quietness: 0,
+      social: 0,
+      slope: 0,
+    };
   }
-
-  // Add Advanced Toggles
-  if (preferPedestrianToggle && preferPedestrianToggle.checked)
-    payload.prefer_pedestrian = true;
-  if (preferPavedToggle && preferPavedToggle.checked)
-    payload.prefer_paved = true;
-  if (preferLitToggle && preferLitToggle.checked) payload.prefer_lit = true;
-  if (heavilyAvoidUnlitToggle && heavilyAvoidUnlitToggle.checked)
-    payload.heavily_avoid_unlit = true;
-  if (avoidUnsafeToggle && avoidUnsafeToggle.checked)
-    payload.avoid_unsafe_roads = true;
 
   setLoadingState("Calculating route...");
   hideResults();

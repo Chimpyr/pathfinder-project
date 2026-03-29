@@ -293,18 +293,27 @@ class TestBaselinePurity:
         find_distinct_paths(
             finder, (51.45, -2.58), (51.46, -2.57),
             user_weights, verbose=False,
-            prefer_lit=True, heavily_avoid_unlit=True,
+            prefer_lit=True,
+            heavily_avoid_unlit=True,
+            prefer_paved=True,
+            avoid_unsafe_roads=True,
         )
 
-        # First call is baseline — must have prefer_lit=False, heavily_avoid_unlit=False
+        # First call is baseline — must have all advanced modifiers disabled.
         baseline_call = finder.find_route.call_args_list[0]
         assert baseline_call.kwargs.get('prefer_lit') is False, \
             "Baseline (Direct) route must not use prefer_lit"
         assert baseline_call.kwargs.get('heavily_avoid_unlit') is False, \
             "Baseline (Direct) route must not use heavily_avoid_unlit"
+        assert baseline_call.kwargs.get('prefer_paved') is False, \
+            "Baseline (Direct) route must not use prefer_paved"
+        assert baseline_call.kwargs.get('avoid_unsafe_roads') is False, \
+            "Baseline (Direct) route must not use avoid_unsafe_roads"
 
         # Balanced (3rd call) should still use user's lit preferences
         balanced_call = finder.find_route.call_args_list[2]
         assert balanced_call.kwargs.get('prefer_lit') is True
         assert balanced_call.kwargs.get('heavily_avoid_unlit') is True
+        assert balanced_call.kwargs.get('prefer_paved') is True
+        assert balanced_call.kwargs.get('avoid_unsafe_roads') is True
 

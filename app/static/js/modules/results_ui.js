@@ -256,6 +256,13 @@ export function renderRouteOptions(routes) {
 
     const distanceParts = resolveDistanceParts(routeData.stats);
     const timeMin = routeData.stats?.time_min || "?";
+    const routeSubtitle = routeData.route_context?.subtitle || config.subtitle;
+    const routeModifiers = Array.isArray(routeData.route_context?.modifiers)
+      ? routeData.route_context.modifiers
+      : [];
+    const modifiersLine = routeModifiers.length
+      ? `<div class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-8">${routeModifiers.join(" • ")}</div>`
+      : "";
 
     const duplicateBadge = isDuplicate
       ? `<span class="route-duplicate-badge">Same as ${ROUTE_CONFIG[isDuplicate]?.name || isDuplicate}</span>`
@@ -274,7 +281,7 @@ export function renderRouteOptions(routes) {
                         <span class="route-colour-dot" style="background-color: ${config.colour}"></span>
                         <div>
                             <span class="font-medium text-gray-700 dark:text-gray-200">${config.name}</span>
-                            <span class="text-xs text-gray-400 ml-1">(${config.subtitle})</span>
+                          <span class="text-xs text-gray-400 ml-1">(${routeSubtitle})</span>
                             ${duplicateBadge}
                         </div>
                     </div>
@@ -288,6 +295,7 @@ export function renderRouteOptions(routes) {
                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-8">
                     ${distanceParts.value} ${distanceParts.unit} • ${timeMin} min
                 </div>
+                ${modifiersLine}
             </div>
         `;
   }
