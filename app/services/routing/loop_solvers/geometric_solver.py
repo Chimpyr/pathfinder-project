@@ -612,6 +612,7 @@ def _route_leg(graph, source: int, target: int,
                avoid_unsafe_roads: bool = False,
                heavily_avoid_unlit: bool = False,
                activity: str = 'walking',
+               lighting_context: str = 'night',
                ) -> Optional[Tuple[List[int], float, float]]:
     """
     Route one leg (source -> target) using the WSM A* solver.
@@ -632,6 +633,7 @@ def _route_leg(graph, source: int, target: int,
             avoid_unsafe_roads=avoid_unsafe_roads,
             heavily_avoid_unlit=heavily_avoid_unlit,
             activity=activity,
+            lighting_context=lighting_context,
         )
         result = solver.astar(source, target)
         if result is None:
@@ -705,6 +707,7 @@ def _try_polygon(
     avoid_unsafe_roads: bool = False,
     heavily_avoid_unlit: bool = False,
     activity: str = 'walking',
+    lighting_context: str = 'night',
 ) -> Optional[Tuple[List[int], float, float, float]]:
     """
     Attempt to build and route a 'Natural Shape' polygon loop.
@@ -854,7 +857,8 @@ def _try_polygon(
                              prefer_paved=prefer_paved,
                              prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
                              avoid_unsafe_roads=avoid_unsafe_roads,
-                             activity=activity)
+                             activity=activity,
+                             lighting_context=lighting_context)
         if leg_res is None:
             print(f"[GeometricSolver]   [FAILED] Leg {i+1} ({u}->{v}) failed")
             return None
@@ -896,6 +900,7 @@ def _try_out_and_back(
     avoid_unsafe_roads: bool = False,
     heavily_avoid_unlit: bool = False,
     activity: str = 'walking',
+    lighting_context: str = 'night',
 ) -> Optional[Tuple[List[int], float, float]]:
     """
     Fallback: out-and-back route when all triangle attempts fail.
@@ -931,7 +936,8 @@ def _try_out_and_back(
                          prefer_paved=prefer_paved,
                          prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
                          avoid_unsafe_roads=avoid_unsafe_roads,
-                         activity=activity)
+                         activity=activity,
+                         lighting_context=lighting_context)
     if leg_out is None:
         print(f"[GeometricSolver]   [FAILED] Outbound leg failed")
         return None
@@ -942,7 +948,8 @@ def _try_out_and_back(
                           prefer_paved=prefer_paved,
                           prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
                           avoid_unsafe_roads=avoid_unsafe_roads,
-                          activity=activity)
+                          activity=activity,
+                          lighting_context=lighting_context)
     if leg_back is None:
         print(f"[GeometricSolver]   [FAILED] Return leg failed")
         return None
@@ -1040,6 +1047,7 @@ class GeometricLoopSolver(LoopSolverBase):
         use_smart_bearing: bool = False,
         heavily_avoid_unlit: bool = False,
         activity: str = 'walking',
+        lighting_context: str = 'night',
     ) -> List[LoopCandidate]:
         """
         Find multiple loop route candidates using the geometric skeleton
@@ -1220,6 +1228,7 @@ class GeometricLoopSolver(LoopSolverBase):
                         avoid_unsafe_roads=avoid_unsafe_roads,
                         heavily_avoid_unlit=heavily_avoid_unlit,
                         activity=activity,
+                        lighting_context=lighting_context,
                     )
 
                     if result is None:
@@ -1293,6 +1302,7 @@ class GeometricLoopSolver(LoopSolverBase):
                     avoid_unsafe_roads=avoid_unsafe_roads,
                     heavily_avoid_unlit=heavily_avoid_unlit,
                     activity=activity,
+                    lighting_context=lighting_context,
                 )
                 if oab is not None:
                     route_oab, dist_oab, cost_oab = oab

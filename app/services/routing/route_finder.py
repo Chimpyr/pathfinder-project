@@ -42,6 +42,7 @@ class RouteFinder:
         travel_profile='walking',
         speed_kmh=None,
         activity=None,
+        lighting_context='night',
     ):
         """
         Finds multiple circular (loop) route candidates.
@@ -65,6 +66,7 @@ class RouteFinder:
             prefer_paved (bool): If True, penalise unpaved/soft surfaces.
             prefer_lit (bool): If True, penalise unlit streets, bonus lit ones.
             avoid_unsafe_roads (bool): If True, heavily penalise main roads without sidewalks.
+            lighting_context (str): Request lighting relevance (`daylight|twilight|night`).
 
         Returns:
             list: List of LoopCandidate objects (may be empty if no loops found).
@@ -142,6 +144,7 @@ class RouteFinder:
                 'use_smart_bearing': use_smart_bearing,
                 'heavily_avoid_unlit': heavily_avoid_unlit,
                 'activity': resolved_activity,
+                'lighting_context': lighting_context,
             }
 
             try:
@@ -192,6 +195,7 @@ class RouteFinder:
         travel_profile='walking',
         speed_kmh=None,
         activity=None,
+        lighting_context='night',
     ):
         """
         Finds a path between two locations (coordinates).
@@ -211,6 +215,7 @@ class RouteFinder:
             prefer_pedestrian (bool): If True, apply penalty to primary/secondary roads and bonus to paths.
             prefer_paved (bool): If True, penalise unpaved/soft surfaces.
             avoid_unsafe_roads (bool): If True, heavily penalise unsafe major roads.
+            lighting_context (str): Request lighting relevance (`daylight|twilight|night`).
 
         Returns:
             tuple: (route, start_point, end_point, distance, time_seconds)
@@ -252,6 +257,7 @@ class RouteFinder:
                     prefer_paved=prefer_paved,
                     avoid_unsafe_roads=avoid_unsafe_roads,
                     activity=resolved_activity,
+                    lighting_context=lighting_context,
                 )
                 
                 if current_app.config.get('VERBOSE_LOGGING'):

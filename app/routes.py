@@ -16,6 +16,7 @@ from app.services.movement_preferences import (
     speed_kmh_to_display,
     speed_unit_label,
 )
+from app.services.routing.lighting_context import resolve_request_lighting_context
 from app.services.routing.route_finder import RouteFinder
 from app.services.rendering.map_renderer import MapRenderer
 
@@ -41,6 +42,15 @@ def _resolve_movement_context(request_data):
         request_data=request_data or {},
         user=_current_authenticated_user(),
         config_obj=current_app.config,
+    )
+
+
+def _resolve_lighting_context(request_data, start_point, end_point=None):
+    """Resolve request-time lighting relevance context for routing modifiers."""
+    return resolve_request_lighting_context(
+        request_data=request_data or {},
+        start_point=start_point,
+        end_point=end_point,
     )
 
 
@@ -83,7 +93,15 @@ def _build_movement_payload(movement_ctx):
     }
 
 
-def _extract_edge_features(graph, route, max_edges=None):
+def _extract_edge_features(
+    graph,
+    route,
+    max_edges=None,
+    lighting_context='night',
+    prefer_pedestrian=False,
+    prefer_paved=False,
+    avoid_unsafe_roads=False,
+):
     """
     Extract feature data for edges in a route.
     
@@ -121,6 +139,12 @@ def _extract_edge_features(graph, route, max_edges=None):
                 # Helper to round if value exists (including 0.0)
                 def safe_round(val, decimals=3):
                     return round(val, decimals) if val is not None else None
+
+                # Helper to normalise scalar/list OSM tag fields
+                def scalar_tag(val):
+                    if isinstance(val, list):
+                        return val[0] if val else None
+                    return val
                 
                 # Build feature dict with all available attributes
                 edge_info = {
@@ -128,6 +152,17 @@ def _extract_edge_features(graph, route, max_edges=None):
                     'to_coord': [v_data['y'], v_data['x']],
                     'highway': data.get('highway', 'unknown'),
                     'length_m': round(data.get('length', 0), 1),
+
+                    # Lighting and access attributes used by advanced modifiers
+                    'lit': scalar_tag(data.get('lit')),
+                    'lit_source': scalar_tag(data.get('lit_source')),
+                    'lit_source_detail': scalar_tag(data.get('lit_source_detail')),
+                    'lighting_regime': scalar_tag(data.get('lighting_regime')),
+                    'surface': scalar_tag(data.get('surface')),
+                    'sidewalk': scalar_tag(data.get('sidewalk')),
+                    'foot': scalar_tag(data.get('foot')),
+                    'bicycle': scalar_tag(data.get('bicycle')),
+                    'segregated': scalar_tag(data.get('segregated')),
                     
                     # Raw attributes
                     'noise_factor': data.get('noise_factor'),
@@ -152,6 +187,17 @@ def _extract_edge_features(graph, route, max_edges=None):
                 # Add node elevations if available
                 edge_info['from_elevation'] = safe_round(u_data.get('elevation'), 1)
                 edge_info['to_elevation'] = safe_round(v_data.get('elevation'), 1)
+
+                from app.services.routing.astar.wsm_astar import describe_edge_modifier_context
+                edge_info.update(
+                    describe_edge_modifier_context(
+                        data,
+                        lighting_context=lighting_context,
+                        prefer_pedestrian=prefer_pedestrian,
+                        prefer_paved=prefer_paved,
+                        avoid_unsafe_roads=avoid_unsafe_roads,
+                    )
+                )
                 
                 edges.append(edge_info)
         except KeyError:
@@ -316,6 +362,8 @@ def calculate_loop_route():
         if current_app.config.get('VERBOSE_LOGGING'):
             print(f"[API] Loop route request: start={start_point}, "
                   f"target={target_distance_km}km, bias={directional_bias}")
+
+        lighting_ctx = _resolve_lighting_context(data, start_point, start_point)
         
         # =====================================================================
         # Calculate tiles needed for loop (radius-based)
@@ -477,6 +525,7 @@ def calculate_loop_route():
             travel_profile=movement_ctx['travel_profile'],
             speed_kmh=movement_ctx['effective_speed_kmh'],
             activity=movement_ctx['activity'],
+            lighting_context=lighting_ctx['lighting_context'],
         )
         
         if not candidates:
@@ -592,11 +641,21 @@ def calculate_loop_route():
                 'directional_bias': directional_bias,
                 'algorithm': algorithm,
                 'num_candidates_returned': len(candidates),
+                'lighting_context': lighting_ctx['lighting_context'],
+                'lighting_context_source': lighting_ctx['source'],
+                'routing_datetime_utc': lighting_ctx['routing_datetime_utc'],
             }
             
             # Edge features for short routes
             if best_distance < VISUAL_DEBUG_THRESHOLD_M:
-                all_edges = _extract_edge_features(graph, best.route)
+                all_edges = _extract_edge_features(
+                    graph,
+                    best.route,
+                    lighting_context=lighting_ctx['lighting_context'],
+                    prefer_pedestrian=prefer_pedestrian,
+                    prefer_paved=prefer_paved,
+                    avoid_unsafe_roads=avoid_unsafe_roads,
+                )
                 response_data['edge_features'] = all_edges
                 response_data['debug_info']['visual_debug_enabled'] = True
         
@@ -786,6 +845,8 @@ def calculate_route():
         
         if current_app.config.get('VERBOSE_LOGGING'):
             print(f"[API] Route request: {start_point} -> {end_point}")
+
+        lighting_ctx = _resolve_lighting_context(data, start_point, end_point)
         
         # Calculate bounding box for region detection (still needed for PBF lookup)
         buffer_deg = 0.02  # ~2.2km buffer for basic bbox
@@ -986,6 +1047,7 @@ def calculate_route():
                 travel_profile=movement_ctx['travel_profile'],
                 speed_kmh=movement_ctx['effective_speed_kmh'],
                 activity=movement_ctx['activity'],
+                lighting_context=lighting_ctx['lighting_context'],
             )
 
             balanced_route, _, _, balanced_dist, balanced_time = finder.find_route(
@@ -1001,6 +1063,7 @@ def calculate_route():
                 travel_profile=movement_ctx['travel_profile'],
                 speed_kmh=movement_ctx['effective_speed_kmh'],
                 activity=movement_ctx['activity'],
+                lighting_context=lighting_ctx['lighting_context'],
             )
 
             if not balanced_route:
@@ -1051,10 +1114,20 @@ def calculate_route():
                     'multi_route_mode': True,
                     'advanced_compare_mode': True,
                     'advanced_modifiers': enabled_advanced_modifiers,
+                    'lighting_context': lighting_ctx['lighting_context'],
+                    'lighting_context_source': lighting_ctx['source'],
+                    'routing_datetime_utc': lighting_ctx['routing_datetime_utc'],
                 }
 
                 if balanced_dist < VISUAL_DEBUG_THRESHOLD_M:
-                    all_edges = _extract_edge_features(graph, balanced_route)
+                    all_edges = _extract_edge_features(
+                        graph,
+                        balanced_route,
+                        lighting_context=lighting_ctx['lighting_context'],
+                        prefer_pedestrian=prefer_pedestrian,
+                        prefer_paved=prefer_paved,
+                        avoid_unsafe_roads=avoid_unsafe_roads,
+                    )
                     response_data['edge_features'] = all_edges
                     response_data['debug_info']['visual_debug_enabled'] = True
 
@@ -1075,6 +1148,7 @@ def calculate_route():
                 travel_profile=movement_ctx['travel_profile'],
                 speed_kmh=movement_ctx['effective_speed_kmh'],
                 activity=movement_ctx['activity'],
+                lighting_context=lighting_ctx['lighting_context'],
             )
             
             # Validate that at least one route was found
@@ -1131,11 +1205,21 @@ def calculate_route():
                     'bbox': bbox,
                     'loaded_pbf': GraphManager.get_loaded_file_path(),
                     'multi_route_mode': True,
+                    'lighting_context': lighting_ctx['lighting_context'],
+                    'lighting_context_source': lighting_ctx['source'],
+                    'routing_datetime_utc': lighting_ctx['routing_datetime_utc'],
                 }
                 
                 # Visual debug uses balanced route
                 if balanced_distance < VISUAL_DEBUG_THRESHOLD_M:
-                    all_edges = _extract_edge_features(graph, balanced_route)
+                    all_edges = _extract_edge_features(
+                        graph,
+                        balanced_route,
+                        lighting_context=lighting_ctx['lighting_context'],
+                        prefer_pedestrian=prefer_pedestrian,
+                        prefer_paved=prefer_paved,
+                        avoid_unsafe_roads=avoid_unsafe_roads,
+                    )
                     response_data['edge_features'] = all_edges
                     response_data['debug_info']['visual_debug_enabled'] = True
             
@@ -1155,6 +1239,7 @@ def calculate_route():
             travel_profile=movement_ctx['travel_profile'],
             speed_kmh=movement_ctx['effective_speed_kmh'],
             activity=movement_ctx['activity'],
+            lighting_context=lighting_ctx['lighting_context'],
         )
         
         if not route:
@@ -1199,16 +1284,34 @@ def calculate_route():
                 'node_count': len(route),
                 'graph_nodes': len(graph.nodes),
                 'bbox': bbox,
-                'loaded_pbf': GraphManager.get_loaded_file_path()
+                'loaded_pbf': GraphManager.get_loaded_file_path(),
+                'lighting_context': lighting_ctx['lighting_context'],
+                'lighting_context_source': lighting_ctx['source'],
+                'routing_datetime_utc': lighting_ctx['routing_datetime_utc'],
             }
             
             # Always include first 5 edges with feature data for debug panel
-            first_5_edges = _extract_edge_features(graph, route, max_edges=5)
+            first_5_edges = _extract_edge_features(
+                graph,
+                route,
+                max_edges=5,
+                lighting_context=lighting_ctx['lighting_context'],
+                prefer_pedestrian=prefer_pedestrian,
+                prefer_paved=prefer_paved,
+                avoid_unsafe_roads=avoid_unsafe_roads,
+            )
             response_data['debug_info']['edge_preview'] = first_5_edges
             
             # For short routes, include ALL edge features for visual map overlay
             if distance < VISUAL_DEBUG_THRESHOLD_M:
-                all_edges = _extract_edge_features(graph, route)
+                all_edges = _extract_edge_features(
+                    graph,
+                    route,
+                    lighting_context=lighting_ctx['lighting_context'],
+                    prefer_pedestrian=prefer_pedestrian,
+                    prefer_paved=prefer_paved,
+                    avoid_unsafe_roads=avoid_unsafe_roads,
+                )
                 response_data['edge_features'] = all_edges
                 response_data['debug_info']['visual_debug_enabled'] = True
             else:

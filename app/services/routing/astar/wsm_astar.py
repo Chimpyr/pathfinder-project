@@ -16,25 +16,54 @@ from app.services.routing.cost_calculator import (
 )
 from app.services.processors.elevation import calculate_tobler_cost
 from math import radians, cos, sin, asin, sqrt
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 
 
 # ── Lit-tag penalty multipliers ──────────────────────────────────────────────
-# Ported from deprecated budget_astar_solver.py (ADR-010 §4)
-_LIT_PENALTY: Dict[str, float] = {
-    'yes': 0.85, 'automatic': 0.85, '24/7': 0.85,   # Bonus for lit
-    'limited': 1.3, 'disused': 1.3,
-    'no': 1.8,
+_LIT_PENALTY_BY_CLASS: Dict[str, float] = {
+    'lit': 0.85,
+    'limited': 1.3,
+    'unlit': 1.8,
 }
 _LIT_DEFAULT: float = 1.2  # Unknown/missing lit tag
 
 # "Heavily avoid unlit" uses much stronger penalties
-_LIT_HEAVY_PENALTY: Dict[str, float] = {
-    'yes': 0.70, 'automatic': 0.70, '24/7': 0.70,   # Bigger bonus for lit
-    'limited': 2.5, 'disused': 2.5,
-    'no': 5.0,                                        # 5× cost for unlit
+_LIT_HEAVY_PENALTY_BY_CLASS: Dict[str, float] = {
+    'lit': 0.70,
+    'limited': 2.5,
+    'unlit': 5.0,
 }
 _LIT_HEAVY_DEFAULT: float = 3.0  # Unknown/missing → assume unlit
+
+_VALID_LIGHTING_CONTEXTS = frozenset({'daylight', 'twilight', 'night'})
+
+_ALL_NIGHT_REGIME_HINTS = (
+    'all night', 'all_night', 'allnight', '24/7', '24h', '24 hour',
+    'dusk to dawn', 'dusk-dawn', 'sunset to sunrise',
+)
+_PART_NIGHT_REGIME_HINTS = (
+    'part night', 'part_night', 'partnight',
+    'switch off', 'switch_off', 'switchoff',
+    'midnight', 'curfew',
+)
+
+# Dedicated active-travel corridors often omit ``lit`` tagging.
+# Treat unknown lighting on these as neutral rather than street-like risk.
+_DEDICATED_PATH_HIGHWAY_TAGS = frozenset({
+    'cycleway', 'path', 'footway', 'pedestrian', 'track', 'bridleway', 'steps'
+})
+
+# Stronger positive bias for designated paved active-travel corridors.
+_ACTIVE_TRAVEL_HARD_SURFACE_TAGS = frozenset({
+    'paved', 'asphalt', 'concrete', 'concrete:plates',
+    'concrete:lanes', 'paving_stones',
+})
+_ACTIVE_TRAVEL_QUALITY_MULTIPLIER: Dict[str, float] = {
+    'tier_a': 0.82,  # Both foot+bicycle designated
+    'tier_b': 0.90,  # One designated marker
+    'tier_c': 0.96,  # Generic yes marker
+    'none': 1.0,
+}
 
 # Surface-type multipliers for "prefer paved surfaces"
 _SURFACE_PENALTY: Dict[str, float] = {
@@ -67,7 +96,86 @@ def _primary_tag_value(value):
     return str(value).strip().lower()
 
 
-def _compute_lit_multiplier(edge_data: dict, heavily_avoid: bool = False) -> float:
+def _is_dedicated_path(edge_data: dict) -> bool:
+    """True when edge is a non-motor active-travel corridor."""
+    highway = _primary_tag_value(edge_data.get('highway'))
+    return highway in _DEDICATED_PATH_HIGHWAY_TAGS
+
+
+def _normalise_lighting_context(value: Optional[str]) -> str:
+    """Return a supported lighting context value."""
+    context = str(value or 'night').strip().lower()
+    if context in _VALID_LIGHTING_CONTEXTS:
+        return context
+    return 'night'
+
+
+def _normalise_lighting_regime(value) -> str:
+    """Map raw regime tags to coarse classes used for routing decisions."""
+    regime_raw = _primary_tag_value(value)
+    if not regime_raw:
+        return 'unknown'
+
+    for hint in _ALL_NIGHT_REGIME_HINTS:
+        if hint in regime_raw:
+            return 'all_night'
+
+    for hint in _PART_NIGHT_REGIME_HINTS:
+        if hint in regime_raw:
+            return 'part_night'
+
+    return 'unknown'
+
+
+def _base_lit_class(edge_data: dict) -> str:
+    """Map raw ``lit`` tags into lit/limited/unlit/unknown classes."""
+    lit_value = _primary_tag_value(edge_data.get('lit'))
+    if lit_value in {'yes', 'automatic', '24/7'}:
+        return 'lit'
+    if lit_value in {'limited', 'disused'}:
+        return 'limited'
+    if lit_value == 'no':
+        return 'unlit'
+    return 'unknown'
+
+
+def resolve_effective_lit_class(edge_data: dict, lighting_context: str = 'night') -> str:
+    """Resolve the effective lighting class for current context and regime."""
+    context = _normalise_lighting_context(lighting_context)
+    if context == 'daylight':
+        return 'not_relevant'
+
+    base_class = _base_lit_class(edge_data)
+    regime_class = _normalise_lighting_regime(edge_data.get('lighting_regime'))
+
+    if regime_class == 'unknown':
+        return base_class
+
+    if regime_class == 'all_night':
+        inferred = 'lit'
+    else:
+        inferred = 'limited' if context == 'twilight' else 'unlit'
+
+    if base_class == 'unknown':
+        return inferred
+    if base_class == inferred:
+        return base_class
+
+    # Merge conservatively by choosing the riskier class.
+    risk_order = {
+        'lit': 0,
+        'limited': 1,
+        'unknown': 2,
+        'unlit': 3,
+    }
+    return base_class if risk_order[base_class] >= risk_order[inferred] else inferred
+
+
+def _compute_lit_multiplier(
+    edge_data: dict,
+    heavily_avoid: bool = False,
+    lighting_context: str = 'night',
+) -> float:
     """
     Multiplicative penalty (or bonus) based on the ``lit`` OSM tag.
 
@@ -80,16 +188,21 @@ def _compute_lit_multiplier(edge_data: dict, heavily_avoid: bool = False) -> flo
     Returns:
         Multiplier to apply to edge cost.
     """
-    table = _LIT_HEAVY_PENALTY if heavily_avoid else _LIT_PENALTY
+    context = _normalise_lighting_context(lighting_context)
+    if context == 'daylight':
+        return 1.0
+
+    table = _LIT_HEAVY_PENALTY_BY_CLASS if heavily_avoid else _LIT_PENALTY_BY_CLASS
     default = _LIT_HEAVY_DEFAULT if heavily_avoid else _LIT_DEFAULT
 
-    tag = edge_data.get('lit')
-    if isinstance(tag, list):
-        tag = tag[0] if tag else None
-    if tag is None:
-        return default
-    tag_lower = tag.lower() if isinstance(tag, str) else str(tag).lower()
-    return table.get(tag_lower, default)
+    # Unknown lit status on dedicated paths is common and should not be
+    # interpreted as "unsafe street lighting".
+    dedicated_path_default = 1.0 if _is_dedicated_path(edge_data) else default
+
+    effective_lit_class = resolve_effective_lit_class(edge_data, lighting_context=context)
+    if effective_lit_class in {'not_relevant', 'unknown'}:
+        return dedicated_path_default
+    return table.get(effective_lit_class, dedicated_path_default)
 
 
 def _compute_surface_multiplier(edge_data: dict) -> float:
@@ -117,6 +230,73 @@ def _compute_unsafe_road_multiplier(edge_data: dict) -> float:
     return _UNSAFE_ROAD_PENALTY
 
 
+def classify_active_travel_quality_tier(edge_data: dict) -> str:
+    """Classify quality tier for dedicated paved active-travel corridors."""
+    if not _is_dedicated_path(edge_data):
+        return 'none'
+
+    surface = _primary_tag_value(edge_data.get('surface'))
+    if surface not in _ACTIVE_TRAVEL_HARD_SURFACE_TAGS:
+        return 'none'
+
+    foot = _primary_tag_value(edge_data.get('foot'))
+    bicycle = _primary_tag_value(edge_data.get('bicycle'))
+
+    foot_designated = foot == 'designated'
+    bicycle_designated = bicycle == 'designated'
+
+    if foot_designated and bicycle_designated:
+        return 'tier_a'
+    if foot_designated or bicycle_designated:
+        return 'tier_b'
+
+    if foot in {'yes'} or bicycle in {'yes'}:
+        return 'tier_c'
+
+    return 'none'
+
+
+def _compute_active_travel_quality_multiplier(
+    edge_data: dict,
+    prefer_pedestrian: bool,
+    prefer_paved: bool,
+    avoid_unsafe_roads: bool,
+) -> float:
+    """Bonus multiplier for high-quality designated active-travel corridors."""
+    if not (prefer_pedestrian or prefer_paved or avoid_unsafe_roads):
+        return 1.0
+
+    tier = classify_active_travel_quality_tier(edge_data)
+    return _ACTIVE_TRAVEL_QUALITY_MULTIPLIER.get(tier, 1.0)
+
+
+def describe_edge_modifier_context(
+    edge_data: dict,
+    lighting_context: str = 'night',
+    prefer_pedestrian: bool = False,
+    prefer_paved: bool = False,
+    avoid_unsafe_roads: bool = False,
+) -> Dict[str, object]:
+    """Return derived modifier metadata for debugging/explainability."""
+    resolved_context = _normalise_lighting_context(lighting_context)
+    tier = classify_active_travel_quality_tier(edge_data)
+
+    return {
+        'lighting_context': resolved_context,
+        'effective_lit_class': resolve_effective_lit_class(
+            edge_data,
+            lighting_context=resolved_context,
+        ),
+        'active_travel_quality_tier': tier,
+        'active_travel_quality_multiplier': _compute_active_travel_quality_multiplier(
+            edge_data,
+            prefer_pedestrian=prefer_pedestrian,
+            prefer_paved=prefer_paved,
+            avoid_unsafe_roads=avoid_unsafe_roads,
+        ),
+    }
+
+
 class WSMNetworkXAStar(AStar):
     """
     A* implementation using Weighted Sum Model cost function.
@@ -133,6 +313,7 @@ class WSMNetworkXAStar(AStar):
         heavily_avoid_unlit: Apply strong unlit-avoidance penalties.
         prefer_paved: Prefer paved surfaces by penalising soft/unpaved tags.
         avoid_unsafe_roads: Penalise major roads lacking foot safety indicators.
+        lighting_context: Request-scoped context (`daylight|twilight|night`).
     """
 
     def __init__(
@@ -147,6 +328,7 @@ class WSMNetworkXAStar(AStar):
         prefer_paved: bool = False,
         avoid_unsafe_roads: bool = False,
         activity: str = 'walking',
+        lighting_context: str = 'night',
     ):
         """
         Initialise WSM A* solver.
@@ -158,6 +340,7 @@ class WSMNetworkXAStar(AStar):
             combine_nature: If True, combine greenness and water into a single "nature" score.
             prefer_lit: If True, apply mild multiplicative lit-preference penalty.
             heavily_avoid_unlit: If True, apply strong multiplicative unlit-avoidance penalty (overrides prefer_lit).
+            lighting_context: Lighting relevance context (`daylight`, `twilight`, `night`).
         """
         self.graph = graph
         self.combine_nature = combine_nature
@@ -166,6 +349,7 @@ class WSMNetworkXAStar(AStar):
         self.prefer_pedestrian = prefer_pedestrian
         self.prefer_paved = prefer_paved
         self.avoid_unsafe_roads = avoid_unsafe_roads
+        self.lighting_context = _normalise_lighting_context(lighting_context)
         activity_norm = str(activity or 'walking').strip().lower()
         self.activity = 'running' if activity_norm.startswith('running') else 'walking'
         
@@ -190,7 +374,8 @@ class WSMNetworkXAStar(AStar):
             f"pedestrian_mode: {'on' if self.prefer_pedestrian else 'off'}, "
             f"paved_mode: {'on' if self.prefer_paved else 'off'}, "
             f"unsafe_mode: {'on' if self.avoid_unsafe_roads else 'off'}, "
-            f"activity: {self.activity}"
+            f"activity: {self.activity}, "
+            f"lighting_context: {self.lighting_context}"
         )
         
         # Get or compute length range for normalisation
@@ -314,7 +499,9 @@ class WSMNetworkXAStar(AStar):
             # Apply lit-preference multiplier (if enabled)
             if self.heavily_avoid_unlit or self.prefer_lit:
                 cost *= _compute_lit_multiplier(
-                    data, heavily_avoid=self.heavily_avoid_unlit
+                    data,
+                    heavily_avoid=self.heavily_avoid_unlit,
+                    lighting_context=self.lighting_context,
                 )
             
             # Apply pedestrian-preference multiplier (if enabled)
@@ -335,6 +522,15 @@ class WSMNetworkXAStar(AStar):
             # Apply unsafe-road avoidance multiplier (if enabled)
             if self.avoid_unsafe_roads:
                 cost *= _compute_unsafe_road_multiplier(data)
+
+            # Apply designated active-travel quality bonus when safety/accessibility
+            # toggles are active.
+            cost *= _compute_active_travel_quality_multiplier(
+                data,
+                prefer_pedestrian=self.prefer_pedestrian,
+                prefer_paved=self.prefer_paved,
+                avoid_unsafe_roads=self.avoid_unsafe_roads,
+            )
             
             # Debug logging for first few edges (to see greenness variance)
             if not hasattr(self, '_debug_count'):

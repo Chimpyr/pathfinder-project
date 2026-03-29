@@ -156,6 +156,7 @@ def find_distinct_paths(
     travel_profile: str = 'walking',
     speed_kmh: Optional[float] = None,
     activity: Optional[str] = None,
+    lighting_context: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Execute three A* runs to find distinct route alternatives.
@@ -215,6 +216,8 @@ def find_distinct_paths(
             kwargs['speed_kmh'] = speed_kmh
         if activity is not None:
             kwargs['activity'] = activity
+        if lighting_context is not None:
+            kwargs['lighting_context'] = lighting_context
 
         # Filter kwargs based on available signature to avoid TypeError and
         # duplicate call-count inflation in test doubles.
