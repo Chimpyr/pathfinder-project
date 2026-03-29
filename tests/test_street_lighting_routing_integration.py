@@ -94,6 +94,36 @@ def test_lit_multiplier_accepts_council_promoted_edges() -> None:
     assert _compute_lit_multiplier(council_edge, heavily_avoid=True) == pytest.approx(0.70)
 
 
+def test_lighting_penalties_are_neutral_in_daylight() -> None:
+    """Daylight context should neutralise both lit preference modes."""
+    dark_edge = {'lit': 'no'}
+
+    assert _compute_lit_multiplier(
+        dark_edge,
+        heavily_avoid=False,
+        lighting_context='daylight',
+    ) == pytest.approx(1.0)
+    assert _compute_lit_multiplier(
+        dark_edge,
+        heavily_avoid=True,
+        lighting_context='daylight',
+    ) == pytest.approx(1.0)
+
+
+def test_all_night_regime_promotes_unknown_lighting_at_night() -> None:
+    """Regime metadata should upgrade unknown-lit edges when policy implies all-night lighting."""
+    regime_edge = {
+        'lit': None,
+        'lighting_regime': 'All night',
+    }
+
+    assert _compute_lit_multiplier(
+        regime_edge,
+        heavily_avoid=True,
+        lighting_context='night',
+    ) == pytest.approx(0.70)
+
+
 def test_prefer_lit_routes_through_council_promoted_edges(routing_graph: nx.MultiDiGraph) -> None:
     """Prefer-lit mode should favour edges promoted to lit=yes by council data."""
     points = gpd.GeoDataFrame(
