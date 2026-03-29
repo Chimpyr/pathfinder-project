@@ -233,7 +233,7 @@ def test_way147_all_night_avoids_brief_way135_detour() -> None:
         4,
         0,
         length=60.0,
-        osmid=1472097444,
+        osmid=1472097444.0,
         highway='cycleway',
         surface='asphalt',
         foot='designated',

@@ -105,7 +105,7 @@ def test_way_id_propagates_lighting_and_regime_to_all_edges() -> None:
         2,
         3,
         0,
-        osmid=1472097444,
+        osmid=1472097444.0,
         highway='cycleway',
         surface='asphalt',
         lit=None,

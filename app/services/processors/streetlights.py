@@ -81,16 +81,41 @@ def _normalise_text_value(value) -> Optional[str]:
     return text
 
 
+def _canonical_way_id(value) -> Optional[str]:
+    """Convert way ids to a stable canonical string for propagation lookups."""
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    # Treat integer-like numeric variants (e.g., 123 and 123.0) as identical ids.
+    try:
+        numeric = float(text)
+        if numeric.is_integer():
+            return str(int(numeric))
+    except (TypeError, ValueError):
+        pass
+
+    return text
+
+
 def _extract_way_ids(edge_data: dict) -> Set[str]:
     """Extract all OSM way IDs associated with an edge."""
     osmid = edge_data.get("osmid")
     if osmid is None:
         return set()
 
-    if isinstance(osmid, list):
-        return {str(v) for v in osmid if v is not None}
+    values = osmid if isinstance(osmid, (list, tuple, set)) else [osmid]
+    way_ids = set()
 
-    return {str(osmid)}
+    for value in values:
+        way_id = _canonical_way_id(value)
+        if way_id:
+            way_ids.add(way_id)
+
+    return way_ids
 
 
 def _build_way_to_edge_refs(graph: nx.MultiDiGraph) -> Dict[str, Set[Tuple[int, int, int]]]:
