@@ -11,6 +11,10 @@ The app can draw a street-lighting overlay on top of the map:
 - Unknown streets are shown in grey.
 - You can filter by data source (OSM or council) and by lighting regime.
 
+Routing note:
+
+- The Advanced Options routing toggles (`Prefer lit streets`, `Heavily avoid unlit streets`) use in-memory graph edge `lit` values, including council-promoted edges produced during graph processing.
+
 ## What Is Used
 
 The feature uses these parts end-to-end:
@@ -80,6 +84,10 @@ Once Street Lighting is enabled in Settings:
 
 - Full technical feature reference:
   `docs/features/street_lighting.md`
+- Routing integration details:
+  `docs/features/street_lighting_routing_bias.md`
+- Test plan and validation suite:
+  `docs/testing/street_lighting_test_suite.md`
 - Decision record (council-first merge):
   `docs/decisions/ADR-019-council-streetlight-data.md`
 - System-wide architecture:

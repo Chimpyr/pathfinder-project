@@ -155,7 +155,7 @@ have no lighting data but are genuinely unlit at night.
 > strong penalties can cause routed legs to be significantly longer than
 > their air-line distance as the solver detours to stay on lit streets.
 > This triggers the tortuosity (τ) feedback loop to shrink the geometric
-> skeleton — see the [Street Lighting routing docs](street_lighting.md#loop-mode)
+> skeleton — see the [Street Lighting routing docs](street_lighting_routing_bias.md#loop-flow)
 > for a full explanation.
 
 ---

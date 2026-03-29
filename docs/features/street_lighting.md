@@ -2,11 +2,15 @@
 
 Adds a live vector tile overlay to the map visualising street lighting provenance and regimes, powered by PostGIS and Martin. OSM remains the base network and council evidence is merged with council-first precedence where available.
 
+This document is overlay-first. Routing toggle behaviour (`prefer_lit`, `heavily_avoid_unlit`) is covered in detail in `docs/features/street_lighting_routing_bias.md`.
+
 ---
 
 ## Overview
 
 Streets are rendered by `lit_status` with configurable colours, while metadata columns (`lit_source_primary`, `lit_source_detail`, `lighting_regime`) support source/regime splitting in settings. The overlay is served as Mapbox Vector Tiles (MVT / `.pbf`) from Martin and rendered via `Leaflet.VectorGrid`.
+
+Routing does not read these tiles directly. Routing uses the in-memory graph, where council streetlights can promote edge `lit` values before A\* runs.
 
 ---
 
@@ -16,6 +20,8 @@ Use this section to choose the right document for your task.
 
 - Quick setup and day-to-day usage: `docs/guides/street_lighting_quickstart.md`
 - This full feature reference (pipeline, schema, troubleshooting): `docs/features/street_lighting.md`
+- Routing penalty behaviour and call chains: `docs/features/street_lighting_routing_bias.md`
+- Test strategy and expected outcomes: `docs/testing/street_lighting_test_suite.md`
 - Architecture context for the whole system: `docs/architecture.md`
 - Technical architecture deep dive: `docs/technical_architecture.md`
 - Decision record for council-first merge behaviour: `docs/decisions/ADR-019-council-streetlight-data.md`
@@ -56,6 +62,28 @@ Leaflet.VectorGrid  →  rendered on map
 | Ingestion tool | osm2pgsql 1.9 (via debian:bookworm-slim apt) | —    |
 | Frontend       | Leaflet.VectorGrid (bundled CDN)             | —    |
 
+## Overlay Versus Routing Pipeline
+
+Street lighting currently has two separate runtime paths.
+
+### Overlay path (PostGIS + Martin)
+
+```
+OSM/council import -> PostGIS street_lighting table -> Martin vector tiles -> Leaflet overlay
+```
+
+### Routing path (in-memory graph)
+
+```
+OSMDataLoader (pyrosm with lit tag)
+  -> process_scenic_attributes(...)
+  -> process_graph_streetlights(...) council snapping
+  -> edge.lit updated to 'yes' for matched edges
+  -> WSM A* applies prefer_lit / heavily_avoid_unlit multipliers
+```
+
+See `docs/features/street_lighting_routing_bias.md` for multiplier tables and call chains.
+
 ## Implementation File Map
 
 This table shows where each part of the street-lighting stack lives.
@@ -69,6 +97,12 @@ This table shows where each part of the street-lighting stack lives.
 | `app/static/js/map.js`                         | Leaflet rendering, style/filter logic, optional dim layer      | MVT properties (`lit_status`, source/regime fields) | On-screen vector overlay styling                                           |
 | `app/static/js/modules/settings_ui.js`         | Settings toggles, localStorage, style/filter/dim wiring        | Settings UI controls and stored preferences         | Calls `mapController.addLightingLayer/updateLightingStyle`                 |
 | `app/templates/index.html`                     | Street-lighting settings UI layout                             | User interactions                                   | Toggle/select/color controls and metadata display                          |
+| `app/services/core/data_loader.py`             | Loads graph edges with OSM `lit` and extracts council GPKG     | OSM PBF + `combined_streetlights.gpkg`              | In-memory graph + streetlight GeoDataFrame                                 |
+| `app/services/processors/orchestrator.py`      | Invokes streetlight processor stage (`STREETLIGHT_MODE`)       | Graph + loader outputs                              | Council-augmented graph edge lighting                                      |
+| `app/services/processors/streetlights.py`      | Point-to-edge snapping and edge `lit` promotion                | Council points + graph geometry                     | Edge `lit`, `lit_source`, `lit_source_detail`                              |
+| `app/services/routing/astar/wsm_astar.py`      | Applies lit multipliers during edge cost evaluation            | Graph edge `lit` attributes                         | Routing cost modulation                                                    |
+| `app/routes.py`                                | Parses routing lighting toggles from API payloads              | `/api/route` and `/api/loop` JSON bodies            | Toggle params forwarded to RouteFinder                                     |
+| `app/static/js/modules/routing_ui.js`          | Advanced Options toggle state and payload construction         | UI toggle state                                     | `prefer_lit` and `heavily_avoid_unlit` request fields                      |
 
 ---
 
