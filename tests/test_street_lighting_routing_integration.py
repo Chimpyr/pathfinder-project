@@ -43,6 +43,12 @@ def _add_test_edge(graph: nx.MultiDiGraph, u: int, v: int, length: float, lit: s
     )
 
 
+def _primary(value):
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
 @pytest.fixture
 def routing_graph() -> nx.MultiDiGraph:
     """Create two alternative routes between node 1 and node 4.
@@ -183,3 +189,140 @@ def test_heavy_avoid_unlit_routes_through_council_promoted_edges(
 
     path = list(solver.astar(1, 4))
     assert path == [1, 3, 4]
+
+
+def test_way147_all_night_avoids_brief_way135_detour() -> None:
+    """Regression: full way-id propagation prevents brief Long Down Avenue detour."""
+    graph = nx.MultiDiGraph()
+
+    # Route choice graph: main cycleway with optional short detour via road.
+    graph.add_node(1, x=-2.5850, y=51.4540)
+    graph.add_node(2, x=-2.5845, y=51.4541)
+    graph.add_node(3, x=-2.5843, y=51.4542)
+    graph.add_node(4, x=-2.5838, y=51.4544)
+
+    # Calibration edges for length range stability.
+    graph.add_node(90, x=-2.5800, y=51.4500)
+    graph.add_node(91, x=-2.5798, y=51.4500)
+    graph.add_node(92, x=-2.5790, y=51.4510)
+    graph.add_node(93, x=-2.5780, y=51.4510)
+    _add_test_edge(graph, 90, 91, length=30.0, lit='yes')
+    _add_test_edge(graph, 92, 93, length=150.0, lit='yes')
+
+    # Way 1472097444 cycleway path (initially unknown lit).
+    graph.add_edge(
+        1,
+        2,
+        0,
+        length=40.0,
+        osmid=1472097444,
+        highway='cycleway',
+        surface='asphalt',
+        foot='designated',
+        bicycle='designated',
+        segregated='no',
+        lit=None,
+        norm_green=0.5,
+        norm_water=0.5,
+        norm_social=0.5,
+        norm_quiet=0.5,
+        norm_slope=0.5,
+    )
+    graph.add_edge(
+        2,
+        4,
+        0,
+        length=60.0,
+        osmid=1472097444,
+        highway='cycleway',
+        surface='asphalt',
+        foot='designated',
+        bicycle='designated',
+        segregated='no',
+        lit=None,
+        norm_green=0.5,
+        norm_water=0.5,
+        norm_social=0.5,
+        norm_quiet=0.5,
+        norm_slope=0.5,
+    )
+
+    # Brief detour branch via Long Down Avenue.
+    graph.add_edge(
+        2,
+        3,
+        0,
+        length=5.0,
+        osmid=999999,
+        highway='footway',
+        surface='asphalt',
+        lit='yes',
+        norm_green=0.5,
+        norm_water=0.5,
+        norm_social=0.5,
+        norm_quiet=0.5,
+        norm_slope=0.5,
+    )
+    graph.add_edge(
+        3,
+        4,
+        0,
+        length=55.0,
+        osmid=1351563140,
+        name='Long Down Avenue',
+        highway='unclassified',
+        surface='asphalt',
+        lit='yes',
+        norm_green=0.5,
+        norm_water=0.5,
+        norm_social=0.5,
+        norm_quiet=0.5,
+        norm_slope=0.5,
+    )
+
+    # Match only first edge of way 147; processor should propagate to all 147 edges.
+    points = gpd.GeoDataFrame(
+        {
+            'source': ['south_glos'],
+            'lit': ['yes'],
+            'lighting_regime': ['all_night'],
+            'lighting_regime_text': ['Sunset to sunrise'],
+            'lit_tag_type': ['council_times'],
+        },
+        geometry=[_edge_midpoint_projected(graph, 1, 2)],
+        crs='EPSG:32630',
+    )
+
+    processed = process_graph_streetlights(graph, points, snap_distance_m=20.0)
+
+    # Ensure way-wide propagation happened on 1472097444.
+    assert processed[2][4][0]['lit'] == 'yes'
+    assert processed[2][4][0]['lighting_regime'] == 'all_night'
+
+    weights = {
+        'distance': 1.0,
+        'greenness': 0.0,
+        'water': 0.0,
+        'quietness': 0.0,
+        'social': 0.0,
+        'slope': 0.0,
+    }
+
+    solver = WSMNetworkXAStar(
+        processed,
+        weights=weights,
+        prefer_paved=True,
+        heavily_avoid_unlit=True,
+        avoid_unsafe_roads=True,
+        lighting_context='night',
+    )
+    path = list(solver.astar(1, 4))
+    assert path == [1, 2, 4]
+
+    # Verify the chosen path does not briefly use Long Down Avenue way id.
+    chosen_way_ids = []
+    for u, v in zip(path[:-1], path[1:]):
+        edge = min(processed.get_edge_data(u, v).values(), key=lambda d: d.get('length', float('inf')))
+        chosen_way_ids.append(str(_primary(edge.get('osmid'))))
+
+    assert '1351563140' not in chosen_way_ids
