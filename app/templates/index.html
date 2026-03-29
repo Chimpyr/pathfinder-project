@@ -849,6 +849,43 @@
                                         <span>Thick</span>
                                     </div>
                                 </div>
+
+                                <div class="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                    <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Data Source</p>
+                                    <label for="lighting-source-filter" class="text-sm text-gray-700 dark:text-gray-300">Show source</label>
+                                    <select id="lighting-source-filter"
+                                            class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all">
+                                        <option value="all">All sources</option>
+                                        <option value="council">Council only</option>
+                                        <option value="osm">OSM only</option>
+                                        <option value="bristol">Bristol council only</option>
+                                        <option value="south_glos">South Glos council only</option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                    <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Lighting Regime</p>
+                                    <label for="lighting-regime-filter" class="text-sm text-gray-700 dark:text-gray-300">Show regime</label>
+                                    <select id="lighting-regime-filter"
+                                            class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all">
+                                        <option value="all">All regimes</option>
+                                        <option value="all_night">All night</option>
+                                        <option value="part_night">Part night</option>
+                                        <option value="timed_window">Timed window</option>
+                                        <option value="solar">Solar</option>
+                                        <option value="unlit">Unlit</option>
+                                        <option value="unknown">Unknown</option>
+                                    </select>
+                                </div>
+
+                                <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                    <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Overlay Metadata</p>
+                                    <div id="lighting-metadata-summary" class="text-xs text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700/70 border border-gray-200 dark:border-gray-600 rounded-lg p-2 space-y-1">
+                                        <p>Active source: <span id="lighting-active-source" class="font-medium text-gray-800 dark:text-gray-100">All sources</span></p>
+                                        <p>Active regime: <span id="lighting-active-regime" class="font-medium text-gray-800 dark:text-gray-100">All regimes</span></p>
+                                        <p class="text-[11px] text-gray-500 dark:text-gray-400">Tip: filters highlight provenance and tag-type coverage where metadata is available.</p>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Tile Cache Visualisation Toggle -->

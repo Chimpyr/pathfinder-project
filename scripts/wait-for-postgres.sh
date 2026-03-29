@@ -34,4 +34,29 @@ osm2pgsql --create --slim --cache 4000 \
   "$PBF"
 
 
+# Optional: import canonical council streetlights and enrich overlay table.
+COUNCIL_GPKG=/data/streetlight/combined_streetlights.gpkg
+PG_CONN="PG:host=db user=$POSTGRES_USER dbname=$POSTGRES_DB password=$POSTGRES_PASSWORD"
+PG_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@db/$POSTGRES_DB"
+
+if [ -f "$COUNCIL_GPKG" ]; then
+  echo "Council dataset found: $COUNCIL_GPKG"
+  echo "Importing council points into public.council_streetlights_raw..."
+  ogr2ogr -f PostgreSQL "$PG_CONN" "$COUNCIL_GPKG" \
+    combined_streetlights \
+    -nln public.council_streetlights_raw \
+    -nlt POINT \
+    -lco GEOMETRY_NAME=geom \
+    -lco FID=id \
+    -t_srs EPSG:3857 \
+    -overwrite
+else
+  echo "Council dataset not found, using OSM-only overlay fallback."
+  psql "$PG_URL" -c "DROP TABLE IF EXISTS public.council_streetlights_raw;"
+fi
+
+echo "Applying council merge and metadata enrichment..."
+psql "$PG_URL" -f /merge_council_streetlights.sql
+
+
 echo "Import finished successfully."

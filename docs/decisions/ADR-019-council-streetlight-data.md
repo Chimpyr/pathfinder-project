@@ -1,58 +1,97 @@
-# ADR-019: Council Streetlight Data Integration
+# ADR-019: Council-First Street Lighting Integration and Overlay Source Transparency
 
-**Status:** Proposed
-**Date:** 2026-03-28
+**Status:** Accepted
+**Date:** 2026-03-29
 
 ## Context
 
-The application currently relies exclusively on OpenStreetMap (OSM) `lit` tags to inform the Scenic routing engine (e.g., when a user requests to prefer lit areas or heavily avoid unlit areas). Many times, OSM tags for street lighting are incomplete or outdated compared to authoritative local government data.
+ScenicPathFinder uses two lighting consumers:
 
-We have acquired external datasets from local councils, specifically:
+1. Routing penalties (`prefer_lit` and `heavily_avoid_unlit`) in the in-memory graph.
+2. Street Lighting map overlay from PostGIS/Martin.
 
-- Bristol City Council (Shapefile format)
-- South Gloucestershire Council (Excel `.xlsx` format)
+Historically, overlay and routing have depended primarily on OSM `lit` tags. User requirement now mandates:
 
-Attempting to load and process these disparate file formats directly inside the core graph-generation pipeline (in `app/services/processors/orchestrator.py` or `.data_loader.py`) would have several negative impacts:
+- Council evidence is the most trusted and takes precedence.
+- Street Lighting overlay settings must let users split visualization by data source.
+- Users should be able to understand lighting type/regime (for example, part-night operation) and provenance.
 
-1. **Performance Penalties:** Loading Excel files via libraries like `openpyxl` or `pandas` at runtime slows down graph cache instantiation.
-2. **Dependency Bloat:** Heavy data parsing dependencies would be required in the production server and Celery workers.
-3. **Format Fragility:** Handling multiple nested formats (Shapefiles, GeoJSONs, Excel, CSVs) from different councils creates unmanageable complexity in the core service.
+## Verified Data Analysis
+
+The following was verified from project datasets:
+
+- Canonical council dataset (`combined_streetlights.gpkg`, layer `combined_streetlights`):
+  - 82,811 rows, CRS EPSG:4326
+  - Columns: `source`, `lit`, `geometry`
+  - Source split: `bristol` 48,930, `south_glos` 33,881
+- Bristol raw shapefile (`Streetlights.shp`):
+  - 48,930 rows, CRS EPSG:27700
+  - Rich type/provenance fields present: `UNIT_TYPE_`, `OWNER_DESC`, `COLTYPE`, etc.
+- South Gloucestershire Excel (`Sheet1`):
+  - 33,881 rows
+  - Semantic fields include `Times` and unit/lamp descriptors
+  - `Times` is fully populated (33,881 non-null) with informative values such as:
+    - `Sunset to sunrise` (26,652)
+    - `Sunset - 0500` (4,310)
+    - `Sunset - 0000 (75%) 0000 - 0500 (50%)` (2,451)
+    - `24 hours` (121)
+    - `Solar Powered - no details available` (13)
+
+This confirms the data supports both provenance filtering and lighting regime classification.
 
 ## Decision
 
-To introduce authoritative council street lighting while preserving system performance, we have decided to separate data standardization from graph ingestion.
+### 1. Council-first precedence
 
-### 1. Offline Pre-Processing Script
+Where council evidence spatially matches an OSM street segment, council wins.
 
-We will create a standalone script (`scripts/process_streetlights.py`) to systematically convert differing council formats (Shapefile, Excel) into a unified and standard spatial schema.
+- `lit_status` is set to `lit` from council match.
+- This override applies even if OSM tag is `lit=no`.
 
-The schema will contain:
+### 2. Keep offline canonical council normalization
 
-- `geometry`: Point (mapped strictly to EPSG:4326 to match our base projection).
-- `source`: A string identifier for traceability (e.g., `bristol`, `s_glos`).
-- `lit`: A `True`/`yes` boolean indicating the presence of a streetlight.
+Continue standardizing council sources through `scripts/process_streetlights.py` into one canonical GeoPackage (`combined_streetlights.gpkg`) for runtime/seed consistency.
 
-### 2. Standardized GeoPackage (`.gpkg`)
+### 3. Overlay provenance and regime schema
 
-The pre-processing script will export the combined dataset into a single `combined_streetlights.gpkg` file stationed in `app/data/streetlight/`. This `.gpkg` format acts as our source-of-truth and standard schema. The application will only natively support loading from this standard format.
+Street lighting overlay table is extended with transparency columns, including:
 
-### 3. Edge-Snapping Processor
+- `lit_source_primary` (`council` | `osm`)
+- `lit_source_detail` (`bristol` | `south_glos` | `osm`)
+- `lit_tag_type` (for example `council_times`, `osm_lit`)
+- `lighting_regime` (`all_night`, `part_night`, `timed_window`, `solar`, `unlit`, `unknown`)
+- `lighting_regime_text` (raw informative text such as South Glos `Times` value)
 
-We will introduce `app/services/processors/streetlights.py` which will be called by our core orchestrator.
+### 4. Overlay settings source/regime split
 
-- It will load the unified GeoPackage if it is present.
-- Using a spatial join or nearest-neighbor logic (e.g., matching points to edge centroids within a ~15-meter tolerance), it will enrich the nearby graph edges by overriding or explicitly setting the edge's `lit` attribute to `'yes'`.
-- It will execute gracefully as a supplementary processor layer inside `app/services/processors/orchestrator.py` after water/natural feature logic and before POI features.
+Under Map Overlays > Street Lighting settings, add controls to split visualization by:
+
+- Source: all, council only, OSM only, Bristol only, South Glos only
+- Regime/type: all-night, part-night, timed-window, solar, unlit, unknown
+
+### 5. Efficient serving strategy
+
+Use server-side filtering over an indexed enriched PostGIS table (Martin SQL function or equivalent filtered source strategy) so source/regime filtering does not require downloading full unfiltered tiles.
 
 ## Consequences
 
 ### Positive
 
-- **Extensibility:** When a new council dataset is acquired, we simply add an import/normalization block to the standalone pre-processing script. The main application is deeply shielded from the raw formats.
-- **Performance:** Pre-compiled `.gpkg` files are optimized for fast spatial loading with GeoPandas. There is no graph-building latency from decoding Excel sheets.
-- **Maintainability:** Minimal impact on the overarching edge weight generation. The existing WSM cost heuristics will seamlessly benefit from the newly asserted `lit=yes` tags.
+- Higher trustworthiness: authoritative council evidence dominates where available.
+- Better user transparency: overlay can explain both origin and lighting behavior.
+- Better usability at night-planning use cases (part-night vs all-night distinction).
 
-### Negative
+### Tradeoffs
 
-- **Manual Data Refresh:** When the council releases an updated dataset, a developer/maintainer must remember to obtain the raw file and rerun `scripts/process_streetlights.py`.
-- **Storage Tradeoff:** Storing the processed `.gpkg` duplicates some spatial disk output (the raw dataset and the processed dataset will live in parallel), but this overhead is negligible for points of street furniture.
+- Additional schema/ETL complexity in seeder and merge SQL.
+- Slightly longer seed/refresh time due council merge and classification.
+- Some free-text `Times` values need deterministic parsing and unknown fallbacks.
+
+## Alternatives Considered
+
+1. OSM-only overlay and routing enrichment.
+   - Rejected: does not satisfy trust and transparency requirements.
+2. Council overrides only when OSM is unknown.
+   - Rejected: user requirement explicitly sets council as highest precedence.
+3. Client-side-only filtering by source/regime.
+   - Rejected: inefficient for large tile payloads; server-side filtering is preferable.

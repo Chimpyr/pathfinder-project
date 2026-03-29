@@ -1074,10 +1074,20 @@ class MapController {
       unknownColor:
         options.unknownColor ?? this.lightingOptions?.unknownColor ?? "#888888",
       litWeight: options.litWeight ?? this.lightingOptions?.litWeight ?? 2,
+      sourceFilter:
+        options.sourceFilter ?? this.lightingOptions?.sourceFilter ?? "all",
+      regimeFilter:
+        options.regimeFilter ?? this.lightingOptions?.regimeFilter ?? "all",
     };
 
-    const { litColor, unlitColor, unknownColor, litWeight } =
-      this.lightingOptions;
+    const {
+      litColor,
+      unlitColor,
+      unknownColor,
+      litWeight,
+      sourceFilter,
+      regimeFilter,
+    } = this.lightingOptions;
 
     // Remove existing layer before re-adding with new style
     if (this.lightingLayer) {
@@ -1087,7 +1097,16 @@ class MapController {
 
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
-    const url = `${protocol}//${hostname}:3000/street_lighting/{z}/{x}/{y}.pbf`;
+    const useFilteredEndpoint =
+      sourceFilter !== "all" || regimeFilter !== "all";
+    const query = new URLSearchParams({
+      source_filter: sourceFilter,
+      regime_filter: regimeFilter,
+    }).toString();
+    const endpoint = useFilteredEndpoint
+      ? `street_lighting_filtered/{z}/{x}/{y}.pbf?${query}`
+      : "street_lighting/{z}/{x}/{y}.pbf";
+    const url = `${protocol}//${hostname}:3000/${endpoint}`;
 
     console.log(
       `[MapController] Fetching lighting tiles from: ${url}`,
@@ -1098,6 +1117,39 @@ class MapController {
       vectorTileLayerStyles: {
         street_lighting: (properties) => {
           const status = properties.lit_status; // 'lit' | 'unlit' | 'unknown'
+          const sourcePrimary = (properties.lit_source_primary || "osm")
+            .toString()
+            .toLowerCase();
+          const sourceDetail = (properties.lit_source_detail || sourcePrimary)
+            .toString()
+            .toLowerCase();
+          const regime = (
+            properties.lighting_regime ||
+            (status === "lit"
+              ? "all_night"
+              : status === "unlit"
+                ? "unlit"
+                : "unknown")
+          )
+            .toString()
+            .toLowerCase();
+
+          const sourceMatches =
+            sourceFilter === "all" ||
+            sourceFilter === sourcePrimary ||
+            sourceFilter === sourceDetail;
+
+          const regimeMatches =
+            regimeFilter === "all" || regimeFilter === regime;
+
+          if (!sourceMatches || !regimeMatches) {
+            return {
+              weight: 0,
+              opacity: 0,
+              color: "transparent",
+            };
+          }
+
           if (status === "lit") {
             return {
               weight: litWeight,
