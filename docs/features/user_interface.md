@@ -25,6 +25,7 @@ The main routing panel is divided into two distinct modes via a tabbed interface
 
 - Calculates a route from a specified **Start** location to a **Destination**.
 - Takes advantage of all scenic algorithms (Greenness, Water, Quietness, etc.).
+- Supports both single-route and multi-route responses, depending on backend mode and selected preferences.
 
 ### Round Trip (Loop)
 
@@ -41,7 +42,17 @@ The main routing panel is divided into two distinct modes via a tabbed interface
 - **Prefer paths/trails**: Increases the weight/bias towards off-road or dedicated pedestrian paths.
 - **Prefer paved surfaces**: Penalizes unpaved (dirt, mud, grass) edges, useful for accessibility or specific footwear. Managed dynamically via original OSM attributes.
 - **Prefer lit streets**: Penalizes unlit streets, designed for nighttime walking safety. Managed from in-memory graph edge lighting (`lit`), including council-promoted edges when council streetlight data is available.
+- **Heavily avoid unlit streets**: Strong safety-first mode that heavily penalizes unlit or unknown-lighting segments.
 - **Avoid unsafe roads**: Strongly penalizes roads deemed hostile to pedestrians (e.g., fast roads lacking adequate pavements).
+
+### How Advanced Options Are Applied
+
+- Advanced options are now independent from Scenic Preferences.
+- If Scenic Preferences are **enabled**, advanced options are applied on top of the user's scenic weights.
+- If Scenic Preferences are **disabled** but any advanced option is enabled, the frontend requests an **advanced compare** response with:
+  - **Baseline** route: shortest path with all advanced modifiers off.
+  - **Advanced** route: distance-dominant WSM route with enabled advanced modifiers.
+- This ensures advanced toggles are never silently ignored.
 
 ---
 
@@ -61,3 +72,14 @@ Users can select their preferred map visual style directly from the Settings or 
 ### Data Overlays
 
 - **Street Lights Overlay**: Toggles a visual heatmap or marker representation of mapped street lighting infrastructure across the active region. Useful for verifying the "Prefer lit streets" data logic or planning night walks manually.
+
+---
+
+## 5. Route Explainability
+
+The results panel route cards now include backend-provided context metadata:
+
+- **Subtitle** (for example: `Shortest route`, `Custom mix`, `Advanced options`).
+- **Modifier list** showing which advanced toggles were active for that route.
+
+This makes it explicit why one route differs from another, especially in compare mode.

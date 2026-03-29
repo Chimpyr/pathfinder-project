@@ -135,9 +135,11 @@ response = requests.post('/api/route', json={
     'end_lon': -2.591,
     'use_wsm': True,
     'weights': {'greenness': 5, 'distance': 3},  # Optional
-    'prefer_lit': False,             # Optional multipliers
+    'prefer_pedestrian': True,       # Optional advanced modifiers
+    'prefer_paved': False,
+    'prefer_lit': False,
     'heavily_avoid_unlit': False,
-    'prefer_pedestrian': True
+    'avoid_unsafe_roads': False,
 })
 ```
 
@@ -147,13 +149,27 @@ On top of the general WSM scoring, the engine applies multipliers before finaliz
 
 - `prefer_lit` / `heavily_avoid_unlit`: Provides a bonus (<1.0) to routes correctly flagged as lit, or massive penalties (up to 5.0x) for unknown or unlit segments.
 - `prefer_pedestrian`: Heavily penalizes vehicle-focused roads (trunk, primary - up to 5.0x) and rewards dedicated walking paths (down to 0.2x).
+- `prefer_paved`: Penalizes soft and unpaved surfaces (`mud`, `dirt`, `sand`, `grass`) while keeping paved surfaces near baseline.
+- `avoid_unsafe_roads`: Applies a heavy penalty to primary/secondary/tertiary roads that lack `sidewalk` and `foot` safety indicators.
+
+Unsafe-road classification depends on edge metadata from OSM extraction (`highway`, `sidewalk`, `foot`), so those tags are explicitly retained in the graph loader.
+
+### Advanced Options Without Scenic Sliders
+
+When scenic sliders are off but one or more advanced options are enabled, the frontend still sends a WSM request with distance-dominant weights and `advanced_compare_mode=true`.
+
+This yields a transparent comparison:
+
+- Baseline shortest route (advanced modifiers off)
+- Advanced route (selected advanced modifiers on)
 
 ### Toggle Between Modes
 
-| Mode           | `use_wsm` | Behaviour                    |
-| -------------- | --------- | ---------------------------- |
-| Shortest Path  | `false`   | Standard A\* (distance only) |
-| Scenic Routing | `true`    | WSM A\* (weighted features)  |
+| Mode             | `use_wsm` | Behaviour                                                      |
+| ---------------- | --------- | -------------------------------------------------------------- |
+| Shortest Path    | `false`   | Standard A\* (distance only)                                   |
+| Scenic Routing   | `true`    | WSM A\* (weighted features and optional advanced modifiers)    |
+| Advanced Compare | `true`    | Distance-dominant WSM advanced route + explicit baseline route |
 
 ---
 

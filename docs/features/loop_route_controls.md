@@ -125,20 +125,23 @@ cost penalty** — and streets with no lighting data are penalised at
 **× 3.0**. Well-lit streets remain actively rewarded with a **× 0.70
 bonus**.
 
-| Lighting status                  | Multiplier                  |
-| -------------------------------- | --------------------------- |
-| Lit (`yes`, `automatic`, `24/7`) | × 0.70 (**strong bonus**)   |
-| Limited / disused                | × 2.5                       |
-| Not lit (`no`)                   | × 5.0 (**near-impassable**) |
-| Unknown (no tag)                 | × 3.0 (assumed dark)        |
+| Lighting status                               | Multiplier                  |
+| --------------------------------------------- | --------------------------- |
+| Lit (`yes`, `automatic`, `24/7`)              | × 0.70 (**strong bonus**)   |
+| Limited / disused                             | × 2.5                       |
+| Not lit (`no`)                                | × 5.0 (**near-impassable**) |
+| Unknown (no tag) on streets                   | × 3.0 (assumed dark)        |
+| Unknown (no tag) on dedicated paths/cycleways | × 1.0 (neutral)             |
 
 The × 5.0 penalty on a confirmed-unlit edge means the router will only
 use it if there is genuinely no other viable way to reach the goal —
 equivalent to treating it as five times the length it physically is.
 
 Streets missing a `lit` tag are treated **conservatively as likely unlit**
-(× 3.0), because many residential streets and footpaths in rural areas
-have no lighting data but are genuinely unlit at night.
+(× 3.0). Dedicated active-travel corridors (`cycleway`, `path`, `footway`,
+`pedestrian`, `track`, `bridleway`, `steps`) with missing `lit` are treated
+as neutral (× 1.0) to avoid over-penalising commonly used paths that are
+often under-tagged.
 
 **When to use:**
 

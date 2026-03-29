@@ -67,14 +67,19 @@ This keeps lighting orthogonal to WSM weight sliders.
 
 ### Heavily Avoid Unlit Streets
 
-| `lit` value                | Multiplier |
-| -------------------------- | ---------- |
-| `yes`, `automatic`, `24/7` | x 0.70     |
-| `limited`, `disused`       | x 2.5      |
-| `no`                       | x 5.0      |
-| unknown or missing         | x 3.0      |
+| `lit` value                                          | Multiplier |
+| ---------------------------------------------------- | ---------- |
+| `yes`, `automatic`, `24/7`                           | x 0.70     |
+| `limited`, `disused`                                 | x 2.5      |
+| `no`                                                 | x 5.0      |
+| unknown or missing (street roads)                    | x 3.0      |
+| unknown or missing (dedicated path/cycleway/footway) | x 1.0      |
 
 Heavy mode always takes precedence when both booleans are present.
+
+Note: unknown lighting on dedicated active-travel corridors (`cycleway`,
+`path`, `footway`, `pedestrian`, `track`, `bridleway`, `steps`) is treated
+as neutral to avoid over-penalising unmapped but commonly used paths.
 
 ---
 
@@ -92,6 +97,12 @@ In multi-route mode (`find_distinct_paths`):
 
 - Baseline route intentionally disables lit penalties.
 - Extremist and balanced routes forward user lighting toggles.
+
+In advanced compare mode (scenic sliders off + advanced options on):
+
+- Baseline route is computed with all advanced modifiers disabled.
+- Advanced route is computed with enabled advanced modifiers (including lighting).
+- Response contains `baseline` and `balanced` entries (`extremist` is `null`).
 
 ---
 
@@ -131,7 +142,7 @@ Current automated tests relevant to this feature:
 
 - `tests/test_streetlights_processor.py`
 - `tests/test_street_lighting_routing_integration.py`
-- `tests/test_distinct_paths.py` (baseline route purity for lit toggles)
+- `tests/test_distinct_paths.py` (baseline route purity for lit and other advanced toggles)
 
 Full testing plan and manual QA scenarios are documented in:
 
