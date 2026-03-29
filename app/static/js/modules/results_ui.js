@@ -254,11 +254,7 @@ export function renderRouteOptions(routes) {
     const isVisible = routeState.visibility[type];
     const isDuplicate = routeState.duplicates?.[type];
 
-<<<<<<< HEAD
-    const distanceKm = routeData.stats?.distance_km || "?";
-=======
     const distanceParts = resolveDistanceParts(routeData.stats);
->>>>>>> street-lighting-fixes
     const timeMin = routeData.stats?.time_min || "?";
 
     const duplicateBadge = isDuplicate
@@ -349,10 +345,6 @@ export function updateStatsForRoute(routeType) {
   const routeData = routeState.routes?.[routeType];
   if (!routeData?.stats) return;
 
-<<<<<<< HEAD
-  if (statDistance) statDistance.textContent = routeData.stats.distance_km;
-  if (statTime) statTime.textContent = routeData.stats.time_min;
-=======
   const distanceParts = resolveDistanceParts(routeData.stats);
   const speedParts = resolveSpeedParts(routeData.stats);
   const paceText = resolvePaceText(routeData.stats);
@@ -367,7 +359,6 @@ export function updateStatsForRoute(routeType) {
   if (statSpeed) statSpeed.textContent = speedParts.value;
   if (statSpeedUnit) statSpeedUnit.textContent = speedParts.unit;
   if (statPace) statPace.textContent = paceText;
->>>>>>> street-lighting-fixes
 
   if (routeStatsContainer) routeStatsContainer.classList.remove("hidden");
 }
@@ -388,13 +379,10 @@ export function renderLoopOptions(loops) {
     const isSelected = loopState.selectedId === loop.id;
     const isVisible = loopState.visibility[loop.id] !== false;
     const colour = loop.colour || "#3B82F6";
-<<<<<<< HEAD
-=======
     const loopDistance =
       loop.distance !== undefined && loop.distance !== null
         ? `${loop.distance} ${loop.distance_unit || getDistanceUnit()}`
         : `${loop.distance_km} km`;
->>>>>>> street-lighting-fixes
 
     html += `
             <div class="loop-option-card px-4 py-3 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors mb-2 ${isSelected ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20" : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700"}" 
@@ -474,10 +462,6 @@ function handleLoopSelect(loopId, loops) {
 
   const selectedLoop = loops.find((l) => l.id === loopId);
   if (selectedLoop) {
-<<<<<<< HEAD
-    if (statDistance) statDistance.textContent = selectedLoop.distance_km;
-    if (statTime) statTime.textContent = selectedLoop.time_min;
-=======
     if (statDistance) {
       statDistance.textContent = String(
         selectedLoop.distance !== undefined && selectedLoop.distance !== null
@@ -501,7 +485,6 @@ function handleLoopSelect(loopId, loops) {
         selectedLoop.speed_unit ||
         (getDistanceUnit() === "mi" ? "mph" : "km/h");
     if (statPace) statPace.textContent = selectedLoop.assumed_pace || "n/a";
->>>>>>> street-lighting-fixes
   }
 
   renderLoopOptions(loops);
@@ -560,56 +543,6 @@ function inferAreaLabel(startAddress, endAddress) {
   }
 
   return startParts[1] || endParts[1] || startParts[0] || endParts[0] || "";
-<<<<<<< HEAD
-}
-
-function formatDistanceLabel(distanceKm) {
-  const n = Number(distanceKm);
-  return Number.isFinite(n) ? `${n.toFixed(1)} km` : "Unknown distance";
-}
-
-function getLocationLabel(pointState, fallback = "Unknown") {
-  if (pointState?.address && pointState.address.trim()) {
-    return pointState.address.trim();
-  }
-  if (Number.isFinite(pointState?.lat) && Number.isFinite(pointState?.lon)) {
-    return `${pointState.lat.toFixed(4)}, ${pointState.lon.toFixed(4)}`;
-  }
-  return fallback;
-}
-
-function getShortLocationLabel(pointState, fallback = "Unknown") {
-  const full = getLocationLabel(pointState, fallback);
-  const short = full.split(",")[0]?.trim();
-  return short || full;
-}
-
-function getAddressParts(address) {
-  if (!address || typeof address !== "string") return [];
-  return address
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => part.toLowerCase());
-}
-
-function inferAreaLabel(startAddress, endAddress) {
-  const startParts = getAddressParts(startAddress);
-  const endParts = getAddressParts(endAddress);
-  if (!startParts.length && !endParts.length) return "";
-
-  // Prefer shared locality components before falling back to a single address.
-  if (startParts.length && endParts.length) {
-    for (const part of startParts) {
-      if (endParts.includes(part) && part.length >= 3) {
-        return part;
-      }
-    }
-  }
-
-  return startParts[1] || endParts[1] || startParts[0] || endParts[0] || "";
-=======
->>>>>>> street-lighting-fixes
 }
 
 function getCurrentExportContext() {
@@ -650,21 +583,6 @@ function getCurrentExportContext() {
   };
 }
 
-const selectedType = routeState.selected;
-const selectedRoute = routeState.routes?.[selectedType];
-if (!selectedType || !selectedRoute) return null;
-const distanceKm = selectedRoute.stats?.distance_km;
-const areaLabel = inferAreaLabel(startState.address, endState.address);
-return {
-  routeData: selectedRoute,
-  label: selectedType,
-  distanceKm,
-  startLabel,
-  endLabel,
-  areaLabel,
-  name: `${startLabel} -> ${endLabel} | ${formatDistanceLabel(distanceKm)}`,
-};
-
 function hasValidRouteCoords(routeData) {
   const coords = routeData?.route_coords || routeData?.coordinates;
   return Array.isArray(coords) && coords.length >= 2;
@@ -698,11 +616,6 @@ function initGpxExport() {
     downloadGpx(xml, filename);
     showToast("GPX exported successfully.", "success");
   });
-<<<<<<< HEAD
-  downloadGpx(xml, filename);
-  showToast("GPX exported successfully.", "success");
-=======
->>>>>>> street-lighting-fixes
 }
 
 initGpxExport();
