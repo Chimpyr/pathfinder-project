@@ -829,6 +829,81 @@ body.resizing {
   cursor: default;
 }
 
+.lighting-hover-popup .leaflet-popup-content-wrapper {
+  border-radius: 10px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.lighting-hover-popup .leaflet-popup-content {
+  margin: 0;
+}
+
+.lighting-hover-popup .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.lighting-hover-card {
+  min-width: 220px;
+  max-width: 280px;
+  padding: 10px 12px;
+}
+
+.lighting-hover-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+
+.lighting-hover-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #374151;
+}
+
+.lighting-hover-row:last-child {
+  margin-bottom: 0;
+}
+
+.lighting-hover-row span {
+  color: #6b7280;
+}
+
+.lighting-hover-row strong {
+  text-align: right;
+  font-weight: 600;
+  color: #111827;
+}
+
+.dark .lighting-hover-popup .leaflet-popup-content-wrapper {
+  background: rgba(31, 41, 55, 0.96);
+}
+
+.dark .lighting-hover-popup .leaflet-popup-tip {
+  background: rgba(31, 41, 55, 0.96);
+}
+
+.dark .lighting-hover-title {
+  color: #f3f4f6;
+}
+
+.dark .lighting-hover-row {
+  color: #d1d5db;
+}
+
+.dark .lighting-hover-row span {
+  color: #9ca3af;
+}
+
+.dark .lighting-hover-row strong {
+  color: #f9fafb;
+}
+
 /* ============================================================================
    SAVED PANEL – TABS
    ============================================================================ */

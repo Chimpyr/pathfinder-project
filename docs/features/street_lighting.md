@@ -10,6 +10,20 @@ Streets are rendered by `lit_status` with configurable colours, while metadata c
 
 ---
 
+## Documentation Map
+
+Use this section to choose the right document for your task.
+
+- Quick setup and day-to-day usage: `docs/guides/street_lighting_quickstart.md`
+- This full feature reference (pipeline, schema, troubleshooting): `docs/features/street_lighting.md`
+- Architecture context for the whole system: `docs/architecture.md`
+- Technical architecture deep dive: `docs/technical_architecture.md`
+- Decision record for council-first merge behaviour: `docs/decisions/ADR-019-council-streetlight-data.md`
+- Decision record for hover provenance cards: `docs/decisions/ADR-020-street-lighting-hover-provenance-cards.md`
+- Docker setup and command references: `docs/guides/docker_setup.md`, `docs/guides/docker_commands.md`
+
+---
+
 ## Architecture
 
 ```
@@ -41,6 +55,20 @@ Leaflet.VectorGrid  →  rendered on map
 | Tile server    | Martin v1.3.1                                | 3000 |
 | Ingestion tool | osm2pgsql 1.9 (via debian:bookworm-slim apt) | —    |
 | Frontend       | Leaflet.VectorGrid (bundled CDN)             | —    |
+
+## Implementation File Map
+
+This table shows where each part of the street-lighting stack lives.
+
+| Path | Role | Reads from | Writes to |
+| ---- | ---- | ---------- | --------- |
+| `docker/seeder/lighting.lua` | OSM flex import rules and initial lighting classification | OSM PBF (`lit=*`, highway geometry) | `public.street_lighting` rows with `lit_status`, source defaults, geometry |
+| `scripts/wait-for-postgres.sh` | Seeder entrypoint orchestration | PostGIS health, available PBF paths | Runs osm2pgsql and SQL merge in order |
+| `docker/seeder/merge_council_streetlights.sql` | Council merge, metadata enrichment, filtered tile SQL function | `street_lighting`, `council_streetlights_raw` | Council-first updates + `public.street_lighting_filtered(...)` |
+| `docker/martin/config.yaml` | Martin source auto-publish scope | PostGIS schemas/tables | Tile endpoints (`street_lighting`, `street_lighting_filtered`) |
+| `app/static/js/map.js` | Leaflet rendering, style/filter logic, optional dim layer | MVT properties (`lit_status`, source/regime fields) | On-screen vector overlay styling |
+| `app/static/js/modules/settings_ui.js` | Settings toggles, localStorage, style/filter/dim wiring | Settings UI controls and stored preferences | Calls `mapController.addLightingLayer/updateLightingStyle` |
+| `app/templates/index.html` | Street-lighting settings UI layout | User interactions | Toggle/select/color controls and metadata display |
 
 ---
 
@@ -195,9 +223,23 @@ Street Lighting settings now support overlay filtering by:
 
 - Source: All, Council only, OSM only, Bristol only, South Glos only
 - Regime: All, All night, Part night, Timed window, Solar, Unlit, Unknown
+- Visual helper: **Dim basemap** (default ON when no prior preference exists), which darkens base tiles to make lighting lines easier to distinguish.
+- Visual helper: **Hover info card** (default ON when no prior preference exists), which shows per-segment provenance and metadata (`lit_source_*`, `lit_tag_type`, `osm_lit_raw`, `lighting_regime*`, `council_match_count`, `osm_id`).
 
 When filters are active, the frontend requests the filtered Martin function endpoint for more efficient tile transfer.
 `public.street_lighting_filtered` uses the Martin-compatible signature `(z, x, y, query_params json)` and reads `source_filter` / `regime_filter` from query string JSON.
+
+Settings persistence keys used by the frontend:
+
+- `lightingOverlay`
+- `lightingLitColor`
+- `lightingUnlitColor`
+- `lightingUnknownColor`
+- `lightingWeight`
+- `lightingSourceFilter`
+- `lightingRegimeFilter`
+- `lightingDimMap`
+- `lightingHoverInfo`
 
 ---
 
@@ -210,6 +252,12 @@ Defined in `MapController.addLightingLayer()` in `app/static/js/map.js`:
 | `lit`        | `#FFD700` gold (configurable) | litWeight (default 2px) | 0.85    | Confirmed lit street   |
 | `unlit`      | `#1a1a1a` near-black          | litWeight − 1           | 0.6     | Confirmed unlit street |
 | `unknown`    | `#888888` mid grey            | 1px (fixed)             | 0.25    | No lighting data       |
+
+Basemap dimming behaviour:
+
+- Enabled through `lighting-dim-map-toggle` in Settings.
+- Defaults to ON for first-time users of the lighting overlay.
+- Implemented as a dedicated Leaflet pane (`lightingDimPane`) between raster tiles and vector overlays, so road-light lines stay bright while only the basemap is darkened.
 
 ---
 

@@ -43,6 +43,8 @@ function initMapOverlays() {
   const litColorPicker = document.getElementById("lighting-lit-color");
   const unlitColorPicker = document.getElementById("lighting-unlit-color");
   const unknownColorPicker = document.getElementById("lighting-unknown-color");
+  const dimMapToggle = document.getElementById("lighting-dim-map-toggle");
+  const hoverInfoToggle = document.getElementById("lighting-hover-info-toggle");
   const weightSlider = document.getElementById("lighting-weight-slider");
   const weightLabel = document.getElementById("lighting-weight-value");
   const sourceFilter = document.getElementById("lighting-source-filter");
@@ -67,11 +69,18 @@ function initMapOverlays() {
     localStorage.getItem("lightingSourceFilter") || "all";
   const savedRegimeFilter =
     localStorage.getItem("lightingRegimeFilter") || "all";
+  const savedDimMap = localStorage.getItem("lightingDimMap");
+  const dimMapEnabled = savedDimMap === null ? true : savedDimMap === "true";
+  const savedHoverInfo = localStorage.getItem("lightingHoverInfo");
+  const hoverInfoEnabled =
+    savedHoverInfo === null ? true : savedHoverInfo === "true";
 
   toggle.checked = savedOn;
   litColorPicker.value = savedLitColor;
   unlitColorPicker.value = savedUnlitColor;
   unknownColorPicker.value = savedUnknownColor;
+  if (dimMapToggle) dimMapToggle.checked = dimMapEnabled;
+  if (hoverInfoToggle) hoverInfoToggle.checked = hoverInfoEnabled;
   weightSlider.value = savedWeight;
   weightLabel.textContent = WEIGHT_LABELS[savedWeight] || "Normal";
   if (sourceFilter) sourceFilter.value = savedSourceFilter;
@@ -100,6 +109,8 @@ function initMapOverlays() {
       litWeight: savedWeight,
       sourceFilter: savedSourceFilter,
       regimeFilter: savedRegimeFilter,
+      dimMap: dimMapEnabled,
+      hoverInfo: hoverInfoEnabled,
     });
   }
 
@@ -112,6 +123,8 @@ function initMapOverlays() {
       litWeight: parseInt(weightSlider.value, 10),
       sourceFilter: sourceFilter?.value || "all",
       regimeFilter: regimeFilter?.value || "all",
+      dimMap: dimMapToggle?.checked ?? true,
+      hoverInfo: hoverInfoToggle?.checked ?? true,
     });
     updateMetadataSummary();
   };
@@ -128,6 +141,8 @@ function initMapOverlays() {
         litWeight: parseInt(weightSlider.value, 10),
         sourceFilter: sourceFilter?.value || "all",
         regimeFilter: regimeFilter?.value || "all",
+        dimMap: dimMapToggle?.checked ?? true,
+        hoverInfo: hoverInfoToggle?.checked ?? true,
       });
       localStorage.setItem("lightingOverlay", "true");
     } else {
@@ -154,6 +169,30 @@ function initMapOverlays() {
   unknownColorPicker.addEventListener("change", () => {
     localStorage.setItem("lightingUnknownColor", unknownColorPicker.value);
   });
+
+  if (dimMapToggle) {
+    dimMapToggle.addEventListener("change", () => {
+      localStorage.setItem(
+        "lightingDimMap",
+        dimMapToggle.checked ? "true" : "false",
+      );
+      if (toggle.checked) {
+        applyStyle();
+      }
+    });
+  }
+
+  if (hoverInfoToggle) {
+    hoverInfoToggle.addEventListener("change", () => {
+      localStorage.setItem(
+        "lightingHoverInfo",
+        hoverInfoToggle.checked ? "true" : "false",
+      );
+      if (toggle.checked) {
+        applyStyle();
+      }
+    });
+  }
 
   // --- Weight slider ---
   weightSlider.addEventListener("input", () => {

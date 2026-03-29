@@ -41,6 +41,9 @@ class MapController {
     this.loopLayers = {}; // Multi-loop: { loop_id: layer }
     this.selectedLoop = null; // Currently highlighted loop id
     this.debugLayers = []; // Debug edge feature overlays
+    this.lightingLayer = null;
+    this.lightingDimLayer = null;
+    this.lightingHoverPopup = null;
 
     // Route colour configuration
     this.routeColours = {
@@ -85,6 +88,11 @@ class MapController {
       zoomControl: true,
       attributionControl: true,
     }).setView(this.options.center, this.options.zoom);
+
+    // Pane above base tiles but below vector overlays for optional basemap dimming.
+    this.map.createPane("lightingDimPane");
+    this.map.getPane("lightingDimPane").style.zIndex = "350";
+    this.map.getPane("lightingDimPane").style.pointerEvents = "none";
 
     // Set initial tile layer (default to OSM)
     this.currentTileLayer = null;
@@ -1058,6 +1066,168 @@ class MapController {
   }
 
   /**
+   * Toggle a dark veil over basemap tiles while keeping vector overlays vivid.
+   * @param {boolean} enabled
+   */
+  _setLightingDimmed(enabled) {
+    if (!enabled) {
+      if (this.lightingDimLayer && this.map.hasLayer(this.lightingDimLayer)) {
+        this.map.removeLayer(this.lightingDimLayer);
+      }
+      return;
+    }
+
+    if (!this.lightingDimLayer) {
+      this.lightingDimLayer = L.rectangle(
+        [
+          [-90, -180],
+          [90, 180],
+        ],
+        {
+          pane: "lightingDimPane",
+          stroke: false,
+          fillColor: "#000000",
+          fillOpacity: 0.26,
+          interactive: false,
+        },
+      );
+    }
+
+    if (!this.map.hasLayer(this.lightingDimLayer)) {
+      this.lightingDimLayer.addTo(this.map);
+    }
+  }
+
+  _escapeLightingHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  _humaniseLightingToken(value, fallback = "unknown") {
+    const normalised = String(value || "")
+      .trim()
+      .replaceAll("_", " ");
+    if (!normalised) return fallback;
+    return normalised.charAt(0).toUpperCase() + normalised.slice(1);
+  }
+
+  _buildLightingHoverCard(properties = {}) {
+    const status = String(properties.lit_status || "unknown").toLowerCase();
+    const sourcePrimary = String(properties.lit_source_primary || "osm")
+      .toLowerCase()
+      .trim();
+    const sourceDetail = String(
+      properties.lit_source_detail || sourcePrimary || "osm",
+    )
+      .toLowerCase()
+      .trim();
+    const regime = String(
+      properties.lighting_regime ||
+        (status === "lit" ? "all_night" : status === "unlit" ? "unlit" : "unknown"),
+    )
+      .toLowerCase()
+      .trim();
+    const regimeText = String(properties.lighting_regime_text || "").trim();
+    const tagType = String(properties.lit_tag_type || "").trim();
+    const osmLitRaw = String(properties.osm_lit_raw || "").trim();
+    const councilMatchCount = Number(properties.council_match_count || 0);
+    const osmId = Number(properties.osm_id);
+
+    const sourceLabel =
+      sourcePrimary === "council"
+        ? sourceDetail === "bristol"
+          ? "Council (Bristol)"
+          : sourceDetail === "south_glos"
+            ? "Council (South Glos)"
+            : "Council"
+        : "OSM";
+
+    const rows = [
+      `<div class="lighting-hover-row"><span>Status</span><strong>${this._escapeLightingHtml(this._humaniseLightingToken(status))}</strong></div>`,
+      `<div class="lighting-hover-row"><span>Source</span><strong>${this._escapeLightingHtml(sourceLabel)}</strong></div>`,
+      `<div class="lighting-hover-row"><span>Regime</span><strong>${this._escapeLightingHtml(this._humaniseLightingToken(regime))}</strong></div>`,
+    ];
+
+    if (tagType) {
+      rows.push(
+        `<div class="lighting-hover-row"><span>Tag type</span><strong>${this._escapeLightingHtml(this._humaniseLightingToken(tagType, tagType))}</strong></div>`,
+      );
+    }
+
+    if (osmLitRaw) {
+      rows.push(
+        `<div class="lighting-hover-row"><span>OSM lit tag</span><strong>${this._escapeLightingHtml(osmLitRaw)}</strong></div>`,
+      );
+    }
+
+    if (regimeText) {
+      rows.push(
+        `<div class="lighting-hover-row"><span>Regime detail</span><strong>${this._escapeLightingHtml(regimeText)}</strong></div>`,
+      );
+    }
+
+    if (councilMatchCount > 0) {
+      rows.push(
+        `<div class="lighting-hover-row"><span>Council matches</span><strong>${this._escapeLightingHtml(councilMatchCount)}</strong></div>`,
+      );
+    }
+
+    if (Number.isFinite(osmId)) {
+      rows.push(
+        `<div class="lighting-hover-row"><span>OSM way id</span><strong>${this._escapeLightingHtml(Math.abs(osmId))}</strong></div>`,
+      );
+    }
+
+    return `
+      <div class="lighting-hover-card">
+        <div class="lighting-hover-title">Street Lighting Segment</div>
+        ${rows.join("")}
+      </div>
+    `;
+  }
+
+  _clearLightingHoverCard() {
+    if (this.lightingHoverPopup && this.map.hasLayer(this.lightingHoverPopup)) {
+      this.map.removeLayer(this.lightingHoverPopup);
+    }
+  }
+
+  _bindLightingHoverInteractions() {
+    if (!this.lightingLayer) return;
+
+    const showCard = (event) => {
+      const properties = event?.layer?.properties || event?.properties;
+      const latlng = event?.latlng;
+      if (!properties || !latlng) return;
+
+      if (!this.lightingHoverPopup) {
+        this.lightingHoverPopup = L.popup({
+          closeButton: false,
+          autoPan: false,
+          className: "lighting-hover-popup",
+          offset: [0, -10],
+        });
+      }
+
+      this.lightingHoverPopup
+        .setLatLng(latlng)
+        .setContent(this._buildLightingHoverCard(properties));
+
+      if (!this.map.hasLayer(this.lightingHoverPopup)) {
+        this.lightingHoverPopup.addTo(this.map);
+      }
+    };
+
+    this.lightingLayer.on("mouseover", showCard);
+    this.lightingLayer.on("mousemove", showCard);
+    this.lightingLayer.on("mouseout", () => this._clearLightingHoverCard());
+  }
+
+  /**
    * Add the street lighting vector tile overlay from Martin tileserver.
    * @param {Object} options - Optional style overrides.
    * @param {string} options.litColor     - Hex colour for lit streets (default #FFD700).
@@ -1078,6 +1248,8 @@ class MapController {
         options.sourceFilter ?? this.lightingOptions?.sourceFilter ?? "all",
       regimeFilter:
         options.regimeFilter ?? this.lightingOptions?.regimeFilter ?? "all",
+      dimMap: options.dimMap ?? this.lightingOptions?.dimMap ?? true,
+      hoverInfo: options.hoverInfo ?? this.lightingOptions?.hoverInfo ?? true,
     };
 
     const {
@@ -1087,7 +1259,11 @@ class MapController {
       litWeight,
       sourceFilter,
       regimeFilter,
+      dimMap,
+      hoverInfo,
     } = this.lightingOptions;
+
+    this._clearLightingHoverCard();
 
     // Remove existing layer before re-adding with new style
     if (this.lightingLayer) {
@@ -1191,6 +1367,12 @@ class MapController {
     });
 
     this.lightingLayer.addTo(this.map);
+    this._setLightingDimmed(dimMap);
+
+    if (hoverInfo) {
+      this._bindLightingHoverInteractions();
+    }
+
     console.log("[MapController] Street lighting layer added");
   }
 
@@ -1213,6 +1395,9 @@ class MapController {
       this.lightingLayer = null;
       console.log("[MapController] Street lighting layer removed");
     }
+
+    this._clearLightingHoverCard();
+    this._setLightingDimmed(false);
   }
 
   // ═══════════════════════════════════════════════════════════════════

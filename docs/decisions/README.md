@@ -34,6 +34,7 @@ Each ADR follows this structure:
 | [ADR-016](ADR-016-alembic-migration-safety.md)                               | Alembic Migration Safety — include_object Firewall                        | Accepted | 2026-02-22 |
 | [ADR-018](ADR-018-dynamic-movement-speed-profiles-and-unit-normalization.md) | Dynamic Movement Speed Profiles and Unit Normalization                    | Proposed | 2026-03-28 |
 | [ADR-019](ADR-019-council-streetlight-data.md)                               | Council-First Street Lighting Integration and Overlay Source Transparency | Accepted | 2026-03-29 |
+| [ADR-020](ADR-020-street-lighting-hover-provenance-cards.md)                 | Street Lighting Hover Provenance Cards                                    | Accepted | 2026-03-29 |
 
 ## Related Documentation
 
@@ -42,3 +43,4 @@ Each ADR follows this structure:
 - [Custom Walking Filter](../features/custom_walking_filter.md) - Walking network filter and restricted-access pruning
 - [User Accounts & Authentication](../features/user_accounts.md) - User registration, login, and session management
 - [Saved Data (Pins & Routes)](../features/saved_data.md) - CRUD API for user-saved locations and routes
+- [Street Lighting Feature](../features/street_lighting.md) - Overlay pipeline, schema, and filter semantics
