@@ -19,6 +19,24 @@ const WEIGHT_LABELS = {
   5: "Max",
 };
 
+const SOURCE_LABELS = {
+  all: "All sources",
+  council: "Council only",
+  osm: "OSM only",
+  bristol: "Bristol council only",
+  south_glos: "South Glos council only",
+};
+
+const REGIME_LABELS = {
+  all: "All regimes",
+  all_night: "All night",
+  part_night: "Part night",
+  timed_window: "Timed window",
+  solar: "Solar",
+  unlit: "Unlit",
+  unknown: "Unknown",
+};
+
 function initMapOverlays() {
   const toggle = document.getElementById("lighting-overlay-toggle");
   const advancedPanel = document.getElementById("lighting-advanced-options");
@@ -27,6 +45,10 @@ function initMapOverlays() {
   const unknownColorPicker = document.getElementById("lighting-unknown-color");
   const weightSlider = document.getElementById("lighting-weight-slider");
   const weightLabel = document.getElementById("lighting-weight-value");
+  const sourceFilter = document.getElementById("lighting-source-filter");
+  const regimeFilter = document.getElementById("lighting-regime-filter");
+  const activeSourceLabel = document.getElementById("lighting-active-source");
+  const activeRegimeLabel = document.getElementById("lighting-active-regime");
 
   if (!toggle) return;
 
@@ -41,6 +63,10 @@ function initMapOverlays() {
     localStorage.getItem("lightingWeight") || "2",
     10,
   );
+  const savedSourceFilter =
+    localStorage.getItem("lightingSourceFilter") || "all";
+  const savedRegimeFilter =
+    localStorage.getItem("lightingRegimeFilter") || "all";
 
   toggle.checked = savedOn;
   litColorPicker.value = savedLitColor;
@@ -48,6 +74,20 @@ function initMapOverlays() {
   unknownColorPicker.value = savedUnknownColor;
   weightSlider.value = savedWeight;
   weightLabel.textContent = WEIGHT_LABELS[savedWeight] || "Normal";
+  if (sourceFilter) sourceFilter.value = savedSourceFilter;
+  if (regimeFilter) regimeFilter.value = savedRegimeFilter;
+
+  const updateMetadataSummary = () => {
+    if (activeSourceLabel) {
+      activeSourceLabel.textContent =
+        SOURCE_LABELS[sourceFilter?.value || "all"];
+    }
+    if (activeRegimeLabel) {
+      activeRegimeLabel.textContent =
+        REGIME_LABELS[regimeFilter?.value || "all"];
+    }
+  };
+  updateMetadataSummary();
 
   // Show/hide advanced panel to match initial state
   advancedPanel.classList.toggle("hidden", !savedOn);
@@ -58,6 +98,8 @@ function initMapOverlays() {
       unlitColor: savedUnlitColor,
       unknownColor: savedUnknownColor,
       litWeight: savedWeight,
+      sourceFilter: savedSourceFilter,
+      regimeFilter: savedRegimeFilter,
     });
   }
 
@@ -68,7 +110,10 @@ function initMapOverlays() {
       unlitColor: unlitColorPicker.value,
       unknownColor: unknownColorPicker.value,
       litWeight: parseInt(weightSlider.value, 10),
+      sourceFilter: sourceFilter?.value || "all",
+      regimeFilter: regimeFilter?.value || "all",
     });
+    updateMetadataSummary();
   };
 
   // --- Toggle ---
@@ -81,6 +126,8 @@ function initMapOverlays() {
         unlitColor: unlitColorPicker.value,
         unknownColor: unknownColorPicker.value,
         litWeight: parseInt(weightSlider.value, 10),
+        sourceFilter: sourceFilter?.value || "all",
+        regimeFilter: regimeFilter?.value || "all",
       });
       localStorage.setItem("lightingOverlay", "true");
     } else {
@@ -117,6 +164,20 @@ function initMapOverlays() {
   weightSlider.addEventListener("change", () => {
     localStorage.setItem("lightingWeight", weightSlider.value);
   });
+
+  if (sourceFilter) {
+    sourceFilter.addEventListener("change", () => {
+      localStorage.setItem("lightingSourceFilter", sourceFilter.value);
+      applyStyle();
+    });
+  }
+
+  if (regimeFilter) {
+    regimeFilter.addEventListener("change", () => {
+      localStorage.setItem("lightingRegimeFilter", regimeFilter.value);
+      applyStyle();
+    });
+  }
 }
 
 function initMapAppearance() {

@@ -609,6 +609,7 @@ def _route_leg(graph, source: int, target: int,
                length_range: Optional[Tuple[float, float]] = None,
                prefer_lit: bool = False,
                heavily_avoid_unlit: bool = False,
+               activity: str = 'walking',
                ) -> Optional[Tuple[List[int], float, float]]:
     """
     Route one leg (source -> target) using the WSM A* solver.
@@ -626,6 +627,7 @@ def _route_leg(graph, source: int, target: int,
             combine_nature=combine_nature,
             prefer_lit=prefer_lit,
             heavily_avoid_unlit=heavily_avoid_unlit,
+            activity=activity,
         )
         result = solver.astar(source, target)
         if result is None:
@@ -696,6 +698,7 @@ def _try_polygon(
     irregularity: float = 0.0,  # 0.0 = perfect symmetry, 1.0 = high jitter
     prefer_lit: bool = False,
     heavily_avoid_unlit: bool = False,
+    activity: str = 'walking',
 ) -> Optional[Tuple[List[int], float, float, float]]:
     """
     Attempt to build and route a 'Natural Shape' polygon loop.
@@ -842,7 +845,8 @@ def _try_polygon(
         v = sequence[i+1]
         
         leg_res = _route_leg(graph, u, v, weights, combine_nature, length_range,
-                             prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit)
+                             prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
+                             activity=activity)
         if leg_res is None:
             print(f"[GeometricSolver]   [FAILED] Leg {i+1} ({u}->{v}) failed")
             return None
@@ -881,6 +885,7 @@ def _try_out_and_back(
     length_range: Tuple[float, float],
     prefer_lit: bool = False,
     heavily_avoid_unlit: bool = False,
+    activity: str = 'walking',
 ) -> Optional[Tuple[List[int], float, float]]:
     """
     Fallback: out-and-back route when all triangle attempts fail.
@@ -913,7 +918,8 @@ def _try_out_and_back(
     print(f"[GeometricSolver]   -> Routing outbound leg: S->W")
     leg_out = _route_leg(graph, start_node, w_node, weights,
                          combine_nature, length_range,
-                         prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit)
+                         prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
+                         activity=activity)
     if leg_out is None:
         print(f"[GeometricSolver]   [FAILED] Outbound leg failed")
         return None
@@ -921,7 +927,8 @@ def _try_out_and_back(
     print(f"[GeometricSolver]   -> Routing return leg: W->S")
     leg_back = _route_leg(graph, w_node, start_node, weights,
                           combine_nature, length_range,
-                          prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit)
+                          prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
+                          activity=activity)
     if leg_back is None:
         print(f"[GeometricSolver]   [FAILED] Return leg failed")
         return None
@@ -1018,6 +1025,7 @@ class GeometricLoopSolver(LoopSolverBase):
         avoid_unsafe_roads: bool = False,
         use_smart_bearing: bool = False,
         heavily_avoid_unlit: bool = False,
+        activity: str = 'walking',
     ) -> List[LoopCandidate]:
         """
         Find multiple loop route candidates using the geometric skeleton
@@ -1195,6 +1203,7 @@ class GeometricLoopSolver(LoopSolverBase):
                         irregularity=cfg['irr'],
                         prefer_lit=prefer_lit,
                         heavily_avoid_unlit=heavily_avoid_unlit,
+                        activity=activity,
                     )
 
                     if result is None:
@@ -1265,6 +1274,7 @@ class GeometricLoopSolver(LoopSolverBase):
                     combine_nature, bearing, DEFAULT_TAU, length_range,
                     prefer_lit=prefer_lit,
                     heavily_avoid_unlit=heavily_avoid_unlit,
+                    activity=activity,
                 )
                 if oab is not None:
                     route_oab, dist_oab, cost_oab = oab

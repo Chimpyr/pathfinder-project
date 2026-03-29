@@ -6,7 +6,16 @@ Supports both coordinate-based and address-based routing.
 """
 
 from flask import Blueprint, render_template, request, current_app, jsonify
+from flask_login import current_user
+
 from app.services.core.graph_manager import GraphManager
+from app.services.movement_preferences import (
+    km_to_display,
+    pace_text_from_speed,
+    resolve_request_movement_context,
+    speed_kmh_to_display,
+    speed_unit_label,
+)
 from app.services.routing.route_finder import RouteFinder
 from app.services.rendering.map_renderer import MapRenderer
 
@@ -14,6 +23,64 @@ main = Blueprint('main', __name__)
 
 # Threshold for showing visual edge features on the map (metres)
 VISUAL_DEBUG_THRESHOLD_M = 5000
+
+
+def _current_authenticated_user():
+    """Safely return the logged-in user or None."""
+    try:
+        if getattr(current_user, 'is_authenticated', False):
+            return current_user
+    except Exception:
+        pass
+    return None
+
+
+def _resolve_movement_context(request_data):
+    """Resolve request-time travel profile, unit, and effective speed."""
+    return resolve_request_movement_context(
+        request_data=request_data or {},
+        user=_current_authenticated_user(),
+        config_obj=current_app.config,
+    )
+
+
+def _build_stats_payload(distance_m, time_seconds, movement_ctx, routing_mode):
+    """Build a unit-aware stats payload while preserving legacy keys."""
+    distance_km = max(0.0, float(distance_m) / 1000.0)
+    distance_unit = movement_ctx['distance_unit']
+    speed_kmh = float(movement_ctx['effective_speed_kmh'])
+
+    return {
+        'distance_km': f"{distance_km:.2f}",
+        'distance': f"{km_to_display(distance_km, distance_unit):.2f}",
+        'distance_unit': distance_unit,
+        'time_min': int(max(0.0, float(time_seconds)) // 60),
+        'assumed_speed_kmh': round(speed_kmh, 2),
+        'assumed_speed': round(speed_kmh_to_display(speed_kmh, distance_unit), 2),
+        'speed_unit': speed_unit_label(distance_unit),
+        'assumed_pace': pace_text_from_speed(speed_kmh, distance_unit),
+        'travel_profile': movement_ctx['travel_profile'],
+        'routing_mode': routing_mode,
+
+        # Legacy key kept for existing UI paths.
+        'pace_kmh': round(speed_kmh, 2),
+    }
+
+
+def _build_movement_payload(movement_ctx):
+    """Build common movement metadata returned by route and loop APIs."""
+    distance_unit = movement_ctx['distance_unit']
+    speed_kmh = float(movement_ctx['effective_speed_kmh'])
+
+    return {
+        'travel_profile': movement_ctx['travel_profile'],
+        'distance_unit': distance_unit,
+        'assumed_speed_kmh': round(speed_kmh, 2),
+        'assumed_speed': round(speed_kmh_to_display(speed_kmh, distance_unit), 2),
+        'speed_unit': speed_unit_label(distance_unit),
+        'assumed_pace': pace_text_from_speed(speed_kmh, distance_unit),
+        'preferences_updated_at': movement_ctx['preferences'].get('movement_prefs_updated_at'),
+    }
 
 
 def _extract_edge_features(graph, route, max_edges=None):
@@ -204,6 +271,8 @@ def calculate_loop_route():
         
         if not data:
             return jsonify({'error': 'No data provided'}), 400
+
+        movement_ctx = _resolve_movement_context(data)
         
         # Validate required fields
         if data.get('start_lat') is None or data.get('start_lon') is None:
@@ -405,35 +474,51 @@ def calculate_loop_route():
             avoid_unsafe_roads=avoid_unsafe_roads,
             use_smart_bearing=use_smart_bearing,
             heavily_avoid_unlit=heavily_avoid_unlit,
+            travel_profile=movement_ctx['travel_profile'],
+            speed_kmh=movement_ctx['effective_speed_kmh'],
+            activity=movement_ctx['activity'],
         )
         
         if not candidates:
             return jsonify({
                 'error': 'Could not find a loop route. Try a shorter distance or different start point.'
             }), 404
-        
-        # Build multi-loop response
-        walking_speed_kmh = current_app.config.get('WALKING_SPEED_KMH', 5.0)
-        speed_ms = walking_speed_kmh * 1000 / 3600
+
+        # Build multi-loop response with profile-aware ETA and unit-aware stats.
+        distance_unit = movement_ctx['distance_unit']
+        speed_kmh = float(movement_ctx['effective_speed_kmh'])
         
         loops_json = []
         for candidate in candidates:
             route_coords = MapRenderer.route_to_coords(graph, candidate.route)
-            time_seconds = candidate.distance / speed_ms if speed_ms > 0 else 0
+            time_seconds = finder.estimate_route_time(
+                route=candidate.route,
+                travel_profile=movement_ctx['travel_profile'],
+                speed_kmh=movement_ctx['effective_speed_kmh'],
+                activity=movement_ctx['activity'],
+            )
+            distance_display = km_to_display(candidate.distance_km, distance_unit)
             
             loops_json.append({
                 'id': candidate.label.lower().replace(' ', '_'),
                 'label': candidate.label,
                 'colour': candidate.colour,
                 'route_coords': route_coords,
-                'distance': candidate.distance,
+                'distance_m': candidate.distance,
                 'distance_km': candidate.distance_km,
+                'distance': round(distance_display, 2),
+                'distance_unit': distance_unit,
                 'deviation': round(candidate.deviation, 4),
                 'deviation_percent': candidate.deviation_percent,
                 'scenic_cost': round(candidate.scenic_cost, 4),
                 'quality_score': round(candidate.quality_score, 4),
                 'time_seconds': int(time_seconds),
                 'time_min': int(time_seconds // 60),
+                'travel_profile': movement_ctx['travel_profile'],
+                'assumed_speed_kmh': round(speed_kmh, 2),
+                'assumed_speed': round(speed_kmh_to_display(speed_kmh, distance_unit), 2),
+                'speed_unit': speed_unit_label(distance_unit),
+                'assumed_pace': pace_text_from_speed(speed_kmh, distance_unit),
                 'algorithm': candidate.algorithm,
                 'metadata': candidate.metadata,
             })
@@ -441,7 +526,12 @@ def calculate_loop_route():
         # Best candidate for primary stats
         best = candidates[0]
         best_distance = best.distance
-        best_time = best_distance / speed_ms if speed_ms > 0 else 0
+        best_time = finder.estimate_route_time(
+            route=best.route,
+            travel_profile=movement_ctx['travel_profile'],
+            speed_kmh=movement_ctx['effective_speed_kmh'],
+            activity=movement_ctx['activity'],
+        )
         
         # Build warning message
         warning = None
@@ -469,15 +559,18 @@ def calculate_loop_route():
             'loops': loops_json,
             'start_point': list(start_point),
             'end_point': list(start_point),
-            'stats': {
-                'distance_km': f"{best_distance / 1000:.2f}",
-                'time_min': int(best_time // 60),
-                'pace_kmh': walking_speed_kmh,
-                'routing_mode': 'loop'
-            },
+            'stats': _build_stats_payload(
+                distance_m=best_distance,
+                time_seconds=best_time,
+                movement_ctx=movement_ctx,
+                routing_mode='loop',
+            ),
+            'movement': _build_movement_payload(movement_ctx),
             'loop_metadata': {
                 'target_distance_km': target_distance_km,
                 'actual_distance_km': round(best_distance / 1000, 2),
+                'actual_distance': round(km_to_display(best_distance / 1000, distance_unit), 2),
+                'distance_unit': distance_unit,
                 'budget_deviation': round((best_distance - target_distance_m) / target_distance_m, 3),
                 'directional_bias': directional_bias,
                 'num_candidates': len(candidates),
@@ -651,6 +744,8 @@ def calculate_route():
         
         if not data:
             return jsonify({'error': 'No data provided'}), 400
+
+        movement_ctx = _resolve_movement_context(data)
         
         start_point = None
         end_point = None
@@ -832,6 +927,9 @@ def calculate_route():
                 prefer_lit=prefer_lit,
                 heavily_avoid_unlit=heavily_avoid_unlit,
                 prefer_pedestrian=prefer_pedestrian,
+                travel_profile=movement_ctx['travel_profile'],
+                speed_kmh=movement_ctx['effective_speed_kmh'],
+                activity=movement_ctx['activity'],
             )
             
             # Validate that at least one route was found
@@ -846,13 +944,18 @@ def calculate_route():
                 route = route_data.get('route')
                 if not route:
                     return None
+
+                distance_m = route_data.get('distance', 0)
+                time_seconds = route_data.get('time_seconds', 0)
                 
                 return {
                     'route_coords': MapRenderer.route_to_coords(graph, route),
-                    'stats': {
-                        'distance_km': f"{route_data.get('distance', 0) / 1000:.2f}",
-                        'time_min': int(route_data.get('time_seconds', 0) // 60),
-                    },
+                    'stats': _build_stats_payload(
+                        distance_m=distance_m,
+                        time_seconds=time_seconds,
+                        movement_ctx=movement_ctx,
+                        routing_mode='standard',
+                    ),
                     'colour': route_data.get('colour', '#808080'),
                 }
             
@@ -870,6 +973,7 @@ def calculate_route():
                 'start_point': list(start_point),
                 'end_point': list(end_point),
                 'tiles_required': tile_ids if 'tile_ids' in dir() else [],
+                'movement': _build_movement_payload(movement_ctx),
             }
             
             # Add debug info if enabled
@@ -904,6 +1008,9 @@ def calculate_route():
             prefer_lit=prefer_lit,
             heavily_avoid_unlit=heavily_avoid_unlit,
             prefer_pedestrian=prefer_pedestrian,
+            travel_profile=movement_ctx['travel_profile'],
+            speed_kmh=movement_ctx['effective_speed_kmh'],
+            activity=movement_ctx['activity'],
         )
         
         if not route:
@@ -920,16 +1027,19 @@ def calculate_route():
             'routes': {
                 'balanced': {
                     'route_coords': route_coords,
-                    'stats': {
-                        'distance_km': f"{distance / 1000:.2f}",
-                        'time_min': int(time_seconds // 60),
-                    },
+                    'stats': _build_stats_payload(
+                        distance_m=distance,
+                        time_seconds=time_seconds,
+                        movement_ctx=movement_ctx,
+                        routing_mode='standard',
+                    ),
                     'colour': '#3B82F6', # Default blue
                 }
             },
             'start_point': list(start_point),
             'end_point': list(end_point),
             'tiles_required': tile_ids if 'tile_ids' in locals() else [],
+            'movement': _build_movement_payload(movement_ctx),
             'debug_info': {}
         }
         

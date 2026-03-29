@@ -10,14 +10,85 @@ Cross-domain aggregation note:
     must be done in the Python application layer.
 """
 
+from datetime import datetime, timezone
+
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.models.saved_pin import SavedPin
 from app.models.saved_query import SavedQuery
+from app.services.movement_preferences import (
+    build_user_preferences,
+    parse_iso_timestamp,
+    validate_preferences_payload,
+)
 
 user_data_bp = Blueprint('user_data', __name__, url_prefix='/api')
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  MOVEMENT PREFERENCES
+# ═══════════════════════════════════════════════════════════════════════
+
+@user_data_bp.route('/preferences/movement', methods=['GET'])
+@login_required
+def get_movement_preferences():
+    """Return movement preferences for the currently authenticated user."""
+    prefs = build_user_preferences(current_user)
+    return jsonify({'preferences': prefs}), 200
+
+
+@user_data_bp.route('/preferences/movement', methods=['PATCH'])
+@login_required
+def update_movement_preferences():
+    """
+    Update movement preferences for the authenticated user.
+
+    Supports optimistic timestamp reconciliation via optional
+    `client_updated_at` in the request payload.
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'JSON body required'}), 400
+
+    normalised, field_errors = validate_preferences_payload(data)
+    if field_errors:
+        return jsonify({
+            'error': 'Invalid movement preferences payload',
+            'fields': field_errors,
+        }), 400
+
+    current_prefs = build_user_preferences(current_user)
+    effective_easy = float(normalised.get('running_easy_speed_kmh', current_prefs['running_easy_speed_kmh']))
+    effective_race = float(normalised.get('running_race_speed_kmh', current_prefs['running_race_speed_kmh']))
+    if effective_race < effective_easy:
+        return jsonify({
+            'error': 'Invalid movement preferences payload',
+            'fields': {
+                'running_race_speed_kmh': 'Must be greater than or equal to running_easy_speed_kmh.',
+            },
+        }), 400
+
+    client_updated_at = normalised.pop('client_updated_at', None)
+    server_updated_at = parse_iso_timestamp(current_user.movement_prefs_updated_at)
+
+    if client_updated_at and server_updated_at and client_updated_at < server_updated_at:
+        return jsonify({
+            'error': 'Movement preferences are outdated. Refresh and retry.',
+            'preferences': build_user_preferences(current_user),
+        }), 409
+
+    for key, value in normalised.items():
+        setattr(current_user, key, value)
+
+    current_user.movement_prefs_updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Movement preferences updated',
+        'preferences': build_user_preferences(current_user),
+    }), 200
 
 
 # ═══════════════════════════════════════════════════════════════════════

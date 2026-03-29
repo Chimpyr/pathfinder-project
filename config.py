@@ -6,7 +6,13 @@ class Config:
     DEFAULT_CITY = "Bristol, UK"
     DEBUG = True
     VERBOSE_LOGGING = True
-    WALKING_SPEED_KMH = 5.0
+    DEFAULT_DISTANCE_UNIT = 'km'
+    DEFAULT_WALKING_SPEED_KMH = 5.0
+    DEFAULT_RUNNING_EASY_SPEED_KMH = 9.5
+    DEFAULT_RUNNING_RACE_SPEED_KMH = 12.5
+
+    # Backward-compatible walking speed alias used by legacy code paths.
+    WALKING_SPEED_KMH = DEFAULT_WALKING_SPEED_KMH
 
     ACTIVITY_PARAMS = {
         'walking': {
@@ -65,6 +71,12 @@ class Config:
     # - OFF: Skip water processing (no water proximity data)
     # - FAST: Buffer intersection for water features
     WATER_MODE = 'FAST'
+
+    # Council streetlight augmentation mode
+    # Options: 'OFF', 'FAST'
+    # - OFF: Use only OSM `lit` tags
+    # - FAST: Snap council light points to nearby edges and set lit='yes'
+    STREETLIGHT_MODE = 'FAST'
     
     # Social/POI proximity processing mode
     # Options: 'OFF', 'FAST'

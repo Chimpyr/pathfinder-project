@@ -27,6 +27,14 @@ import {
   hideResults,
 } from "./results_ui.js";
 import { switchView } from "./layout_ui.js";
+import {
+  buildMovementRequestPayload,
+  getMovementPrefs,
+  getSelectedTravelProfile,
+  setSelectedTravelProfile,
+  speedKmhToDisplay,
+  syncMovementPreferencesWithServer,
+} from "./movement_prefs.js";
 
 // Elements
 const modeStandardBtn = document.getElementById("mode-standard");
@@ -36,6 +44,7 @@ const loopDistanceGroup = document.getElementById("loop-distance-group");
 const btnText = document.getElementById("btn-text");
 const errorMsg = document.getElementById("error-message");
 const routeForm = document.getElementById("route-form");
+const travelProfileSelect = document.getElementById("travel-profile-select");
 
 // Loop specific elements
 const loopDistanceSlider = document.getElementById("loop-distance-slider");
@@ -54,12 +63,121 @@ const heavilyAvoidUnlitToggle = document.getElementById(
 );
 const avoidUnsafeToggle = document.getElementById("avoid-unsafe-toggle");
 const groupNatureToggle = document.getElementById("group-nature-toggle");
+const finderNavBtn = document.querySelector(
+  '.nav-rail-btn[data-view="finder-view"]',
+);
 
 export function initRoutingUI() {
   initModeToggles();
   initLoopControls();
+  initTravelProfileControl();
   initLitToggles();
   initFormSubmit();
+}
+
+function updateTravelProfileOptionLabels(prefs = getMovementPrefs()) {
+  if (!travelProfileSelect) return;
+
+  const unit = prefs?.preferred_distance_unit === "mi" ? "mi" : "km";
+  const speedUnit = unit === "mi" ? "mph" : "km/h";
+
+  const profileConfig = [
+    ["walking", "Walking", prefs?.walking_speed_kmh],
+    ["running_easy", "Running (Easy)", prefs?.running_easy_speed_kmh],
+    ["running_race", "Running (Race)", prefs?.running_race_speed_kmh],
+  ];
+
+  profileConfig.forEach(([value, label, speedKmh]) => {
+    const option = travelProfileSelect.querySelector(
+      `option[value="${value}"]`,
+    );
+    if (!option) return;
+
+    const speedDisplay = speedKmhToDisplay(speedKmh, unit);
+    const speedText = Number.isFinite(speedDisplay)
+      ? speedDisplay.toFixed(1)
+      : "-";
+
+    option.textContent = `${label} (${speedText} ${speedUnit})`;
+  });
+}
+
+function refreshTravelProfileSelection() {
+  if (!travelProfileSelect) return;
+
+  const selected = getSelectedTravelProfile();
+  if (selected) {
+    travelProfileSelect.value = selected;
+  }
+}
+
+function refreshTravelProfileFromLocalPrefs() {
+  updateTravelProfileOptionLabels(getMovementPrefs());
+  refreshTravelProfileSelection();
+}
+
+async function refreshTravelProfileFromSyncedPrefs() {
+  try {
+    const prefs = await syncMovementPreferencesWithServer();
+    updateTravelProfileOptionLabels(prefs);
+  } catch {
+    updateTravelProfileOptionLabels(getMovementPrefs());
+  }
+
+  refreshTravelProfileSelection();
+}
+
+function initTravelProfileControl() {
+  if (!travelProfileSelect) return;
+
+  refreshTravelProfileFromLocalPrefs();
+
+  // Ensure labels are based on latest merged local/server prefs.
+  refreshTravelProfileFromSyncedPrefs();
+
+  travelProfileSelect.addEventListener("change", () => {
+    setSelectedTravelProfile(travelProfileSelect.value);
+  });
+
+  document.addEventListener("movement-prefs-changed", (event) => {
+    updateTravelProfileOptionLabels(
+      event?.detail?.preferences || getMovementPrefs(),
+    );
+    refreshTravelProfileSelection();
+  });
+
+  document.addEventListener("movement-prefs-saved", (event) => {
+    updateTravelProfileOptionLabels(
+      event?.detail?.preferences || getMovementPrefs(),
+    );
+    refreshTravelProfileSelection();
+  });
+
+  // Fallback refresh in case event timing was missed.
+  travelProfileSelect.addEventListener("focus", () => {
+    refreshTravelProfileFromLocalPrefs();
+  });
+
+  // Always rehydrate labels when user navigates back to Finder.
+  finderNavBtn?.addEventListener("click", () => {
+    refreshTravelProfileFromLocalPrefs();
+    refreshTravelProfileFromSyncedPrefs();
+  });
+
+  const finderView = document.getElementById("finder-view");
+  if (finderView) {
+    new MutationObserver((mutations) => {
+      mutations.forEach((m) => {
+        if (
+          m.attributeName === "class" &&
+          !finderView.classList.contains("hidden")
+        ) {
+          refreshTravelProfileFromLocalPrefs();
+          refreshTravelProfileFromSyncedPrefs();
+        }
+      });
+    }).observe(finderView, { attributes: true });
+  }
 }
 
 function initModeToggles() {
@@ -91,7 +209,9 @@ function switchRoutingMode(mode) {
   if (swapRow) swapRow.classList.toggle("hidden", !isStandard);
 
   // Notify other modules of mode change
-  document.dispatchEvent(new CustomEvent("routing-mode-changed", { detail: { mode } }));
+  document.dispatchEvent(
+    new CustomEvent("routing-mode-changed", { detail: { mode } }),
+  );
 
   console.log(`[App] Routing mode: ${mode}`);
 }
@@ -210,6 +330,9 @@ async function handleStandardSubmit() {
     start_lon: startState.lon,
     end_lat: endState.lat,
     end_lon: endState.lon,
+    ...buildMovementRequestPayload(
+      travelProfileSelect?.value || getSelectedTravelProfile(),
+    ),
   };
 
   const scenicWeights = getScenicWeights();
@@ -289,6 +412,9 @@ async function handleLoopSubmit() {
     start_lon: startState.lon,
     distance_km: distKm,
     directional_bias: appState.selectedDirection,
+    ...buildMovementRequestPayload(
+      travelProfileSelect?.value || getSelectedTravelProfile(),
+    ),
     variety_level: varietyLevelSlider ? parseInt(varietyLevelSlider.value) : 0,
     prefer_pedestrian: preferPedestrianToggle
       ? preferPedestrianToggle.checked
@@ -424,16 +550,39 @@ function onLoopSuccess(result) {
     }
   }
 
-  // Update stats manually for loop (since it doesn't use the standard multi-route card UI yet)
-  // Or if it does, adapt here.
-  if (result.stats) {
-    const statDistance = document.getElementById("stat-distance");
-    const statTime = document.getElementById("stat-time");
-    if (statDistance) statDistance.textContent = result.stats.distance_km;
-    if (statTime) statTime.textContent = result.stats.time_min;
+  // Keep Selected Route Details in sync with the chosen loop payload.
+  if (loopState.loops && loopState.loops.length > 0 && loopState.selectedId) {
+    const selected = loopState.loops.find((l) => l.id === loopState.selectedId);
+    if (selected) {
+      const statDistance = document.getElementById("stat-distance");
+      const statDistanceUnit = document.getElementById("stat-distance-unit");
+      const statTime = document.getElementById("stat-time");
+      const statProfile = document.getElementById("stat-profile");
+      const statSpeed = document.getElementById("stat-speed");
+      const statSpeedUnit = document.getElementById("stat-speed-unit");
+      const statPace = document.getElementById("stat-pace");
+      const routeStats = document.getElementById("route-stats");
 
-    const routeStats = document.getElementById("route-stats");
-    if (routeStats) routeStats.classList.remove("hidden");
+      if (statDistance)
+        statDistance.textContent = String(
+          selected.distance ?? selected.distance_km ?? "?",
+        );
+      if (statDistanceUnit)
+        statDistanceUnit.textContent = selected.distance_unit || "km";
+      if (statTime) statTime.textContent = String(selected.time_min ?? "?");
+      if (statProfile)
+        statProfile.textContent = String(
+          selected.travel_profile || "walking",
+        ).replaceAll("_", " ");
+      if (statSpeed)
+        statSpeed.textContent = String(selected.assumed_speed ?? "?");
+      if (statSpeedUnit)
+        statSpeedUnit.textContent =
+          selected.speed_unit ||
+          (selected.distance_unit === "mi" ? "mph" : "km/h");
+      if (statPace) statPace.textContent = selected.assumed_pace || "n/a";
+      if (routeStats) routeStats.classList.remove("hidden");
+    }
   }
 }
 

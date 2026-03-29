@@ -51,3 +51,8 @@ benchmarks/results/runner_log_*.txt
 benchmarks/results/*.json
 .agents/rules/code-style.md
 implementation_plan.md
+
+node_modules/
+package-lock.json
+.gitignore
+package.json

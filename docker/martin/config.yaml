@@ -9,4 +9,5 @@ postgres:
       from_schemas:
         - public
     functions:
-      from_schemas: []
+      from_schemas:
+        - public

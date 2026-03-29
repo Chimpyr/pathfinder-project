@@ -1,5 +1,6 @@
 import networkx as nx
 import osmnx as ox
+import inspect
 from flask import current_app
 from app.services.routing.astar.astar import OSMNetworkXAStar
 
@@ -38,6 +39,9 @@ class RouteFinder:
         avoid_unsafe_roads=False,
         use_smart_bearing=True,
         heavily_avoid_unlit=False,
+        travel_profile='walking',
+        speed_kmh=None,
+        activity=None,
     ):
         """
         Finds multiple circular (loop) route candidates.
@@ -106,6 +110,12 @@ class RouteFinder:
             # Create solver via factory (reads LOOP_SOLVER_ALGORITHM from config)
             from app.services.routing.loop_solvers import LoopSolverFactory
             solver = LoopSolverFactory.create()
+
+            _, resolved_activity = self._resolve_movement_context(
+                travel_profile=travel_profile,
+                speed_kmh=speed_kmh,
+                activity=activity,
+            )
             
             if current_app.config.get('VERBOSE_LOGGING'):
                 algorithm = current_app.config.get('LOOP_SOLVER_ALGORITHM', 'BUDGET_ASTAR')
@@ -113,25 +123,39 @@ class RouteFinder:
                       f"candidates={num_candidates}, tolerance=±{distance_tolerance*100:.0f}%")
                 print(f"[VERBOSE] Weights: {weights}, combine_nature: {combine_nature}")
             
-            # Find loop candidates
-            candidates = solver.find_loops(
-                graph=self.graph,
-                start_node=start_node,
-                target_distance=target_distance_m,
-                weights=weights,
-                combine_nature=combine_nature,
-                directional_bias=directional_bias,
-                num_candidates=num_candidates,
-                distance_tolerance=distance_tolerance,
-                max_search_time=max_search_time,
-                variety_level=variety_level,
-                prefer_pedestrian=prefer_pedestrian,
-                prefer_paved=prefer_paved,
-                prefer_lit=prefer_lit,
-                avoid_unsafe_roads=avoid_unsafe_roads,
-                use_smart_bearing=use_smart_bearing,
-                heavily_avoid_unlit=heavily_avoid_unlit,
-            )
+            # Find loop candidates (filter kwargs for solver compatibility).
+            loop_kwargs = {
+                'graph': self.graph,
+                'start_node': start_node,
+                'target_distance': target_distance_m,
+                'weights': weights,
+                'combine_nature': combine_nature,
+                'directional_bias': directional_bias,
+                'num_candidates': num_candidates,
+                'distance_tolerance': distance_tolerance,
+                'max_search_time': max_search_time,
+                'variety_level': variety_level,
+                'prefer_pedestrian': prefer_pedestrian,
+                'prefer_paved': prefer_paved,
+                'prefer_lit': prefer_lit,
+                'avoid_unsafe_roads': avoid_unsafe_roads,
+                'use_smart_bearing': use_smart_bearing,
+                'heavily_avoid_unlit': heavily_avoid_unlit,
+                'activity': resolved_activity,
+            }
+
+            try:
+                params = inspect.signature(solver.find_loops).parameters
+                accepts_var_kwargs = any(
+                    param.kind == inspect.Parameter.VAR_KEYWORD
+                    for param in params.values()
+                )
+                if not accepts_var_kwargs:
+                    loop_kwargs = {k: v for k, v in loop_kwargs.items() if k in params}
+            except (TypeError, ValueError):
+                pass
+
+            candidates = solver.find_loops(**loop_kwargs)
             
             # Filter out loops below minimum distance
             candidates = [c for c in candidates if c.distance >= min_loop_distance]
@@ -153,8 +177,20 @@ class RouteFinder:
             traceback.print_exc()
             return []
 
-    def find_route(self, start_point, end_point, use_wsm=False, weights=None, combine_nature=False,
-                   prefer_lit=False, heavily_avoid_unlit=False, prefer_pedestrian=False):
+    def find_route(
+        self,
+        start_point,
+        end_point,
+        use_wsm=False,
+        weights=None,
+        combine_nature=False,
+        prefer_lit=False,
+        heavily_avoid_unlit=False,
+        prefer_pedestrian=False,
+        travel_profile='walking',
+        speed_kmh=None,
+        activity=None,
+    ):
         """
         Finds a path between two locations (coordinates).
         
@@ -191,6 +227,12 @@ class RouteFinder:
                 print(f"[VERBOSE] Start Node ID: {start_node}")
                 print(f"[VERBOSE] End Node ID: {end_node}")
 
+            resolved_speed_kmh, resolved_activity = self._resolve_movement_context(
+                travel_profile=travel_profile,
+                speed_kmh=speed_kmh,
+                activity=activity,
+            )
+
             # Select A* solver based on mode
             if use_wsm:
                 from app.services.routing.astar.wsm_astar import WSMNetworkXAStar
@@ -203,6 +245,7 @@ class RouteFinder:
                     self.graph, weights, combine_nature=combine_nature,
                     prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
                     prefer_pedestrian=prefer_pedestrian,
+                    activity=resolved_activity,
                 )
                 
                 if current_app.config.get('VERBOSE_LOGGING'):
@@ -228,7 +271,13 @@ class RouteFinder:
             distance = self._calculate_total_distance(route)
 
             # Calculate time
-            time_seconds = self._calculate_estimated_time(distance)
+            time_seconds = self._calculate_estimated_time(
+                route=route,
+                distance=distance,
+                travel_profile=travel_profile,
+                speed_kmh=resolved_speed_kmh,
+                activity=resolved_activity,
+            )
             
             # Log total WSM cost if in verbose mode
             if use_wsm and current_app.config.get('VERBOSE_LOGGING'):
@@ -258,13 +307,95 @@ class RouteFinder:
                 pass
         return distance
 
-    def _calculate_estimated_time(self, distance):
+    def estimate_route_time(self, route, travel_profile='walking', speed_kmh=None, activity=None):
+        """Public helper for calculating ETA on an already computed route."""
+        distance = self._calculate_total_distance(route)
+        return self._calculate_estimated_time(
+            route=route,
+            distance=distance,
+            travel_profile=travel_profile,
+            speed_kmh=speed_kmh,
+            activity=activity,
+        )
+
+    def _calculate_estimated_time(self, route, distance, travel_profile='walking', speed_kmh=None, activity=None):
         """
-        Calculates the estimated walking time in seconds based on config speed.
+        Calculates route ETA using profile base speed and Tobler multipliers.
         """
-        speed_kmh = current_app.config.get('WALKING_SPEED_KMH', 5.0)
+        from app.services.processors.elevation import calculate_tobler_cost
+
+        speed_kmh, activity = self._resolve_movement_context(
+            travel_profile=travel_profile,
+            speed_kmh=speed_kmh,
+            activity=activity,
+        )
+
         speed_ms = speed_kmh * 1000 / 3600
-        return distance / speed_ms if speed_ms > 0 else 0
+        if speed_ms <= 0:
+            return 0
+
+        if not route or len(route) < 2:
+            return distance / speed_ms if distance > 0 else 0
+
+        total_time = 0.0
+        for u, v in zip(route[:-1], route[1:]):
+            edge_data = self.graph.get_edge_data(u, v)
+            if not edge_data:
+                continue
+
+            # Pick the shortest parallel edge for consistent distance/time accounting.
+            best_edge = min(
+                edge_data.values(),
+                key=lambda item: item.get('length', float('inf')),
+            )
+
+            length = float(best_edge.get('length', 0) or 0)
+            if length <= 0:
+                continue
+
+            uphill = best_edge.get('uphill_gradient')
+            downhill = best_edge.get('downhill_gradient')
+
+            if uphill is not None or downhill is not None:
+                signed_gradient = float(uphill or 0.0) - float(downhill or 0.0)
+                slope_multiplier = calculate_tobler_cost(
+                    signed_gradient,
+                    activity=activity,
+                )
+            else:
+                slope_multiplier = float(best_edge.get('slope_time_cost', 1.0) or 1.0)
+
+            total_time += (length / speed_ms) * slope_multiplier
+
+        if total_time <= 0 and distance > 0:
+            return distance / speed_ms
+
+        return total_time
+
+    def _resolve_movement_context(self, travel_profile='walking', speed_kmh=None, activity=None):
+        """Resolve profile speed/activity with backward-compatible defaults."""
+        profile = str(travel_profile or 'walking').strip().lower()
+
+        defaults = {
+            'walking': float(current_app.config.get(
+                'DEFAULT_WALKING_SPEED_KMH',
+                current_app.config.get('WALKING_SPEED_KMH', 5.0),
+            )),
+            'running_easy': float(current_app.config.get('DEFAULT_RUNNING_EASY_SPEED_KMH', 9.5)),
+            'running_race': float(current_app.config.get('DEFAULT_RUNNING_RACE_SPEED_KMH', 12.5)),
+        }
+
+        resolved_speed = defaults.get(profile, defaults['walking'])
+        if speed_kmh is not None:
+            try:
+                resolved_speed = float(speed_kmh)
+            except (TypeError, ValueError):
+                pass
+
+        resolved_speed = max(0.1, resolved_speed)
+        resolved_activity = activity or ('running' if profile.startswith('running') else 'walking')
+
+        return resolved_speed, resolved_activity
     
     def _calculate_total_wsm_cost(self, route, weights):
         """

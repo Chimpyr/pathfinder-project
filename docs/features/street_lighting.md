@@ -1,12 +1,12 @@
 # Street Lighting Vector Tile Overlay
 
-Adds a live vector tile overlay to the map visualising OSM street lighting data, powered by a PostGIS database and the Martin tile server.
+Adds a live vector tile overlay to the map visualising street lighting provenance and regimes, powered by PostGIS and Martin. OSM remains the base network and council evidence is merged with council-first precedence where available.
 
 ---
 
 ## Overview
 
-Streets tagged with `lit=yes` (and related values) in OpenStreetMap are rendered in **gold** (`#FFD700`). Unlit streets are rendered in **dark grey** (`#444444`). The overlay is served as Mapbox Vector Tiles (MVT / `.pbf`) from a self-hosted Martin instance and rendered on the Leaflet map via `Leaflet.VectorGrid`.
+Streets are rendered by `lit_status` with configurable colours, while metadata columns (`lit_source_primary`, `lit_source_detail`, `lighting_regime`) support source/regime splitting in settings. The overlay is served as Mapbox Vector Tiles (MVT / `.pbf`) from Martin and rendered via `Leaflet.VectorGrid`.
 
 ---
 
@@ -17,12 +17,19 @@ OSM PBF file
     │
     ▼ (one-off seeder container)
 osm2pgsql --flex (lighting.lua)
+  │
+  ├── council GPKG import (optional)
+  │      /data/streetlight/combined_streetlights.gpkg
+  │
+  ▼
+merge_council_streetlights.sql
     │
     ▼
 PostGIS: scenic_tiles.public.street_lighting
     │
     ▼
 Martin tile server  →  /street_lighting/{z}/{x}/{y}.pbf
+         or  /street_lighting_filtered/{z}/{x}/{y}.pbf?source_filter=...&regime_filter=...
     │
     ▼
 Leaflet.VectorGrid  →  rendered on map
@@ -81,7 +88,9 @@ This builds and runs the `seeder` container, which:
 
 1. Waits for PostGIS to be ready via `pg_isready`
 2. Runs `osm2pgsql --create --flex` using `docker/seeder/lighting.lua`
-3. Writes the `street_lighting` table into the `public` schema of `scenic_tiles`
+3. Imports council canonical GPKG when present (`/data/streetlight/combined_streetlights.gpkg`)
+4. Runs `docker/seeder/merge_council_streetlights.sql` to enrich overlay metadata and apply council-first precedence
+5. Writes the enriched `street_lighting` table into `public` schema of `scenic_tiles`
 
 > **Expected duration**: 5–20 minutes for `england-latest.osm.pbf` (~1.3 GB), depending on hardware.  
 > **Expected output**: `Import finished successfully.`
@@ -113,7 +122,7 @@ If `street_lighting` is absent, restart the tileserver container to force re-dis
 docker compose restart tileserver
 ```
 
-### Step 4 — Test a tile endpoint
+### Step 4 — Test tile endpoints
 
 Pick a tile over Bristol at zoom 14:
 
@@ -122,6 +131,12 @@ http://localhost:3000/street_lighting/14/8167/5449.pbf
 ```
 
 A non-empty binary (`.pbf`) response confirms tiles are being served correctly.
+
+Optional filtered endpoint check:
+
+```
+http://localhost:3000/street_lighting_filtered/14/8167/5449.pbf?source_filter=council&regime_filter=part_night
+```
 
 ### Step 5 — Enable the frontend overlay
 
@@ -143,13 +158,20 @@ mapController.removeLightingLayer();
 
 ## Data Schema
 
-The `street_lighting` table is created by `docker/seeder/lighting.lua`:
+The `street_lighting` table is created by `docker/seeder/lighting.lua` and enriched by `docker/seeder/merge_council_streetlights.sql`:
 
-| Column       | Type     | Description                                    |
-| ------------ | -------- | ---------------------------------------------- |
-| `osm_id`     | bigint   | OSM way ID                                     |
-| `lit_status` | text     | `'lit'`, `'unlit'`, or `'unknown'` (see below) |
-| `geom`       | geometry | Linestring in SRID 3857 (Web Mercator)         |
+| Column                 | Type     | Description                                                            |
+| ---------------------- | -------- | ---------------------------------------------------------------------- |
+| `osm_id`               | bigint   | OSM way ID                                                             |
+| `lit_status`           | text     | `lit`, `unlit`, `unknown`                                              |
+| `lit_source_primary`   | text     | `osm` or `council`                                                     |
+| `lit_source_detail`    | text     | `osm`, `bristol`, `south_glos`, etc.                                   |
+| `lit_tag_type`         | text     | Tag/source class (`osm_lit`, `council_times`, etc.)                    |
+| `lighting_regime`      | text     | `all_night`, `part_night`, `timed_window`, `solar`, `unlit`, `unknown` |
+| `lighting_regime_text` | text     | Raw descriptive text (for example South Glos `Times`)                  |
+| `osm_lit_raw`          | text     | Raw OSM `lit=*` value captured during import                           |
+| `council_match_count`  | integer  | Number of council points matched to the segment                        |
+| `geom`                 | geometry | Linestring in SRID 3857 (Web Mercator)                                 |
 
 OSM `lit` tag values are normalised to three states:
 
@@ -159,7 +181,23 @@ OSM `lit` tag values are normalised to three states:
 | `no`                               | `'unlit'`    | Near-black `#1a1a1a`       |
 | Absent or unrecognised             | `'unknown'`  | Mid grey `#888888` (faint) |
 
-The distinction between `'unlit'` and `'unknown'` is intentional: a confirmed `lit=no` tag is a stronger signal than simply missing data, and is rendered more prominently.
+The distinction between `'unlit'` and `'unknown'` is intentional. Additionally, when council points match an OSM segment, council evidence is treated as authoritative and the segment is promoted to `lit` with council provenance metadata.
+
+Source differentiation method:
+
+- Stage 1 (OSM import): all highways are imported with `lit_source_primary='osm'`, `lit_source_detail='osm'`, and raw OSM `lit=*` copied into `osm_lit_raw`.
+- Stage 2 (council merge): any segment within `ST_DWithin(..., 15)` of council points is promoted to `lit_source_primary='council'` with authority-specific `lit_source_detail` (for example `bristol`, `south_glos`).
+- OSM source filtering keeps rows where source is OSM **or** there is explicit OSM `lit=*` evidence in `osm_lit_raw`, so overlapping OSM-tagged lines are still visible in OSM mode.
+
+## Source And Regime Filters
+
+Street Lighting settings now support overlay filtering by:
+
+- Source: All, Council only, OSM only, Bristol only, South Glos only
+- Regime: All, All night, Part night, Timed window, Solar, Unlit, Unknown
+
+When filters are active, the frontend requests the filtered Martin function endpoint for more efficient tile transfer.
+`public.street_lighting_filtered` uses the Martin-compatible signature `(z, x, y, query_params json)` and reads `source_filter` / `regime_filter` from query string JSON.
 
 ---
 

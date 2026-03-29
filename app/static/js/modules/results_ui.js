@@ -13,6 +13,12 @@ import { ROUTE_CONFIG } from "./config.js";
 import { mapController } from "./map_manager.js";
 import { showToast, isAuthenticated } from "./ui_common.js";
 import { buildGpxXml, buildExportFilename, downloadGpx } from "./gpx_export.js";
+import {
+  formatPaceFromSpeed,
+  getDistanceUnit,
+  kmToDisplay,
+  speedKmhToDisplay,
+} from "./movement_prefs.js";
 
 // DOM Elements
 const routeOptionsList = document.getElementById("route-options-list");
@@ -20,8 +26,72 @@ const routeOptionsContainer = document.getElementById("route-options");
 const routesEmptyState = document.getElementById("routes-empty-state");
 const routeStatsContainer = document.getElementById("route-stats");
 const statDistance = document.getElementById("stat-distance");
+const statDistanceUnit = document.getElementById("stat-distance-unit");
 const statTime = document.getElementById("stat-time");
+const statProfile = document.getElementById("stat-profile");
+const statSpeed = document.getElementById("stat-speed");
+const statSpeedUnit = document.getElementById("stat-speed-unit");
+const statPace = document.getElementById("stat-pace");
 const exportGpxBtn = document.getElementById("export-gpx-btn");
+
+function prettifyProfileLabel(profile) {
+  if (!profile || typeof profile !== "string") return "walking";
+  return profile.replaceAll("_", " ");
+}
+
+function resolveDistanceParts(stats = {}) {
+  if (stats.distance !== undefined && stats.distance !== null) {
+    return {
+      value: String(stats.distance),
+      unit: stats.distance_unit || getDistanceUnit(),
+    };
+  }
+
+  const unit = stats.distance_unit || getDistanceUnit();
+  const kmValue = Number(stats.distance_km);
+  if (Number.isFinite(kmValue)) {
+    return {
+      value: kmToDisplay(kmValue, unit).toFixed(2),
+      unit,
+    };
+  }
+
+  return { value: "?", unit };
+}
+
+function resolveSpeedParts(stats = {}) {
+  if (stats.assumed_speed !== undefined && stats.assumed_speed !== null) {
+    return {
+      value: String(stats.assumed_speed),
+      unit: stats.speed_unit || (stats.distance_unit === "mi" ? "mph" : "km/h"),
+    };
+  }
+
+  const fallbackSpeedKmh = Number(stats.assumed_speed_kmh ?? stats.pace_kmh);
+  if (Number.isFinite(fallbackSpeedKmh)) {
+    const unit = stats.distance_unit || getDistanceUnit();
+    return {
+      value: speedKmhToDisplay(fallbackSpeedKmh, unit).toFixed(1),
+      unit: unit === "mi" ? "mph" : "km/h",
+    };
+  }
+
+  return { value: "?", unit: "km/h" };
+}
+
+function resolvePaceText(stats = {}) {
+  if (stats.assumed_pace) return String(stats.assumed_pace);
+
+  const speedKmh = Number(stats.assumed_speed_kmh ?? stats.pace_kmh);
+  if (Number.isFinite(speedKmh) && speedKmh > 0) {
+    return formatPaceFromSpeed(
+      speedKmh,
+      stats.distance_unit || getDistanceUnit(),
+    );
+  }
+
+  return "n/a";
+}
 
 // ============================================================================
 // SAVE QUERY LOGIC
@@ -184,7 +254,11 @@ export function renderRouteOptions(routes) {
     const isVisible = routeState.visibility[type];
     const isDuplicate = routeState.duplicates?.[type];
 
+<<<<<<< HEAD
     const distanceKm = routeData.stats?.distance_km || "?";
+=======
+    const distanceParts = resolveDistanceParts(routeData.stats);
+>>>>>>> street-lighting-fixes
     const timeMin = routeData.stats?.time_min || "?";
 
     const duplicateBadge = isDuplicate
@@ -216,7 +290,7 @@ export function renderRouteOptions(routes) {
                     </div>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-8">
-                    ${distanceKm} km • ${timeMin} min
+                    ${distanceParts.value} ${distanceParts.unit} • ${timeMin} min
                 </div>
             </div>
         `;
@@ -275,8 +349,25 @@ export function updateStatsForRoute(routeType) {
   const routeData = routeState.routes?.[routeType];
   if (!routeData?.stats) return;
 
+<<<<<<< HEAD
   if (statDistance) statDistance.textContent = routeData.stats.distance_km;
   if (statTime) statTime.textContent = routeData.stats.time_min;
+=======
+  const distanceParts = resolveDistanceParts(routeData.stats);
+  const speedParts = resolveSpeedParts(routeData.stats);
+  const paceText = resolvePaceText(routeData.stats);
+  const profileLabel = prettifyProfileLabel(
+    routeData.stats.travel_profile || "walking",
+  );
+
+  if (statDistance) statDistance.textContent = distanceParts.value;
+  if (statDistanceUnit) statDistanceUnit.textContent = distanceParts.unit;
+  if (statTime) statTime.textContent = routeData.stats.time_min;
+  if (statProfile) statProfile.textContent = profileLabel;
+  if (statSpeed) statSpeed.textContent = speedParts.value;
+  if (statSpeedUnit) statSpeedUnit.textContent = speedParts.unit;
+  if (statPace) statPace.textContent = paceText;
+>>>>>>> street-lighting-fixes
 
   if (routeStatsContainer) routeStatsContainer.classList.remove("hidden");
 }
@@ -297,6 +388,13 @@ export function renderLoopOptions(loops) {
     const isSelected = loopState.selectedId === loop.id;
     const isVisible = loopState.visibility[loop.id] !== false;
     const colour = loop.colour || "#3B82F6";
+<<<<<<< HEAD
+=======
+    const loopDistance =
+      loop.distance !== undefined && loop.distance !== null
+        ? `${loop.distance} ${loop.distance_unit || getDistanceUnit()}`
+        : `${loop.distance_km} km`;
+>>>>>>> street-lighting-fixes
 
     html += `
             <div class="loop-option-card px-4 py-3 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors mb-2 ${isSelected ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20" : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700"}" 
@@ -321,7 +419,7 @@ export function renderLoopOptions(loops) {
                     </div>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-8 flex gap-3">
-                    <span>${loop.distance_km} km</span>
+                    <span>${loopDistance}</span>
                     <span>${loop.time_min} min</span>
                     ${loop.quality_score ? `<span title="Quality Score (0-1)\n60% Distance Accuracy\n40% Scenic Quality">★ ${loop.quality_score}</span>` : ""}
                 </div>
@@ -376,8 +474,34 @@ function handleLoopSelect(loopId, loops) {
 
   const selectedLoop = loops.find((l) => l.id === loopId);
   if (selectedLoop) {
+<<<<<<< HEAD
     if (statDistance) statDistance.textContent = selectedLoop.distance_km;
     if (statTime) statTime.textContent = selectedLoop.time_min;
+=======
+    if (statDistance) {
+      statDistance.textContent = String(
+        selectedLoop.distance !== undefined && selectedLoop.distance !== null
+          ? selectedLoop.distance
+          : selectedLoop.distance_km,
+      );
+    }
+    if (statDistanceUnit) {
+      statDistanceUnit.textContent =
+        selectedLoop.distance_unit || getDistanceUnit();
+    }
+    if (statTime) statTime.textContent = selectedLoop.time_min;
+    if (statProfile)
+      statProfile.textContent = prettifyProfileLabel(
+        selectedLoop.travel_profile || "walking",
+      );
+    if (statSpeed)
+      statSpeed.textContent = String(selectedLoop.assumed_speed ?? "?");
+    if (statSpeedUnit)
+      statSpeedUnit.textContent =
+        selectedLoop.speed_unit ||
+        (getDistanceUnit() === "mi" ? "mph" : "km/h");
+    if (statPace) statPace.textContent = selectedLoop.assumed_pace || "n/a";
+>>>>>>> street-lighting-fixes
   }
 
   renderLoopOptions(loops);
@@ -436,6 +560,7 @@ function inferAreaLabel(startAddress, endAddress) {
   }
 
   return startParts[1] || endParts[1] || startParts[0] || endParts[0] || "";
+<<<<<<< HEAD
 }
 
 function formatDistanceLabel(distanceKm) {
@@ -483,6 +608,8 @@ function inferAreaLabel(startAddress, endAddress) {
   }
 
   return startParts[1] || endParts[1] || startParts[0] || endParts[0] || "";
+=======
+>>>>>>> street-lighting-fixes
 }
 
 function getCurrentExportContext() {
@@ -571,8 +698,11 @@ function initGpxExport() {
     downloadGpx(xml, filename);
     showToast("GPX exported successfully.", "success");
   });
+<<<<<<< HEAD
   downloadGpx(xml, filename);
   showToast("GPX exported successfully.", "success");
+=======
+>>>>>>> street-lighting-fixes
 }
 
 initGpxExport();
