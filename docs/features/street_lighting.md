@@ -60,15 +60,15 @@ Leaflet.VectorGrid  →  rendered on map
 
 This table shows where each part of the street-lighting stack lives.
 
-| Path | Role | Reads from | Writes to |
-| ---- | ---- | ---------- | --------- |
-| `docker/seeder/lighting.lua` | OSM flex import rules and initial lighting classification | OSM PBF (`lit=*`, highway geometry) | `public.street_lighting` rows with `lit_status`, source defaults, geometry |
-| `scripts/wait-for-postgres.sh` | Seeder entrypoint orchestration | PostGIS health, available PBF paths | Runs osm2pgsql and SQL merge in order |
-| `docker/seeder/merge_council_streetlights.sql` | Council merge, metadata enrichment, filtered tile SQL function | `street_lighting`, `council_streetlights_raw` | Council-first updates + `public.street_lighting_filtered(...)` |
-| `docker/martin/config.yaml` | Martin source auto-publish scope | PostGIS schemas/tables | Tile endpoints (`street_lighting`, `street_lighting_filtered`) |
-| `app/static/js/map.js` | Leaflet rendering, style/filter logic, optional dim layer | MVT properties (`lit_status`, source/regime fields) | On-screen vector overlay styling |
-| `app/static/js/modules/settings_ui.js` | Settings toggles, localStorage, style/filter/dim wiring | Settings UI controls and stored preferences | Calls `mapController.addLightingLayer/updateLightingStyle` |
-| `app/templates/index.html` | Street-lighting settings UI layout | User interactions | Toggle/select/color controls and metadata display |
+| Path                                           | Role                                                           | Reads from                                          | Writes to                                                                  |
+| ---------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------- |
+| `docker/seeder/lighting.lua`                   | OSM flex import rules and initial lighting classification      | OSM PBF (`lit=*`, highway geometry)                 | `public.street_lighting` rows with `lit_status`, source defaults, geometry |
+| `scripts/wait-for-postgres.sh`                 | Seeder entrypoint orchestration                                | PostGIS health, available PBF paths                 | Runs osm2pgsql and SQL merge in order                                      |
+| `docker/seeder/merge_council_streetlights.sql` | Council merge, metadata enrichment, filtered tile SQL function | `street_lighting`, `council_streetlights_raw`       | Council-first updates + `public.street_lighting_filtered(...)`             |
+| `docker/martin/config.yaml`                    | Martin source auto-publish scope                               | PostGIS schemas/tables                              | Tile endpoints (`street_lighting`, `street_lighting_filtered`)             |
+| `app/static/js/map.js`                         | Leaflet rendering, style/filter logic, optional dim layer      | MVT properties (`lit_status`, source/regime fields) | On-screen vector overlay styling                                           |
+| `app/static/js/modules/settings_ui.js`         | Settings toggles, localStorage, style/filter/dim wiring        | Settings UI controls and stored preferences         | Calls `mapController.addLightingLayer/updateLightingStyle`                 |
+| `app/templates/index.html`                     | Street-lighting settings UI layout                             | User interactions                                   | Toggle/select/color controls and metadata display                          |
 
 ---
 
@@ -224,7 +224,7 @@ Street Lighting settings now support overlay filtering by:
 - Source: All, Council only, OSM only, Bristol only, South Glos only
 - Regime: All, All night, Part night, Timed window, Solar, Unlit, Unknown
 - Visual helper: **Dim basemap** (default ON when no prior preference exists), which darkens base tiles to make lighting lines easier to distinguish.
-- Visual helper: **Hover info card** (default ON when no prior preference exists), which shows per-segment provenance and metadata (`lit_source_*`, `lit_tag_type`, `osm_lit_raw`, `lighting_regime*`, `council_match_count`, `osm_id`).
+- Visual helper: **Hover info card** (default ON when no prior preference exists), which shows per-segment provenance and metadata with separate evidence blocks for council data and OSM tag data when both are present (`lit_source_*`, `lit_tag_type`, `osm_lit_raw`, `lighting_regime*`, `council_match_count`, `osm_id`).
 
 When filters are active, the frontend requests the filtered Martin function endpoint for more efficient tile transfer.
 `public.street_lighting_filtered` uses the Martin-compatible signature `(z, x, y, query_params json)` and reads `source_filter` / `regime_filter` from query string JSON.

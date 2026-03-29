@@ -1115,6 +1115,42 @@ class MapController {
     return normalised.charAt(0).toUpperCase() + normalised.slice(1);
   }
 
+  _formatLightingSourceLabel(sourcePrimary, sourceDetail) {
+    const detail = String(sourceDetail || "").toLowerCase();
+    const primary = String(sourcePrimary || "").toLowerCase();
+
+    if (
+      primary === "council" ||
+      detail === "council" ||
+      detail === "bristol" ||
+      detail === "south_glos"
+    ) {
+      if (detail === "bristol") return "Council (Bristol)";
+      if (detail === "south_glos") return "Council (South Glos)";
+      return "Council";
+    }
+
+    return "OSM";
+  }
+
+  _buildLightingEvidenceSection(title, rows, sectionKind) {
+    if (!rows || rows.length === 0) return "";
+
+    const body = rows
+      .map(
+        (row) =>
+          `<div class="lighting-hover-row"><span>${this._escapeLightingHtml(row.label)}</span><strong>${this._escapeLightingHtml(row.value)}</strong></div>`,
+      )
+      .join("");
+
+    return `
+      <div class="lighting-hover-section lighting-hover-section-${sectionKind}">
+        <div class="lighting-hover-section-title">${this._escapeLightingHtml(title)}</div>
+        ${body}
+      </div>
+    `;
+  }
+
   _buildLightingHoverCard(properties = {}) {
     const status = String(properties.lit_status || "unknown").toLowerCase();
     const sourcePrimary = String(properties.lit_source_primary || "osm")
@@ -1127,7 +1163,11 @@ class MapController {
       .trim();
     const regime = String(
       properties.lighting_regime ||
-        (status === "lit" ? "all_night" : status === "unlit" ? "unlit" : "unknown"),
+        (status === "lit"
+          ? "all_night"
+          : status === "unlit"
+            ? "unlit"
+            : "unknown"),
     )
       .toLowerCase()
       .trim();
@@ -1136,56 +1176,110 @@ class MapController {
     const osmLitRaw = String(properties.osm_lit_raw || "").trim();
     const councilMatchCount = Number(properties.council_match_count || 0);
     const osmId = Number(properties.osm_id);
+    const detailIsCouncil = ["council", "bristol", "south_glos"].includes(
+      sourceDetail,
+    );
+    const hasCouncilEvidence =
+      sourcePrimary === "council" || detailIsCouncil || councilMatchCount > 0;
+    const hasOsmEvidence =
+      sourcePrimary === "osm" || sourceDetail === "osm" || Boolean(osmLitRaw);
+    const bothEvidence = hasCouncilEvidence && hasOsmEvidence;
 
-    const sourceLabel =
-      sourcePrimary === "council"
-        ? sourceDetail === "bristol"
-          ? "Council (Bristol)"
-          : sourceDetail === "south_glos"
-            ? "Council (South Glos)"
-            : "Council"
-        : "OSM";
+    const sourceLabel = this._formatLightingSourceLabel(
+      sourcePrimary,
+      sourceDetail,
+    );
 
-    const rows = [
-      `<div class="lighting-hover-row"><span>Status</span><strong>${this._escapeLightingHtml(this._humaniseLightingToken(status))}</strong></div>`,
-      `<div class="lighting-hover-row"><span>Source</span><strong>${this._escapeLightingHtml(sourceLabel)}</strong></div>`,
-      `<div class="lighting-hover-row"><span>Regime</span><strong>${this._escapeLightingHtml(this._humaniseLightingToken(regime))}</strong></div>`,
+    const summaryRows = [
+      {
+        label: "Effective status",
+        value: this._humaniseLightingToken(status),
+      },
+      { label: "Effective source", value: sourceLabel },
+      {
+        label: "Effective regime",
+        value: this._humaniseLightingToken(regime),
+      },
     ];
 
-    if (tagType) {
-      rows.push(
-        `<div class="lighting-hover-row"><span>Tag type</span><strong>${this._escapeLightingHtml(this._humaniseLightingToken(tagType, tagType))}</strong></div>`,
-      );
-    }
-
-    if (osmLitRaw) {
-      rows.push(
-        `<div class="lighting-hover-row"><span>OSM lit tag</span><strong>${this._escapeLightingHtml(osmLitRaw)}</strong></div>`,
-      );
-    }
-
-    if (regimeText) {
-      rows.push(
-        `<div class="lighting-hover-row"><span>Regime detail</span><strong>${this._escapeLightingHtml(regimeText)}</strong></div>`,
-      );
-    }
-
-    if (councilMatchCount > 0) {
-      rows.push(
-        `<div class="lighting-hover-row"><span>Council matches</span><strong>${this._escapeLightingHtml(councilMatchCount)}</strong></div>`,
-      );
-    }
-
     if (Number.isFinite(osmId)) {
-      rows.push(
-        `<div class="lighting-hover-row"><span>OSM way id</span><strong>${this._escapeLightingHtml(Math.abs(osmId))}</strong></div>`,
-      );
+      summaryRows.push({ label: "OSM way id", value: String(Math.abs(osmId)) });
     }
+
+    const councilRows = [];
+    if (hasCouncilEvidence) {
+      councilRows.push({ label: "Authority", value: sourceLabel });
+      councilRows.push({
+        label: "Regime",
+        value: this._humaniseLightingToken(regime),
+      });
+
+      if (regimeText) {
+        councilRows.push({ label: "Regime detail", value: regimeText });
+      }
+
+      if (councilMatchCount > 0) {
+        councilRows.push({
+          label: "Matching points",
+          value: String(councilMatchCount),
+        });
+      }
+
+      if (tagType) {
+        councilRows.push({
+          label: "Council tag type",
+          value: this._humaniseLightingToken(tagType, tagType),
+        });
+      }
+    }
+
+    const osmRows = [];
+    if (hasOsmEvidence) {
+      osmRows.push({
+        label: "lit=* value",
+        value: osmLitRaw || "not tagged",
+      });
+
+      if (sourcePrimary === "osm" || sourceDetail === "osm") {
+        osmRows.push({ label: "OSM source row", value: "present" });
+      }
+
+      if (tagType && tagType.toLowerCase().includes("osm")) {
+        osmRows.push({
+          label: "OSM tag type",
+          value: this._humaniseLightingToken(tagType, tagType),
+        });
+      }
+    }
+
+    const summaryHtml = summaryRows
+      .map(
+        (row) =>
+          `<div class="lighting-hover-row"><span>${this._escapeLightingHtml(row.label)}</span><strong>${this._escapeLightingHtml(row.value)}</strong></div>`,
+      )
+      .join("");
+
+    const sectionsHtml = [
+      this._buildLightingEvidenceSection(
+        "Council evidence",
+        councilRows,
+        "council",
+      ),
+      this._buildLightingEvidenceSection("OSM evidence", osmRows, "osm"),
+    ]
+      .filter(Boolean)
+      .join("");
+
+    const bothEvidenceNote = bothEvidence
+      ? `<div class="lighting-hover-note">This segment contains both council and OSM evidence. Council data sets the effective source/regime, while OSM tags are preserved for transparency.</div>`
+      : "";
 
     return `
       <div class="lighting-hover-card">
         <div class="lighting-hover-title">Street Lighting Segment</div>
-        ${rows.join("")}
+        <div class="lighting-hover-summary">${summaryHtml}</div>
+        <div class="lighting-hover-sections">${sectionsHtml}</div>
+        ${bothEvidenceNote}
       </div>
     `;
   }

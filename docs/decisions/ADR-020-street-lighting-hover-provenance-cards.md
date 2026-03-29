@@ -25,6 +25,13 @@ In `Settings > Map Overlays > Street Lighting`, add `Hover info card` as an expl
 
 When hovering a lighting segment, render a lightweight info card near the cursor using metadata already present in vector tile feature properties.
 
+The card must present evidence in distinct sections:
+
+- Council evidence block (authority, regime, match metadata)
+- OSM evidence block (raw `lit=*` and OSM-derived metadata)
+
+When both evidence types exist on the same segment, both sections are shown simultaneously to avoid collapsing provenance into a single merged label.
+
 Fields displayed (when available):
 
 - `lit_status`
