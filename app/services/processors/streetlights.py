@@ -7,9 +7,14 @@ Edge attributes updated:
 - lit: set to 'yes' when a nearby council streetlight is matched
 - lit_source: set to 'council' for matched edges
 - lit_source_detail: source dataset name where available
+- lighting_regime: propagated council regime when available
+- lighting_regime_text: raw council regime text when available
+
+Council values are treated as authoritative over existing OSM values
+for any edge/way matched from council data.
 """
 
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import networkx as nx
 import geopandas as gpd
@@ -47,6 +52,86 @@ def _normalise_lit_value(value) -> str:
     if value is None:
         return ""
     return str(value).strip().lower()
+
+
+def _normalise_regime_value(value) -> str:
+    """Normalise lighting regime value from council records."""
+    if isinstance(value, list):
+        value = value[0] if value else None
+    if value is None:
+        return "unknown"
+
+    text = str(value).strip()
+    if not text:
+        return "unknown"
+
+    norm = text.lower().replace("-", "_").replace(" ", "_")
+    if norm in {"unknown", "none", "na", "n_a"}:
+        return "unknown"
+    return norm
+
+
+def _normalise_text_value(value) -> Optional[str]:
+    """Normalise optional metadata text fields."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "none", "na", "n/a"}:
+        return None
+    return text
+
+
+def _extract_way_ids(edge_data: dict) -> Set[str]:
+    """Extract all OSM way IDs associated with an edge."""
+    osmid = edge_data.get("osmid")
+    if osmid is None:
+        return set()
+
+    if isinstance(osmid, list):
+        return {str(v) for v in osmid if v is not None}
+
+    return {str(osmid)}
+
+
+def _build_way_to_edge_refs(graph: nx.MultiDiGraph) -> Dict[str, Set[Tuple[int, int, int]]]:
+    """Map OSM way IDs to all matching graph edge references."""
+    way_to_edges: Dict[str, Set[Tuple[int, int, int]]] = {}
+    for u, v, key, edge_data in graph.edges(keys=True, data=True):
+        for way_id in _extract_way_ids(edge_data):
+            refs = way_to_edges.setdefault(way_id, set())
+            refs.add((u, v, key))
+    return way_to_edges
+
+
+def _apply_council_fields(
+    edge_data: dict,
+    *,
+    source: str,
+    council_lit_value: str,
+    council_regime_value: str,
+    council_regime_text: Optional[str],
+    council_lit_tag_type: Optional[str],
+) -> bool:
+    """Apply council metadata to a routing edge.
+
+    Returns True when lit status was promoted to yes from a non-yes state.
+    """
+    prior_lit = _normalise_lit_value(edge_data.get("lit"))
+
+    edge_data["lit"] = council_lit_value if council_lit_value else "yes"
+    edge_data["lit_source"] = "council"
+    edge_data["lit_source_detail"] = source
+
+    if council_lit_tag_type:
+        edge_data["lit_tag_type"] = council_lit_tag_type
+
+    if council_regime_value and council_regime_value != "unknown":
+        edge_data["lighting_regime"] = council_regime_value
+
+    if council_regime_text:
+        edge_data["lighting_regime_text"] = council_regime_text
+
+    return prior_lit != "yes" and _normalise_lit_value(edge_data.get("lit")) == "yes"
 
 
 def _prepare_streetlight_points(
@@ -138,6 +223,7 @@ def process_graph_streetlights(
     graph: nx.MultiDiGraph,
     streetlight_gdf: Optional[gpd.GeoDataFrame],
     snap_distance_m: float = SNAP_DISTANCE_METRES,
+    propagate_way_ids: bool = True,
 ) -> nx.MultiDiGraph:
     """
     Snap council streetlight points to nearby graph edges.
@@ -179,7 +265,10 @@ def process_graph_streetlights(
         print("[StreetlightProcessor] No streetlights intersect graph bounds, skipping.")
         return graph
 
+    way_to_edges = _build_way_to_edge_refs(graph) if propagate_way_ids else {}
+
     matched_points = 0
+    propagated_points = 0
     promoted_to_lit = 0
     touched_edges = set()
 
@@ -191,6 +280,10 @@ def process_graph_streetlights(
     for idx, row in points.iterrows():
         point = row.geometry
         source = str(row.get("source", "unknown"))
+        council_lit_value = _normalise_lit_value(row.get("lit")) or "yes"
+        council_regime_value = _normalise_regime_value(row.get("lighting_regime"))
+        council_regime_text = _normalise_text_value(row.get("lighting_regime_text"))
+        council_lit_tag_type = _normalise_text_value(row.get("lit_tag_type"))
 
         candidates = edge_sindex.query(point.buffer(snap_distance_m))
         if len(candidates) == 0:
@@ -209,16 +302,35 @@ def process_graph_streetlights(
             continue
 
         u, v, key = edge_refs[int(nearest_idx)]
-        edge_data = graph[u][v][key]
+        target_refs = {(u, v, key)}
 
-        if _normalise_lit_value(edge_data.get("lit")) != "yes":
-            promoted_to_lit += 1
+        if propagate_way_ids:
+            nearest_edge_data = graph[u][v][key]
+            way_ids = _extract_way_ids(nearest_edge_data)
+            propagated_for_point = False
+            for way_id in way_ids:
+                refs = way_to_edges.get(way_id)
+                if refs:
+                    target_refs.update(refs)
+                    if len(refs) > 1:
+                        propagated_for_point = True
+            if propagated_for_point:
+                propagated_points += 1
 
-        edge_data["lit"] = "yes"
-        edge_data["lit_source"] = "council"
-        edge_data["lit_source_detail"] = source
+        for ref_u, ref_v, ref_key in target_refs:
+            edge_data = graph[ref_u][ref_v][ref_key]
+            if _apply_council_fields(
+                edge_data,
+                source=source,
+                council_lit_value=council_lit_value,
+                council_regime_value=council_regime_value,
+                council_regime_text=council_regime_text,
+                council_lit_tag_type=council_lit_tag_type,
+            ):
+                promoted_to_lit += 1
 
-        touched_edges.add((u, v, key))
+            touched_edges.add((ref_u, ref_v, ref_key))
+
         matched_points += 1
 
         if (idx + 1) % report_interval == 0:
@@ -228,6 +340,7 @@ def process_graph_streetlights(
     print(
         "[StreetlightProcessor] Matched "
         f"{matched_points}/{total_points} points to {len(touched_edges)} edges; "
+        f"way propagation on {propagated_points} points; "
         f"promoted {promoted_to_lit} edges to lit='yes'."
     )
 
