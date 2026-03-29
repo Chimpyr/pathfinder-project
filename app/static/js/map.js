@@ -1123,6 +1123,17 @@ class MapController {
           const sourceDetail = (properties.lit_source_detail || sourcePrimary)
             .toString()
             .toLowerCase();
+          const osmLitRaw = (properties.osm_lit_raw || "")
+            .toString()
+            .trim()
+            .toLowerCase();
+          const hasExplicitOsmLitTag = [
+            "yes",
+            "true",
+            "automatic",
+            "24/7",
+            "no",
+          ].includes(osmLitRaw);
           const regime = (
             properties.lighting_regime ||
             (status === "lit"
@@ -1136,8 +1147,12 @@ class MapController {
 
           const sourceMatches =
             sourceFilter === "all" ||
-            sourceFilter === sourcePrimary ||
-            sourceFilter === sourceDetail;
+            (sourceFilter === "osm"
+              ? sourcePrimary === "osm" ||
+                sourceDetail === "osm" ||
+                hasExplicitOsmLitTag
+              : sourceFilter === sourcePrimary ||
+                sourceFilter === sourceDetail);
 
           const regimeMatches =
             regimeFilter === "all" || regimeFilter === regime;

@@ -169,6 +169,7 @@ The `street_lighting` table is created by `docker/seeder/lighting.lua` and enric
 | `lit_tag_type`         | text     | Tag/source class (`osm_lit`, `council_times`, etc.)                    |
 | `lighting_regime`      | text     | `all_night`, `part_night`, `timed_window`, `solar`, `unlit`, `unknown` |
 | `lighting_regime_text` | text     | Raw descriptive text (for example South Glos `Times`)                  |
+| `osm_lit_raw`          | text     | Raw OSM `lit=*` value captured during import                           |
 | `council_match_count`  | integer  | Number of council points matched to the segment                        |
 | `geom`                 | geometry | Linestring in SRID 3857 (Web Mercator)                                 |
 
@@ -181,6 +182,12 @@ OSM `lit` tag values are normalised to three states:
 | Absent or unrecognised             | `'unknown'`  | Mid grey `#888888` (faint) |
 
 The distinction between `'unlit'` and `'unknown'` is intentional. Additionally, when council points match an OSM segment, council evidence is treated as authoritative and the segment is promoted to `lit` with council provenance metadata.
+
+Source differentiation method:
+
+- Stage 1 (OSM import): all highways are imported with `lit_source_primary='osm'`, `lit_source_detail='osm'`, and raw OSM `lit=*` copied into `osm_lit_raw`.
+- Stage 2 (council merge): any segment within `ST_DWithin(..., 15)` of council points is promoted to `lit_source_primary='council'` with authority-specific `lit_source_detail` (for example `bristol`, `south_glos`).
+- OSM source filtering keeps rows where source is OSM **or** there is explicit OSM `lit=*` evidence in `osm_lit_raw`, so overlapping OSM-tagged lines are still visible in OSM mode.
 
 ## Source And Regime Filters
 

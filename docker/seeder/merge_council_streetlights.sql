@@ -106,19 +106,33 @@ mvtgeom AS (
         sl.lit_tag_type,
         sl.lighting_regime,
         sl.lighting_regime_text,
+        sl.osm_lit_raw,
         sl.council_match_count,
         ST_AsMVTGeom(sl.geom, bounds.geom, 4096, 256, true) AS geom
         FROM public.street_lighting sl, bounds, params
     WHERE sl.geom && bounds.geom
       AND ST_Intersects(sl.geom, bounds.geom)
       AND (
-                        params.source_filter = 'all'
-                        OR lower(COALESCE(sl.lit_source_primary, 'osm')) = params.source_filter
-                        OR lower(COALESCE(sl.lit_source_detail, 'osm')) = params.source_filter
+            params.source_filter = 'all'
+            OR (
+                params.source_filter = 'osm'
+                AND (
+                    lower(COALESCE(sl.lit_source_primary, 'osm')) = 'osm'
+                    OR lower(COALESCE(sl.lit_source_detail, 'osm')) = 'osm'
+                    OR NULLIF(btrim(COALESCE(sl.osm_lit_raw, '')), '') IS NOT NULL
+                )
+            )
+            OR (
+                params.source_filter <> 'osm'
+                AND (
+                    lower(COALESCE(sl.lit_source_primary, 'osm')) = params.source_filter
+                    OR lower(COALESCE(sl.lit_source_detail, 'osm')) = params.source_filter
+                )
+            )
           )
       AND (
-                        params.regime_filter = 'all'
-                        OR lower(COALESCE(sl.lighting_regime, 'unknown')) = params.regime_filter
+            params.regime_filter = 'all'
+            OR lower(COALESCE(sl.lighting_regime, 'unknown')) = params.regime_filter
           )
 )
 SELECT ST_AsMVT(mvtgeom, 'street_lighting', 4096, 'geom')
