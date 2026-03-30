@@ -8,6 +8,9 @@ sidebar when the **Loop** routing mode is selected.
 > produces a scenic loop using the Weighted Sum Model (greenness, water,
 > quietness, social, elevation).
 
+For how loop candidates are labelled and explained in the Routes panel, see
+[Loop Route Naming Scheme](loop_route_naming.md).
+
 ---
 
 ## Direction Bias

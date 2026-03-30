@@ -209,6 +209,59 @@ When `ASYNC_MODE=True` and cache miss:
 
 ---
 
+### `POST /calculate_loop_route`
+
+Calculate multiple loop (round-trip) route candidates from a single start
+point.
+
+**Request Body** (minimal):
+
+```json
+{
+  "start_lat": 51.381,
+  "start_lon": -2.359,
+  "target_distance": 5.0
+}
+```
+
+**Key Response Fields** (200):
+
+| Field                    | Type        | Description                                                   |
+| ------------------------ | ----------- | ------------------------------------------------------------- | --------- |
+| `multi_loop`             | bool        | Indicates loop candidate output mode                          |
+| `loops[].id`             | string      | Stable per-response id: `loop-<index>-<slug(label)>`          |
+| `loops[].label`          | string      | Primary user-facing loop name                                 |
+| `loops[].label_role`     | string/null | Naming role token (`best_match`, `diverse_alternative`, etc.) |
+| `loops[].label_tags`     | array/null  | Compact tags showing role criteria, metrics, and settings     |
+| `loops[].label_subtitle` | string/null | Compact descriptor, e.g. `South-west                          | Triangle` |
+| `loops[].label_reason`   | string/null | Explainability sentence with quality/diversity metrics        |
+| `loops[].metadata`       | object      | Additional algorithm metadata                                 |
+
+**Success Response** (200, trimmed):
+
+```json
+{
+  "success": true,
+  "multi_loop": true,
+  "loops": [
+    {
+      "id": "loop-1-best-match",
+      "label": "Best Match",
+      "label_role": "best_match",
+      "label_tags": ["Quality leader", "Target delta 3.9%", "Scenic rank 1/4"],
+      "label_subtitle": "South-west | Triangle",
+      "label_reason": "Assigned as Best Match: highest combined quality score (0.579) with 3.9% target deviation."
+    }
+  ]
+}
+```
+
+**Naming Scheme Reference**:
+
+- [Loop Route Naming Scheme](../features/loop_route_naming.md) - Full logic for label assignment, subtitle/reason derivation, and id stability.
+
+---
+
 ## Task Endpoints
 
 Used for async graph building when `ASYNC_MODE=True`.
