@@ -42,7 +42,6 @@ class MapController {
     this.selectedLoop = null; // Currently highlighted loop id
     this.debugLayers = []; // Debug edge feature overlays
     this.lightingLayer = null;
-    this.lightingDimLayer = null;
     this.lightingHoverPopup = null;
 
     // Route colour configuration
@@ -88,11 +87,6 @@ class MapController {
       zoomControl: true,
       attributionControl: true,
     }).setView(this.options.center, this.options.zoom);
-
-    // Pane above base tiles but below vector overlays for optional basemap dimming.
-    this.map.createPane("lightingDimPane");
-    this.map.getPane("lightingDimPane").style.zIndex = "350";
-    this.map.getPane("lightingDimPane").style.pointerEvents = "none";
 
     // Set initial tile layer (default to OSM)
     this.currentTileLayer = null;
@@ -1066,36 +1060,15 @@ class MapController {
   }
 
   /**
-   * Toggle a dark veil over basemap tiles while keeping vector overlays vivid.
+   * Dim only basemap raster tiles while keeping vector overlays/popups vivid.
    * @param {boolean} enabled
    */
   _setLightingDimmed(enabled) {
-    if (!enabled) {
-      if (this.lightingDimLayer && this.map.hasLayer(this.lightingDimLayer)) {
-        this.map.removeLayer(this.lightingDimLayer);
-      }
-      return;
-    }
+    const tilePane = this.map?.getPane("tilePane");
+    if (!tilePane) return;
 
-    if (!this.lightingDimLayer) {
-      this.lightingDimLayer = L.rectangle(
-        [
-          [-90, -180],
-          [90, 180],
-        ],
-        {
-          pane: "lightingDimPane",
-          stroke: false,
-          fillColor: "#000000",
-          fillOpacity: 0.26,
-          interactive: false,
-        },
-      );
-    }
-
-    if (!this.map.hasLayer(this.lightingDimLayer)) {
-      this.lightingDimLayer.addTo(this.map);
-    }
+    tilePane.style.transition = "filter 120ms ease";
+    tilePane.style.filter = enabled ? "brightness(74%) saturate(95%)" : "";
   }
 
   _escapeLightingHtml(value) {
@@ -1384,6 +1357,7 @@ class MapController {
     );
 
     this.lightingLayer = L.vectorGrid.protobuf(url, {
+      pane: "overlayPane",
       vectorTileLayerStyles: {
         street_lighting: (properties) => {
           const status = properties.lit_status; // 'lit' | 'unlit' | 'unknown'
@@ -1439,7 +1413,7 @@ class MapController {
             return {
               weight: litWeight,
               color: litColor,
-              opacity: 0.85,
+              opacity: dimMap ? 1.0 : 0.85,
             };
           } else if (status === "unlit") {
             return {
