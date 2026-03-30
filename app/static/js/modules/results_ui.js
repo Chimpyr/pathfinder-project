@@ -116,6 +116,37 @@ function humaniseRoleToken(value) {
     .replace(/\b\w/g, (token) => token.toUpperCase());
 }
 
+function classifyLoopTag(tag) {
+  const token = String(tag ?? "")
+    .trim()
+    .toLowerCase();
+  if (!token) return "loop-tag-neutral";
+
+  const varietyMatch = token.match(/^variety\s*l(\d+)$/);
+  if (varietyMatch) {
+    const varietyLevel = Math.max(
+      0,
+      Math.min(3, Number.parseInt(varietyMatch[1], 10) || 0),
+    );
+    return `loop-tag-variety-${varietyLevel}`;
+  }
+
+  if (token.includes("quality leader")) return "loop-tag-quality";
+  if (token.startsWith("target delta")) return "loop-tag-distance";
+  if (token.startsWith("scenic rank") || token.includes("lowest scenic cost"))
+    return "loop-tag-scenic";
+  if (
+    token.includes("different vs best") ||
+    token.includes("edge diversity") ||
+    token.includes("novelty")
+  )
+    return "loop-tag-diversity";
+  if (token.startsWith("bias:") || token.includes("smart bearing"))
+    return "loop-tag-direction";
+
+  return "loop-tag-neutral";
+}
+
 function hasRenderedResults() {
   if (!routeOptionsList || !routeOptionsContainer) return false;
   if (routeOptionsContainer.classList.contains("hidden")) return false;
@@ -438,10 +469,10 @@ export function renderLoopOptions(loops) {
           .slice(0, 7)
       : [];
     const tagsHtml = loopTags.length
-      ? `<div class="flex flex-wrap gap-1 mt-1 ml-8">${loopTags
+      ? `<div class="loop-tag-list flex flex-wrap gap-1 mt-1 ml-8">${loopTags
           .map(
             (tag) =>
-              `<span class="text-[10px] px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/60">${tag}</span>`,
+              `<span class="loop-tag ${classifyLoopTag(tag)}">${tag}</span>`,
           )
           .join("")}</div>`
       : loopRole
@@ -487,9 +518,30 @@ export function renderLoopOptions(loops) {
   });
 
   html += `
-        <div class="text-xs text-gray-400 mt-3 px-1 italic border-t border-gray-100 dark:border-gray-700 pt-2">
-            <i class="fas fa-info-circle mr-1"></i> 
-            Quality Score = 60% Distance + 40% Scenery
+        <div class="loop-routes-footer text-xs text-gray-400 mt-3 px-1 border-t border-gray-100 dark:border-gray-700 pt-2">
+            <div class="italic">
+              <i class="fas fa-info-circle mr-1"></i> 
+              Quality Score = 60% Distance + 40% Scenery
+            </div>
+            <div class="loop-tags-legend">
+              <button type="button" class="loop-tags-legend-trigger" aria-label="Explain loop tag colours" title="Explain loop tag colours">
+                <i class="fas fa-palette"></i>
+              </button>
+              <div class="loop-tags-legend-tooltip" role="tooltip">
+                <div class="loop-tags-legend-title">Tag colours</div>
+                <div class="loop-tags-legend-items">
+                  <span class="loop-tag loop-tag-quality">Quality</span>
+                  <span class="loop-tag loop-tag-distance">Distance</span>
+                  <span class="loop-tag loop-tag-scenic">Scenic</span>
+                  <span class="loop-tag loop-tag-diversity">Diversity</span>
+                  <span class="loop-tag loop-tag-direction">Direction</span>
+                  <span class="loop-tag loop-tag-variety-0">Variety L0</span>
+                  <span class="loop-tag loop-tag-variety-1">L1</span>
+                  <span class="loop-tag loop-tag-variety-2">L2</span>
+                  <span class="loop-tag loop-tag-variety-3">L3</span>
+                </div>
+              </div>
+            </div>
         </div>
     `;
 
