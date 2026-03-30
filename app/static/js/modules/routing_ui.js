@@ -189,6 +189,17 @@ function initModeToggles() {
     modeLoopBtn.addEventListener("click", () => switchRoutingMode("loop"));
 }
 
+function syncEndMarkerVisibility(isStandard) {
+  if (!mapController || !mapController.map || !mapController.endMarker) return;
+
+  const isVisible = mapController.map.hasLayer(mapController.endMarker);
+  if (isStandard && !isVisible) {
+    mapController.endMarker.addTo(mapController.map);
+  } else if (!isStandard && isVisible) {
+    mapController.map.removeLayer(mapController.endMarker);
+  }
+}
+
 function switchRoutingMode(mode) {
   setRoutingMode(mode);
 
@@ -207,6 +218,9 @@ function switchRoutingMode(mode) {
   // Hide swap button in loop mode (no end point)
   const swapRow = document.getElementById("swap-locations-row");
   if (swapRow) swapRow.classList.toggle("hidden", !isStandard);
+
+  // In loop mode, only the start pin should be visible on the map.
+  syncEndMarkerVisibility(isStandard);
 
   // Notify other modules of mode change
   document.dispatchEvent(

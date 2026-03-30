@@ -558,9 +558,14 @@ class MapController {
    * @param {Array} coordinates - Array of [lat, lon] pairs.
    */
   displayRoute(coordinates) {
-    // Remove existing route layer
+    // Clear overlays from any previous routing mode before drawing legacy route.
+    this.clearRouteLayers();
+    this.clearLoopLayers();
+
+    // Remove existing legacy single route layer
     if (this.routeLayer) {
       this.map.removeLayer(this.routeLayer);
+      this.routeLayer = null;
     }
 
     if (!coordinates || coordinates.length === 0) {
@@ -593,8 +598,13 @@ class MapController {
    *                          Each route has: coordinates, stats, colour
    */
   displayMultipleRoutes(routes) {
-    // Clear existing route layers
+    // Clear overlays from both route modes so stale loop polylines do not linger.
+    this.clearLoopLayers();
     this.clearRouteLayers();
+    if (this.routeLayer) {
+      this.map.removeLayer(this.routeLayer);
+      this.routeLayer = null;
+    }
 
     if (!routes) {
       console.warn("[MapController] No routes provided");
@@ -702,6 +712,12 @@ class MapController {
    * @param {Array} loops - Array of loop objects with route_coords, colour, id, label.
    */
   displayMultipleLoops(loops) {
+    // Clear overlays from both route modes so stale standard polylines do not linger.
+    this.clearRouteLayers();
+    if (this.routeLayer) {
+      this.map.removeLayer(this.routeLayer);
+      this.routeLayer = null;
+    }
     this.clearLoopLayers();
 
     if (!loops || loops.length === 0) {
