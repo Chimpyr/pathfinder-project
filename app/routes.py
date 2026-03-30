@@ -536,9 +536,14 @@ def calculate_loop_route():
         # Build multi-loop response with profile-aware ETA and unit-aware stats.
         distance_unit = movement_ctx['distance_unit']
         speed_kmh = float(movement_ctx['effective_speed_kmh'])
+
+        def _slugify_label(value):
+            base = ''.join(ch.lower() if ch.isalnum() else '-' for ch in str(value or 'loop'))
+            base = '-'.join(part for part in base.split('-') if part)
+            return base or 'loop'
         
         loops_json = []
-        for candidate in candidates:
+        for idx, candidate in enumerate(candidates, start=1):
             route_coords = MapRenderer.route_to_coords(graph, candidate.route)
             time_seconds = finder.estimate_route_time(
                 route=candidate.route,
@@ -547,10 +552,28 @@ def calculate_loop_route():
                 activity=movement_ctx['activity'],
             )
             distance_display = km_to_display(candidate.distance_km, distance_unit)
+
+            label_subtitle = None
+            label_reason = None
+            label_role = None
+            label_tags = None
+            if isinstance(candidate.metadata, dict):
+                label_subtitle = candidate.metadata.get('name_subtitle')
+                label_reason = candidate.metadata.get('name_reason')
+                label_role = candidate.metadata.get('name_role')
+                raw_tags = candidate.metadata.get('name_tags')
+                if isinstance(raw_tags, list):
+                    label_tags = [str(tag) for tag in raw_tags]
+
+            loop_id = f"loop-{idx}-{_slugify_label(candidate.label)}"
             
             loops_json.append({
-                'id': candidate.label.lower().replace(' ', '_'),
+                'id': loop_id,
                 'label': candidate.label,
+                'label_subtitle': label_subtitle,
+                'label_reason': label_reason,
+                'label_role': label_role,
+                'label_tags': label_tags,
                 'colour': candidate.colour,
                 'route_coords': route_coords,
                 'distance_m': candidate.distance,
@@ -622,6 +645,7 @@ def calculate_loop_route():
                 'distance_unit': distance_unit,
                 'budget_deviation': round((best_distance - target_distance_m) / target_distance_m, 3),
                 'directional_bias': directional_bias,
+                'variety_level': variety_level,
                 'num_candidates': len(candidates),
                 'algorithm': algorithm,
             },

@@ -1364,6 +1364,8 @@ class GeometricLoopSolver(LoopSolverBase):
                 metadata={
                     **meta,
                     'directional_bias': directional_bias,
+                    'variety_level': variety_level,
+                    'use_smart_bearing': use_smart_bearing,
                     'target_distance': target_distance,
                     'solver': 'triangle_plateau',
                 },

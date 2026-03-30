@@ -101,6 +101,21 @@ function resolvePaceText(stats = {}) {
   return "n/a";
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function humaniseRoleToken(value) {
+  return String(value ?? "")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (token) => token.toUpperCase());
+}
+
 function hasRenderedResults() {
   if (!routeOptionsList || !routeOptionsContainer) return false;
   if (routeOptionsContainer.classList.contains("hidden")) return false;
@@ -154,7 +169,7 @@ function collectWeights() {
 /**
  * Generate a human-readable query name from addresses or coordinates.
  */
-function generateQueryName(isLoop) {
+function generateQueryName(isLoop, routeType = null) {
   const startLabel =
     startState.address ||
     (startState.lat
@@ -162,7 +177,9 @@ function generateQueryName(isLoop) {
       : "Unknown");
 
   if (isLoop) {
-    return `Loop from ${startLabel}`;
+    const loopLabel =
+      loopState.loops?.find((l) => l.id === routeType)?.label || "Loop";
+    return `${loopLabel} from ${startLabel}`;
   }
 
   const endLabel =
@@ -170,7 +187,9 @@ function generateQueryName(isLoop) {
     (endState.lat
       ? `${endState.lat.toFixed(4)}, ${endState.lon.toFixed(4)}`
       : "Unknown");
-  return `${startLabel} → ${endLabel}`;
+
+  const routeName = ROUTE_CONFIG[routeType]?.name || "Route";
+  return `${routeName}: ${startLabel} → ${endLabel}`;
 }
 
 /**
@@ -210,7 +229,7 @@ async function handleSaveQuery(routeType, isLoop, btn) {
   }
 
   const payload = {
-    name: generateQueryName(isLoop),
+    name: generateQueryName(isLoop, routeType),
     start_lat: startState.lat,
     start_lon: startState.lon,
     end_lat: isLoop ? null : endState.lat,
@@ -404,6 +423,30 @@ export function renderLoopOptions(loops) {
     const isSelected = loopState.selectedId === loop.id;
     const isVisible = loopState.visibility[loop.id] !== false;
     const colour = loop.colour || "#3B82F6";
+    const loopLabel = escapeHtml(loop.label || "Loop");
+    const loopSubtitle = loop.label_subtitle
+      ? escapeHtml(loop.label_subtitle)
+      : "";
+    const loopRole = loop.label_role
+      ? escapeHtml(humaniseRoleToken(loop.label_role))
+      : "";
+    const loopReason = loop.label_reason ? escapeHtml(loop.label_reason) : "";
+    const loopTags = Array.isArray(loop.label_tags)
+      ? loop.label_tags
+          .map((tag) => escapeHtml(tag))
+          .filter(Boolean)
+          .slice(0, 7)
+      : [];
+    const tagsHtml = loopTags.length
+      ? `<div class="flex flex-wrap gap-1 mt-1 ml-8">${loopTags
+          .map(
+            (tag) =>
+              `<span class="text-[10px] px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/60">${tag}</span>`,
+          )
+          .join("")}</div>`
+      : loopRole
+        ? `<div class="text-[11px] text-gray-500 dark:text-gray-400 mt-1 ml-8">Role: ${loopRole}</div>`
+        : "";
     const loopDistance =
       loop.distance !== undefined && loop.distance !== null
         ? `${loop.distance} ${loop.distance_unit || getDistanceUnit()}`
@@ -421,7 +464,8 @@ export function renderLoopOptions(loops) {
                         </button>
                         <span class="w-3 h-3 rounded-full" style="background-color: ${colour}"></span>
                         <div>
-                            <span class="font-medium text-gray-700 dark:text-gray-200">${loop.label || "Loop"}</span>
+                          <span class="font-medium text-gray-700 dark:text-gray-200">${loopLabel}</span>
+                          ${loopSubtitle ? `<div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">${loopSubtitle}</div>` : ""}
                         </div>
                     </div>
                     <div class="flex items-center gap-1">
@@ -436,6 +480,8 @@ export function renderLoopOptions(loops) {
                     <span>${loop.time_min} min</span>
                     ${loop.quality_score ? `<span title="Quality Score (0-1)\n60% Distance Accuracy\n40% Scenic Quality">★ ${loop.quality_score}</span>` : ""}
                 </div>
+                ${tagsHtml}
+                ${loopReason ? `<div class="text-[11px] text-gray-500 dark:text-gray-400 mt-1 ml-8">${loopReason}</div>` : ""}
             </div>
         `;
   });

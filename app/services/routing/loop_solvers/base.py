@@ -31,18 +31,249 @@ LOOP_COLOURS = [
     '#8B5CF6',   # Violet - additional
 ]
 
-LOOP_LABELS = [
-    'Conservative',
-    'Scenic',
-    'Exploratory',
-    'Alternative',
-    'Route 5',
-    'Route 6',
-    'Route 7',
-    'Route 8',
-    'Route 9',
-    'Route 10',
+ROLE_LABELS = {
+    'best_match': 'Best Match',
+    'scenic_alternative': 'Scenic Alternative',
+    'diverse_alternative': 'Diverse Alternative',
+    'exploration_option': 'Exploration Option',
+}
+
+EXTRA_LOOP_LABELS = [
+    'Quiet Streets Option',
+    'Extended Option',
+    'Neighbourhood Option',
+    'Panoramic Option',
+    'Balanced Option',
+    'Fallback Option',
 ]
+
+LOOP_LABELS = [
+    ROLE_LABELS['best_match'],
+    ROLE_LABELS['scenic_alternative'],
+    ROLE_LABELS['diverse_alternative'],
+    ROLE_LABELS['exploration_option'],
+    *EXTRA_LOOP_LABELS,
+]
+
+
+def _bearing_to_descriptor(raw_bearing: Any) -> str:
+    """Return a short direction descriptor from bearing metadata."""
+    if raw_bearing is None:
+        return 'Any direction'
+
+    if isinstance(raw_bearing, str):
+        token = raw_bearing.strip().lower()
+        named = {
+            'north': 'Northbound',
+            'east': 'Eastbound',
+            'south': 'Southbound',
+            'west': 'Westbound',
+            'none': 'Any direction',
+        }
+        if token in named:
+            return named[token]
+
+    try:
+        bearing = float(raw_bearing) % 360.0
+    except (TypeError, ValueError):
+        return 'Any direction'
+
+    compass = [
+        'Northbound',
+        'North-east',
+        'Eastbound',
+        'South-east',
+        'Southbound',
+        'South-west',
+        'Westbound',
+        'North-west',
+    ]
+    idx = int((bearing + 22.5) // 45.0) % len(compass)
+    return compass[idx]
+
+
+def _shape_to_descriptor(meta: Dict[str, Any]) -> str:
+    """Return loop-shape wording from solver metadata."""
+    loop_type = str(meta.get('type', '') or '').strip().lower()
+    if loop_type == 'out-and-back':
+        return 'Out-and-back'
+
+    shape_raw = str(meta.get('shape', '') or '').strip().upper()
+    if shape_raw.startswith('N='):
+        try:
+            sides = int(shape_raw.split('=', 1)[1])
+        except (TypeError, ValueError):
+            sides = None
+        side_labels = {
+            3: 'Triangle',
+            4: 'Quadrilateral',
+            5: 'Pentagon',
+            6: 'Hexagon',
+        }
+        if sides in side_labels:
+            return side_labels[sides]
+        if sides and sides >= 7:
+            return 'Polygon'
+
+    return 'Loop'
+
+
+def _normalise_bias_token(raw_bias: Any) -> str:
+    """Return canonical directional bias token for naming metadata."""
+    token = str(raw_bias or 'none').strip().lower()
+    return token if token in {'north', 'east', 'south', 'west', 'none'} else 'none'
+
+
+def _assign_role_by_index(selected: List['LoopCandidate']) -> Dict[int, str]:
+    """Assign a semantic naming role to each selected candidate index."""
+    role_by_index: Dict[int, str] = {}
+    if not selected:
+        return role_by_index
+
+    role_by_index[0] = 'best_match'
+    remaining = list(range(1, len(selected)))
+
+    if remaining:
+        scenic_idx = min(
+            remaining,
+            key=lambda i: (
+                selected[i].scenic_cost,
+                selected[i].deviation,
+                -selected[i].quality_score,
+            ),
+        )
+        role_by_index[scenic_idx] = 'scenic_alternative'
+        remaining.remove(scenic_idx)
+
+    if remaining:
+        best_route = selected[0].route
+        diverse_idx = max(
+            remaining,
+            key=lambda i: (
+                1.0 - route_similarity(selected[i].route, best_route),
+                selected[i].quality_score,
+            ),
+        )
+        role_by_index[diverse_idx] = 'diverse_alternative'
+        remaining.remove(diverse_idx)
+
+    if remaining:
+        exploration_idx = max(
+            remaining,
+            key=lambda i: (
+                sum(
+                    1.0 - route_similarity(selected[i].route, other.route)
+                    for j, other in enumerate(selected)
+                    if j != i
+                ) / max(1, len(selected) - 1),
+                -selected[i].deviation,
+                selected[i].quality_score,
+            ),
+        )
+        role_by_index[exploration_idx] = 'exploration_option'
+        remaining.remove(exploration_idx)
+
+    for idx in remaining:
+        role_by_index[idx] = 'extra'
+
+    return role_by_index
+
+
+def _attach_name_explainability(
+    candidate: 'LoopCandidate',
+    index: int,
+    selected: List['LoopCandidate'],
+    role: str,
+) -> None:
+    """Populate metadata fields explaining exactly why a candidate got its label."""
+    if candidate.metadata is None:
+        candidate.metadata = {}
+
+    direction = _bearing_to_descriptor(candidate.metadata.get('bearing'))
+    shape = _shape_to_descriptor(candidate.metadata)
+    candidate.metadata['name_subtitle'] = f"{direction} | {shape}"
+
+    scenic_sorted = sorted(selected, key=lambda c: c.scenic_cost)
+    scenic_rank = scenic_sorted.index(candidate) + 1
+    scenic_total = len(scenic_sorted)
+
+    best = selected[0]
+    dissimilarity_best_pct = int(
+        round((1.0 - route_similarity(candidate.route, best.route)) * 100)
+    )
+    avg_dissimilarity_pct = int(
+        round(
+            (
+                sum(
+                    1.0 - route_similarity(candidate.route, other.route)
+                    for other in selected
+                    if other is not candidate
+                )
+                / max(1, len(selected) - 1)
+            ) * 100
+        )
+    )
+
+    bias_token = _normalise_bias_token(candidate.metadata.get('directional_bias'))
+    variety_level = candidate.metadata.get('variety_level')
+    try:
+        variety_level_int = int(variety_level)
+    except (TypeError, ValueError):
+        variety_level_int = None
+
+    if role == 'best_match':
+        reason = (
+            f"Assigned as Best Match: highest combined quality score "
+            f"({candidate.quality_score:.3f}) with {candidate.deviation_percent:.1f}% target deviation."
+        )
+        role_tag = 'Quality leader'
+    elif role == 'scenic_alternative':
+        reason = (
+            "Assigned as Scenic Alternative: lowest scenic cost among alternatives "
+            f"(rank {scenic_rank}/{scenic_total}) with {candidate.deviation_percent:.1f}% target deviation."
+        )
+        role_tag = 'Lowest scenic cost (alt)'
+    elif role == 'diverse_alternative':
+        reason = (
+            "Assigned as Diverse Alternative: highest edge dissimilarity from Best Match "
+            f"({dissimilarity_best_pct}%) with {candidate.deviation_percent:.1f}% target deviation."
+        )
+        role_tag = 'Max edge diversity vs best'
+    elif role == 'exploration_option':
+        reason = (
+            "Assigned as Exploration Option: high cross-route novelty "
+            f"(avg {avg_dissimilarity_pct}% different) while staying "
+            f"{candidate.deviation_percent:.1f}% from target."
+        )
+        if variety_level_int and variety_level_int > 0:
+            reason += f" Variety level {variety_level_int} expanded bearing/shape exploration."
+        role_tag = 'High novelty across options'
+    else:
+        reason = (
+            "Assigned as additional alternative: balanced fallback with "
+            f"{candidate.deviation_percent:.1f}% target deviation and scenic rank "
+            f"{scenic_rank}/{scenic_total}."
+        )
+        role_tag = 'Additional alternative'
+
+    tags = [
+        role_tag,
+        f"Target delta {candidate.deviation_percent:.1f}%",
+        f"Scenic rank {scenic_rank}/{scenic_total}",
+    ]
+    if role != 'best_match':
+        tags.append(f"{dissimilarity_best_pct}% different vs best")
+    if bias_token != 'none':
+        tags.append(f"Bias: {bias_token.title()}")
+    if variety_level_int is not None:
+        tags.append(f"Variety L{variety_level_int}")
+    if candidate.metadata.get('use_smart_bearing'):
+        tags.append('Smart bearing')
+
+    candidate.metadata['name_role'] = role
+    candidate.metadata['name_reason'] = reason
+    candidate.metadata['name_tags'] = tags[:7]
+    candidate.metadata['name_strategy'] = 'quality-diversity-geometry'
 
 
 # ── LoopCandidate data structure ─────────────────────────────────────────────
@@ -208,10 +439,24 @@ def select_diverse_candidates(
 
             selected.append(remaining.pop(best_idx))
 
-    # Assign colours and labels
+    # Assign colours and semantic labels with explicit explainability.
+    role_by_index = _assign_role_by_index(selected)
+    extra_label_idx = 0
+
     for i, candidate in enumerate(selected):
         candidate.colour = LOOP_COLOURS[i % len(LOOP_COLOURS)]
-        candidate.label = LOOP_LABELS[i % len(LOOP_LABELS)]
+
+        role = role_by_index.get(i, 'extra')
+        if role in ROLE_LABELS:
+            candidate.label = ROLE_LABELS[role]
+        else:
+            if EXTRA_LOOP_LABELS:
+                candidate.label = EXTRA_LOOP_LABELS[extra_label_idx % len(EXTRA_LOOP_LABELS)]
+            else:
+                candidate.label = f'Alternative {extra_label_idx + 1}'
+            extra_label_idx += 1
+
+        _attach_name_explainability(candidate, i, selected, role)
 
     return selected
 

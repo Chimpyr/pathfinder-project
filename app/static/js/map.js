@@ -732,8 +732,12 @@ class MapController {
           ? `${loop.distance} ${loop.distance_unit || "km"}`
           : `${loop.distance_km || "?"} km`;
 
+      const subtitle = loop.label_subtitle
+        ? `<br><span style="font-size:11px;opacity:0.85;">${loop.label_subtitle}</span>`
+        : "";
+
       layer.bindTooltip(
-        `<strong>${loop.label || loop.id}</strong><br>${loopDistance} · ${loop.time_min || "?"} min`,
+        `<strong>${loop.label || loop.id}</strong>${subtitle}<br>${loopDistance} · ${loop.time_min || "?"} min`,
         { sticky: true },
       );
 
