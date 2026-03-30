@@ -57,7 +57,7 @@ Potential enhancements for the ScenicPathFinder application, organised by catego
   |-----------|------|------|
   | **Christofides TSP variant** | Guarantees return to origin; well-studied | Designed for visiting waypoints, not distance budgets |
   | **Constrained random walk** | Simple; naturally explores area | No optimality guarantees; may miss scenic areas |
-  | **Distance-budget A*** | Integrates with existing WSM A*; admissible heuristics possible | Requires modified goal test (distance reached, not destination) |
+  | **Distance-budget A\*** | Integrates with existing WSM A*; admissible heuristics possible | Requires modified goal test (distance reached, not destination) |
   | **Two-phase (outbound + return)** | Reuses existing A*; simpler implementation | May produce suboptimal loops; backtracking risk |
 - **Requires**: Distance budget constraint rather than destination node heuristic; modified termination condition
 - **Complexity**: High
@@ -72,7 +72,7 @@ Potential enhancements for the ScenicPathFinder application, organised by catego
 - **Behaviour**:
   - **0 (Simple)**: Favour routes with fewer turns, straighter roads, cognitively simpler paths (easier to remember/follow)
   - **9 (Complex)**: Ignores complexity weighting; does not penalise turns or direction changes
-- **Literature**: Duckham, M. and Kulik, L. (2003) "Simplest" Paths: Automated Route Selection for Navigation. In: Kuhn, W., Worboys, M.F. and Timpf, S., eds. *Spatial Information Theory. Foundations of Geographic Information Science*. Berlin, Heidelberg: Springer Berlin Heidelberg, pp. 169–185.
+- **Literature**: Duckham, M. and Kulik, L. (2003) "Simplest" Paths: Automated Route Selection for Navigation. In: Kuhn, W., Worboys, M.F. and Timpf, S., eds. _Spatial Information Theory. Foundations of Geographic Information Science_. Berlin, Heidelberg: Springer Berlin Heidelberg, pp. 169–185.
   - Key Finding: Shortest paths are typically complex in turns; optimising for legibility increased travel distance by ~16% on average — a worthwhile trade-off for navigation clarity
 - **Implementation**:
   - Compute turn angles at graph nodes
@@ -104,7 +104,7 @@ Potential enhancements for the ScenicPathFinder application, organised by catego
   - **Queue**: Redis for task distribution and result backend
 - **Benefits**: Decouples graph processing; 4 concurrent builds; non-blocking UI
 - **Deployment**: Docker Compose (api, worker, redis containers)
-- **Documentation**: [Celery Redis Architecture](celery_redis_architecture.md)
+- **Documentation**: [Celery Redis Architecture](../architecture/celery_redis_architecture.md)
 
 ### Bounding Box Clipping at Load Time ✅
 
@@ -114,7 +114,7 @@ Potential enhancements for the ScenicPathFinder application, organised by catego
   - 5km buffer around route bbox
   - Bbox hash in cache key for per-route caching
   - 73s build time (was 15 min), ~1GB RAM (was 12GB)
-- **Documentation**: [ADR-004](decisions/ADR-004-bbox-clipping.md), [Performance Strategy](performance_strategy.md)
+- **Documentation**: [ADR-004](../decisions/ADR-004-bbox-clipping.md), [Performance Strategy](../architecture/performance_strategy.md)
 
 ### Within-Task Parallelism (Deferred)
 
@@ -134,15 +134,17 @@ Potential enhancements for the ScenicPathFinder application, organised by catego
   - **Feature Scoring**: Independent per-edge greenness, water, social scoring
   - **Spatial Queries**: Can batch edge lookups to STRtree
 - **Implementation Sketch**:
+
   ```python
   from concurrent.futures import ProcessPoolExecutor
-  
+
   def score_batch(edges_batch, green_index):
       return {(u,v): calc_greenness(data) for u,v,data in edges_batch}
-  
+
   with ProcessPoolExecutor(max_workers=4) as executor:
       results = executor.map(score_batch, edge_batches)
   ```
+
 - **Complexity**: High
 
 ---
@@ -161,4 +163,3 @@ Potential enhancements for the ScenicPathFinder application, organised by catego
 | Running Mode                  | Medium | Medium     | 3        | Pending        |
 
 ---
-

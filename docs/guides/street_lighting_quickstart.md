@@ -91,8 +91,8 @@ Once Street Lighting is enabled in Settings:
 - Decision record (council-first merge):
   `docs/decisions/ADR-019-council-streetlight-data.md`
 - System-wide architecture:
-  `docs/architecture.md`
+  `docs/architecture/architecture.md`
 - Technical architecture details:
-  `docs/technical_architecture.md`
+  `docs/architecture/technical_architecture.md`
 - Docker setup and commands:
   `docs/guides/docker_setup.md`, `docs/guides/docker_commands.md`

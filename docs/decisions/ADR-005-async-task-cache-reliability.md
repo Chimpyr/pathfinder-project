@@ -1,7 +1,7 @@
 # ADR-005: Async Task Lock Management and Cache Reliability
 
 **Status:** Accepted  
-**Date:** 2026-01-30  
+**Date:** 2026-01-30
 
 ---
 
@@ -11,11 +11,11 @@ During testing of the async graph building pipeline, several critical bugs were 
 
 ### Observed Symptoms
 
-| Symptom | Impact |
-|---------|--------|
+| Symptom                                  | Impact                                                  |
+| ---------------------------------------- | ------------------------------------------------------- |
 | Infinite retry loop after cache deletion | Browser continuously sent requests, server unresponsive |
-| "Unknown error" on successful route | Admin test UI showed failure despite route working |
-| Duplicate graph builds | Cache savings lost; 80+ second builds repeated |
+| "Unknown error" on successful route      | Admin test UI showed failure despite route working      |
+| Duplicate graph builds                   | Cache savings lost; 80+ second builds repeated          |
 
 ---
 
@@ -24,6 +24,7 @@ During testing of the async graph building pipeline, several critical bugs were 
 ### Bug 1: Stale Redis Task Locks
 
 **Flow:**
+
 1. Task enqueued, Redis lock set: `building:bristol:EDGE_SAMPLING:LOCAL → task_id`
 2. Task completes successfully (graph saved to disk)
 3. **Lock NOT cleared** (original implementation had no `finally` block)
@@ -37,6 +38,7 @@ During testing of the async graph building pipeline, several critical bugs were 
 ### Bug 2: Cache Key Mismatch in GraphManager
 
 **Flow:**
+
 1. Worker builds graph, saves with `clip_bbox` hash: `bbox_00e2b1b4`
 2. Task completes, frontend retries route
 3. `routes.py` calls `GraphManager.get_graph(bbox)`
@@ -49,6 +51,7 @@ During testing of the async graph building pipeline, several critical bugs were 
 ### Bug 3: Missing Success Field in API Response
 
 **Flow:**
+
 1. Route calculated successfully
 2. API returns `{route_coords: [...], stats: {...}}`
 3. Admin JavaScript checks `data.success` → `undefined`
@@ -112,7 +115,7 @@ def get_graph(cls, bbox):
             bbox[2] + buffer_deg,
             bbox[3] + buffer_deg
         )
-    
+
     # Now cache operations use correct key
     if cache_mgr.is_cache_valid(..., bbox=clip_bbox):
         return cache_mgr.load_graph(..., bbox=clip_bbox)
@@ -153,29 +156,29 @@ response_data = {
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `graph_tasks.py` | Added `finally` block to clear lock on completion |
-| `task_manager.py` | Added task state validation before returning cached ID |
-| `graph_manager.py` | Added `clip_bbox` calculation, passed to cache ops |
-| `routes.py` | Added `success: True` to response |
-| `admin.html` | Fixed JavaScript to read `data.stats.distance_km` |
-| `docs/caching.md` | Added implementation notes section |
+| File                           | Changes                                                |
+| ------------------------------ | ------------------------------------------------------ |
+| `graph_tasks.py`               | Added `finally` block to clear lock on completion      |
+| `task_manager.py`              | Added task state validation before returning cached ID |
+| `graph_manager.py`             | Added `clip_bbox` calculation, passed to cache ops     |
+| `routes.py`                    | Added `success: True` to response                      |
+| `admin.html`                   | Fixed JavaScript to read `data.stats.distance_km`      |
+| `docs/architecture/caching.md` | Added implementation notes section                     |
 
 ---
 
 ## Testing Validation
 
-| Test | Before | After |
-|------|--------|-------|
-| Clear cache → Run test → Wait → Run again | Infinite loop | ✅ Cache hit, 4s load |
-| Task completes → Immediate retry | 80s rebuild | ✅ Cache hit, 4s load |
-| Admin test panel success display | "Unknown error" | ✅ "4.82km, 269 nodes" |
+| Test                                      | Before          | After                  |
+| ----------------------------------------- | --------------- | ---------------------- |
+| Clear cache → Run test → Wait → Run again | Infinite loop   | ✅ Cache hit, 4s load  |
+| Task completes → Immediate retry          | 80s rebuild     | ✅ Cache hit, 4s load  |
+| Admin test panel success display          | "Unknown error" | ✅ "4.82km, 269 nodes" |
 
 ---
 
 ## References
 
 - [ADR-004: BBox Clipping](ADR-004-bbox-clipping.md)
-- [Caching Architecture](../caching.md)
-- [Celery Redis Architecture](../celery_redis_architecture.md)
+- [Caching Architecture](../architecture/caching.md)
+- [Celery Redis Architecture](../architecture/celery_redis_architecture.md)

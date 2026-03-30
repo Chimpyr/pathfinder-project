@@ -25,10 +25,10 @@ Sample multiple points along each edge geometry, create 50m buffer around each s
 def calculate_green_score_edge(edge_geom, green_index, buffer_radius=50):
     length = edge_geom.length
     sample_count = max(2, int(length / 20))  # Sample every ~20m
-    
-    points = [edge_geom.interpolate(i / (sample_count-1), normalized=True) 
+
+    points = [edge_geom.interpolate(i / (sample_count-1), normalized=True)
               for i in range(sample_count)]
-    
+
     scores = [point_buffer_score(p, green_index, buffer_radius) for p in points]
     return np.mean(scores)
 ```
@@ -60,14 +60,14 @@ GREENNESS_MODE = 'FAST'  # Options: OFF | FAST | NOVACK
 
 ## Alternatives Considered
 
-For detailed comparison of all methods, see [Greenness Methods Comparison](../greenness_methods_comparison.md).
+For detailed comparison of all methods, see [Greenness Methods Comparison](../features/research/greenness_methods_comparison.md).
 
-| Method | Accuracy | Speed | Why Not Selected |
-|--------|----------|-------|------------------|
-| **Point Buffer (simpler)** | ⭐⭐ | ⭐⭐⭐⭐⭐ | Misses long edges, only samples midpoint |
-| **NDVI Raster** | ⭐⭐⭐⭐ | ⭐⭐⭐ | Requires satellite data download, seasonal variation |
-| **Green View Index (GVI)** | ⭐⭐⭐⭐⭐ | ⭐⭐ | Requires street imagery API, expensive at scale |
-| **Isovist Ray-casting** | ⭐⭐⭐⭐ | ⭐ | Too slow (~10+ min), complex implementation |
+| Method                     | Accuracy   | Speed      | Why Not Selected                                     |
+| -------------------------- | ---------- | ---------- | ---------------------------------------------------- |
+| **Point Buffer (simpler)** | ⭐⭐       | ⭐⭐⭐⭐⭐ | Misses long edges, only samples midpoint             |
+| **NDVI Raster**            | ⭐⭐⭐⭐   | ⭐⭐⭐     | Requires satellite data download, seasonal variation |
+| **Green View Index (GVI)** | ⭐⭐⭐⭐⭐ | ⭐⭐       | Requires street imagery API, expensive at scale      |
+| **Isovist Ray-casting**    | ⭐⭐⭐⭐   | ⭐         | Too slow (~10+ min), complex implementation          |
 
 ---
 
@@ -81,6 +81,6 @@ For detailed comparison of all methods, see [Greenness Methods Comparison](../gr
 
 ## References
 
-- [Greenness Methods Comparison](../greenness_methods_comparison.md) - Detailed research document
+- [Greenness Methods Comparison](../features/research/greenness_methods_comparison.md) - Detailed research document
 - Novack et al. (2018) - Isovist-based greenness visibility
 - MIT Senseable City Lab - Green View Index methodology

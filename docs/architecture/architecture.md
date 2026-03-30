@@ -438,11 +438,11 @@ Endpoints: `GET/POST/DELETE /api/pins`, `GET/POST/DELETE /api/routes`
 
 ### Related Decisions
 
-- [ADR-012: Dual-Database Segregation](decisions/ADR-012-dual-database-segregation.md)
-- [ADR-013: Automated Database Bootstrapping](decisions/ADR-013-automated-database-bootstrapping.md)
-- [ADR-014: Parametrised Route Storage](decisions/ADR-014-parametrised-route-storage.md)
-- [ADR-015: Connection Pool Tuning](decisions/ADR-015-connection-pool-tuning.md)
-- [ADR-016: Alembic Migration Safety](decisions/ADR-016-alembic-migration-safety.md)
+- [ADR-012: Dual-Database Segregation](../decisions/ADR-012-dual-database-segregation.md)
+- [ADR-013: Automated Database Bootstrapping](../decisions/ADR-013-automated-database-bootstrapping.md)
+- [ADR-014: Parametrised Route Storage](../decisions/ADR-014-parametrised-route-storage.md)
+- [ADR-015: Connection Pool Tuning](../decisions/ADR-015-connection-pool-tuning.md)
+- [ADR-016: Alembic Migration Safety](../decisions/ADR-016-alembic-migration-safety.md)
 
 ---
 
@@ -677,6 +677,6 @@ normalised = {
 
 ### Related Documentation
 
-- [WSM Feature Specification](wsm_feature.md)
-- [ADR-001: WSM OR-Semantics](decisions/ADR-001-wsm-or-semantics.md)
-- [ADR-003: Weighted-MIN and Slider Scale](decisions/ADR-003-weighted-min-and-slider-scale.md)
+- [WSM Feature Specification](../features/routing/wsm_feature.md)
+- [ADR-001: WSM OR-Semantics](../decisions/ADR-001-wsm-or-semantics.md)
+- [ADR-003: Weighted-MIN and Slider Scale](../decisions/ADR-003-weighted-min-and-slider-scale.md)

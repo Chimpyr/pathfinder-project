@@ -1,7 +1,7 @@
 # ADR-004: Bounding Box Clipping for Graph Loading
 
 **Status:** Superseded by [ADR-007](./ADR-007-tile-based-caching.md)  
-**Date:** 2026-01-30  
+**Date:** 2026-01-30
 
 > [!NOTE]
 > This approach has been superseded by tile-based caching (ADR-007) which provides better cache reuse for nearby routes while maintaining the memory benefits described here.
@@ -14,11 +14,11 @@ The ScenicPathFinder async graph building pipeline faced critical memory constra
 
 ### The Problem
 
-| Metric | Full-Region Load | Impact |
-|--------|------------------|--------|
-| Somerset PBF | 1,114,246 nodes, 2.3M edges | ~12 GB RAM per build |
-| Build time | ~15 minutes | Poor UX for cold starts |
-| Worker scaling | OOM at 2 workers | Cannot parallelise |
+| Metric         | Full-Region Load            | Impact                  |
+| -------------- | --------------------------- | ----------------------- |
+| Somerset PBF   | 1,114,246 nodes, 2.3M edges | ~12 GB RAM per build    |
+| Build time     | ~15 minutes                 | Poor UX for cold starts |
+| Worker scaling | OOM at 2 workers            | Cannot parallelise      |
 
 With each graph build consuming ~12 GB of RAM, running even 2 concurrent Celery workers exceeded typical Docker memory limits. This fundamentally limited the system's ability to handle multiple simultaneous route requests to different regions.
 
@@ -69,12 +69,12 @@ This enables per-route caching while allowing cache reuse for nearby routes.
 
 ## Verified Results
 
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Node count (Bath route) | 1,114,246 | **62,581** | 95% reduction |
-| Build time | ~15 min | **73 sec** | 12× faster |
-| Memory per build | ~12 GB | **~1 GB** | ~90% reduction |
-| Concurrent workers | 1 (OOM at 2) | **4** | 4× capacity |
+| Metric                  | Before       | After      | Improvement    |
+| ----------------------- | ------------ | ---------- | -------------- |
+| Node count (Bath route) | 1,114,246    | **62,581** | 95% reduction  |
+| Build time              | ~15 min      | **73 sec** | 12× faster     |
+| Memory per build        | ~12 GB       | **~1 GB**  | ~90% reduction |
+| Concurrent workers      | 1 (OOM at 2) | **4**      | 4× capacity    |
 
 ---
 
@@ -102,6 +102,7 @@ This enables per-route caching while allowing cache reuse for nearby routes.
 **Symptom**: After graph build completed, subsequent requests to same route returned 202 (cache miss) instead of using cached graph.
 
 **Root cause**: Inconsistent clip_bbox calculation:
+
 - `routes.py` calculated clip_bbox from raw start/end coordinates
 - `graph_builder.py` calculated clip_bbox from bbox (which had 0.02 buffer)
 
@@ -123,20 +124,21 @@ clip_bbox = (
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `OSMDataLoader.load_graph()` | Added `clip_bbox` parameter, passes to pyrosm |
-| `GraphBuilder.build_graph()` | Added `clip_to_bbox` parameter, calculates 5km buffer |
-| `CacheManager._get_cache_key()` | Added optional `bbox` parameter for hash |
-| `CacheManager.is_cache_valid/load_graph/save_graph()` | Accept and pass `bbox` parameter |
-| `routes.py` | Calculates clip_bbox for cache lookup |
-| `docker-compose.yml` | Increased `--concurrency=1` to `--concurrency=4` |
+| File                                                  | Changes                                               |
+| ----------------------------------------------------- | ----------------------------------------------------- |
+| `OSMDataLoader.load_graph()`                          | Added `clip_bbox` parameter, passes to pyrosm         |
+| `GraphBuilder.build_graph()`                          | Added `clip_to_bbox` parameter, calculates 5km buffer |
+| `CacheManager._get_cache_key()`                       | Added optional `bbox` parameter for hash              |
+| `CacheManager.is_cache_valid/load_graph/save_graph()` | Accept and pass `bbox` parameter                      |
+| `routes.py`                                           | Calculates clip_bbox for cache lookup                 |
+| `docker-compose.yml`                                  | Increased `--concurrency=1` to `--concurrency=4`      |
 
 ---
 
 ## Testing Validation
 
 Concurrent build test:
+
 1. Oxford route: `ForkPoolWorker-1` - 65,222 nodes, 77s build time
 2. Bath route: `ForkPoolWorker-3` - 62,001 nodes, 74s build time
 3. Both completed successfully without OOM
@@ -145,6 +147,6 @@ Concurrent build test:
 
 ## References
 
-- [Performance Strategy](../performance_strategy.md)
-- [Celery Redis Architecture](../celery_redis_architecture.md)
+- [Performance Strategy](../architecture/performance_strategy.md)
+- [Celery Redis Architecture](../architecture/celery_redis_architecture.md)
 - [Testing Guide](../guides/docker_testing.md)

@@ -14,9 +14,9 @@ A visual comparison chart of the three algorithmic extraction logic methods your
 ## Data Required & Where to Find it:
 
 - **The ADRs:** `docs/decisions/ADR-002-greenness-detection-method.md`
-- **The Docs:** `docs/greenness_methods_comparison.md`
-- **The Benchmark Script:** [`benchmarks/benchmark_extraction.py`](../../benchmarks/benchmark_extraction.py) — **already implemented**
-- **The Visualiser:** [`benchmarks/visualise_results.py`](../../benchmarks/visualise_results.py) — generates charts from benchmark JSON output
+- **The Docs:** `docs/features/research/greenness_methods_comparison.md`
+- **The Benchmark Script:** [`benchmarks/benchmark_extraction.py`](../../../benchmarks/benchmark_extraction.py) — **already implemented**
+- **The Visualiser:** [`benchmarks/visualise_results.py`](../../../benchmarks/visualise_results.py) — generates charts from benchmark JSON output
 
 ## Implementation Status: ✅ SCRIPT EXISTS
 
@@ -37,7 +37,7 @@ docker compose exec api python -m benchmarks.benchmark_extraction
 docker compose exec api python -m benchmarks.visualise_results
 ```
 
-See also: [`benchmarks/README.md`](../../benchmarks/README.md) for full usage instructions.
+See also: [`benchmarks/README.md`](../../../benchmarks/README.md) for full usage instructions.
 
 ## What it Proves & Why it is Positive:
 

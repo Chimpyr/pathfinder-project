@@ -12,9 +12,9 @@ ADR-004 introduced per-route bounding box clipping to reduce memory usage from f
 
 ### The Problem
 
-| Scenario | Cache Key | Result |
-|----------|-----------|--------|
-| Stoke Park → Fishponds | `hash(bbox_abc)` | Build graph (~70s) |
+| Scenario                            | Cache Key        | Result                |
+| ----------------------------------- | ---------------- | --------------------- |
+| Stoke Park → Fishponds              | `hash(bbox_abc)` | Build graph (~70s)    |
 | Stoke Park → Staple Hill (1km away) | `hash(bbox_def)` | Build again (~70s) ❌ |
 
 Even though these routes share 90%+ of the same area, different bounding boxes produce different cache keys, triggering unnecessary rebuilds.
@@ -92,28 +92,28 @@ PREWARM_TILES = []       # Optional: Pre-build tiles on startup
 
 ### Trade-offs Accepted
 
-| Metric | ADR-004 (bbox) | ADR-007 (tiles) |
-|--------|----------------|-----------------|
-| Cache reuse | Poor | Excellent |
-| Build time (cold) | ~70s per route | ~2-3 min per tile |
-| Build time (warm) | Miss every time | Instant (cache hit) |
-| Memory per request | ~1 GB | ~2-3 GB per tile |
+| Metric             | ADR-004 (bbox)  | ADR-007 (tiles)     |
+| ------------------ | --------------- | ------------------- |
+| Cache reuse        | Poor            | Excellent           |
+| Build time (cold)  | ~70s per route  | ~2-3 min per tile   |
+| Build time (warm)  | Miss every time | Instant (cache hit) |
+| Memory per request | ~1 GB           | ~2-3 GB per tile    |
 
 ---
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `config.py` | Added `TILE_SIZE_KM`, `TILE_OVERLAP_KM`, `PREWARM_TILES` |
-| `tile_utils.py` | New module for tile grid calculations |
-| `cache_manager.py` | Added `tile_id` parameter to cache methods |
-| `graph_manager.py` | Added `get_graph_for_route()` with tile merging |
-| `routes.py` | Updated to use tile-based API |
+| File               | Changes                                                  |
+| ------------------ | -------------------------------------------------------- |
+| `config.py`        | Added `TILE_SIZE_KM`, `TILE_OVERLAP_KM`, `PREWARM_TILES` |
+| `tile_utils.py`    | New module for tile grid calculations                    |
+| `cache_manager.py` | Added `tile_id` parameter to cache methods               |
+| `graph_manager.py` | Added `get_graph_for_route()` with tile merging          |
+| `routes.py`        | Updated to use tile-based API                            |
 
 ---
 
 ## References
 
 - [ADR-004: Bounding Box Clipping](./ADR-004-bbox-clipping.md) (superseded)
-- [Performance Strategy](../performance_strategy.md)
+- [Performance Strategy](../architecture/performance_strategy.md)

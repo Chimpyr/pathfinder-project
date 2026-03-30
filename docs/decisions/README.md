@@ -41,8 +41,8 @@ Each ADR follows this structure:
 
 ## Related Documentation
 
-- [WSM Feature Documentation](../wsm_feature.md) - Technical details of the cost function
-- [Greenness Methods Comparison](../greenness_methods_comparison.md) - Research on greenness detection approaches
+- [WSM Feature Documentation](../features/routing/wsm_feature.md) - Technical details of the cost function
+- [Greenness Methods Comparison](../features/research/greenness_methods_comparison.md) - Research on greenness detection approaches
 - [Custom Walking Filter](../features/custom_walking_filter.md) - Walking network filter and restricted-access pruning
 - [User Accounts & Authentication](../features/user_accounts.md) - User registration, login, and session management
 - [Saved Data (Pins & Routes)](../features/saved_data.md) - CRUD API for user-saved locations and routes

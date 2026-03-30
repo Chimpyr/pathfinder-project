@@ -64,7 +64,7 @@ With multiple criteria enabled, an edge good at **ANY** criterion scores well:
 
 This prevents multi-criteria requests from collapsing to shortest path.
 
-See [ADR-001](decisions/ADR-001-wsm-or-semantics.md) for detailed decision rationale.
+See [ADR-001](../../decisions/ADR-001-wsm-or-semantics.md) for detailed decision rationale.
 
 Lower cost = better path.
 

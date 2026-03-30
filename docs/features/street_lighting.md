@@ -22,8 +22,8 @@ Use this section to choose the right document for your task.
 - This full feature reference (pipeline, schema, troubleshooting): `docs/features/street_lighting.md`
 - Routing penalty behaviour and call chains: `docs/features/street_lighting_routing_bias.md`
 - Test strategy and expected outcomes: `docs/testing/street_lighting_test_suite.md`
-- Architecture context for the whole system: `docs/architecture.md`
-- Technical architecture deep dive: `docs/technical_architecture.md`
+- Architecture context for the whole system: `docs/architecture/architecture.md`
+- Technical architecture deep dive: `docs/architecture/technical_architecture.md`
 - Decision record for council-first merge behaviour: `docs/decisions/ADR-019-council-streetlight-data.md`
 - Decision record for hover provenance cards: `docs/decisions/ADR-020-street-lighting-hover-provenance-cards.md`
 - Docker setup and command references: `docs/guides/docker_setup.md`, `docs/guides/docker_commands.md`

@@ -7,7 +7,7 @@
 
 - [`docker-compose.yml`](../../docker-compose.yml) — service definitions: `db` (PostGIS), `tileserver` (Martin), `seeder` (osm2pgsql), `api` (Flask), `worker` (Celery), `redis`
 - [`config.py`](../../config.py#L20) — `SQLALCHEMY_DATABASE_URI` points to `user_db`; no SQLAlchemy bind to `scenic_tiles`
-- [ADR-012: Dual-Database Segregation](../../docs/decisions/ADR-012-dual-database-segregation.md)
+- [ADR-012: Dual-Database Segregation](../../decisions/ADR-012-dual-database-segregation.md)
 
 ```mermaid
 flowchart TD
