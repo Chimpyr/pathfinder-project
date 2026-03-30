@@ -1,6 +1,6 @@
 # Entity-Relationship Diagram (ERD)
 
-This diagram illustrates the dual-database architecture of the Scenic Pathfinding Engine. It highlights the strict boundary between the `user_db` (managed by SQLAlchemy and Alembic) and the `spatial_db` (managed by osm2pgsql and PostGIS).
+This diagram illustrates the dual-database architecture of the Scenic Pathfinding Engine. It highlights the strict boundary between the `user_db` (managed by SQLAlchemy and Alembic) and the `spatial_db` (managed by PostGIS overlay tables seeded from OSM/council sources).
 
 ```mermaid
 erDiagram
@@ -45,41 +45,32 @@ erDiagram
     User ||--o{ SavedPin : "owns"
     User ||--o{ SavedQuery : "owns"
 
-    %% POSTGIS DB SCHEMA (osm2pgsql structure)
-    planet_osm_point {
-        BigInt osm_id PK
-        Geometry way "Point (EPSG:3857)"
-        String name
-        Text amenity
-        Text highway
-        HStore tags
+    %% POSTGIS DB SCHEMA (street-lighting overlay)
+    council_streetlights_raw {
+        Integer id PK
+        Text source
+        Text source_detail
+        Text source_uid
+        Text lit_status
+        Text lighting_regime
+        Text regime_text
+        Geometry geom "Point (EPSG:3857)"
     }
 
-    planet_osm_line {
+    street_lighting {
         BigInt osm_id PK
-        Geometry way "LineString/Polygon"
-        String name
-        Text highway
-        Text surface
-        HStore tags
+        Text lit_status
+        Text lit_source_primary
+        Text lit_source_detail
+        Text lit_tag_type
+        Text lighting_regime
+        Text lighting_regime_text
+        Text osm_lit_raw
+        Integer council_match_count
+        Geometry geom "LineString (EPSG:3857)"
     }
 
-    planet_osm_polygon {
-        BigInt osm_id PK
-        Geometry way "Polygon"
-        String name
-        Text landuse
-        Text leisure
-        HStore tags
-    }
-
-    planet_osm_roads {
-        BigInt osm_id PK
-        Geometry way "LineString"
-        String name
-        Text highway
-        HStore tags
-    }
+    council_streetlights_raw ||--o{ street_lighting : "spatial match (ST_DWithin)"
 
     %% STRICT BOUNDARY NOTE
     %% There are NO relationships drawn between user_db and spatial_db
@@ -92,14 +83,14 @@ As detailed in **ADR-012**, the architecture deliberately physically segregates 
 Notice in the ERD that there are **no foreign key relationships** crossing between the tables.
 
 - **The `user_db`** is entirely stateless geographically. A `SavedPin` stores raw `Float` coordinates rather than heavy PostGIS `Geometry` types. It is strictly tied to the Flask application layer and managed gracefully via Flask-Migrate (Alembic) schema migrations.
-- **The `spatial_db`** is volatile and exists purely for visual rendering. The `planet_osm_*` tables are routinely destroyed and re-created from scratch whenever a new `.pbf` map file is ingested via `osm2pgsql`. If User Data was stored alongside this, a routine map update could catastrophically wipe all user accounts.
+- **The `spatial_db`** is volatile and exists purely for visual rendering. Seeder jobs can rebuild `street_lighting`, reload/update `council_streetlights_raw`, and refresh tile SQL functions without affecting user accounts. If user data was co-located, routine map-overlay refreshes could wipe account data.
 
 Because of this strict segregation, the Flask Python backend **never queries PostGIS directly**. Instead:
 
-1.  **Graph Building (Offline Routing):** Celery workers natively parse local `.pbf` files into memory using `pyrosm` to build NetworkX routing matrices.
-2.  **Visual Overlays (Frontend):** The `spatial_db` (PostGIS) is exclusively queried by the containerised **Martin** tileserver, which streams Mapbox Vector Tiles (MVT) representing streetlights and greenery directly to the client's browser layer.
+1.  **Graph Building (Offline Routing):** Celery workers natively parse local `.pbf` files into memory using `pyrosm`, then enrich edges with council streetlight points before writing cached graphs.
+2.  **Visual Overlays (Frontend):** The `spatial_db` (PostGIS) is exclusively queried by the containerised **Martin** tileserver, which streams Mapbox Vector Tiles (MVT) from `street_lighting` via `street_lighting_filtered(...)`.
 
-**Why are the `planet_osm_*` tables isolated?**
-You will also notice the four `planet_osm_*` tables have no relationships linking _each other_. This is an intentional design pattern created by the `osm2pgsql` seeder tool. Raw OpenStreetMap data is highly relational (Nodes belong to Ways, Ways belong to Relations), but `osm2pgsql` flattens this complex graph into independent geometry tables (`_point`, `_line`, `_polygon`). This breaks relational normalization but heavily optimises the database for rapid, read-only spatial bounding-box queries by the Martin tileserver.
+**Why is there no strict FK between council points and street segments?**
+The merge between `council_streetlights_raw` and `street_lighting` is spatial (`ST_DWithin`) rather than identity-based. A council point can match multiple nearby segments and many segments may have no council match. Provenance and match quality are preserved directly in `street_lighting` columns (`lit_source_primary`, `lit_source_detail`, `council_match_count`) instead of rigid relational foreign keys.
 
 This extreme decoupling ensures the pathfinding logic remains completely independent from the visual rendering pipeline, preventing complex SQL joins and avoiding ORM mapping overheads for billions of OSM nodes.

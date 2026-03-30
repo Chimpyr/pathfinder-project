@@ -1,7 +1,7 @@
 # 4. Dual-Database Segregation Boundary
 
 **Section:** High-Level System Architecture  
-**Purpose:** Illustrates the strict physical separation between the **volatile spatial database** (PostGIS / `scenic_tiles`) and the **persistent user database** (PostgreSQL / `user_db`). No data flows cross the boundary. The Celery graph-building pipeline bypasses PostGIS entirely, using `pyrosm` to parse local `.pbf` files directly.
+**Purpose:** Illustrates the strict physical separation between the **volatile spatial database** (PostGIS / `scenic_tiles`) and the **persistent user database** (PostgreSQL / `user_db`). No data flows cross the boundary. The Celery graph-building pipeline bypasses PostGIS entirely, parsing local `.pbf` data with `pyrosm` and enriching in memory.
 
 **Sources:**
 
@@ -27,8 +27,8 @@ flowchart TD
         PostGIS[("PostGIS scenic_tiles")]:::volatile
         Martin["Martin Tile Server (Port 3000)"]:::volatile
 
-        PBF -->|"DROP + CREATE"| Seeder
-        Seeder -->|"Write spatial tables"| PostGIS
+        PBF -->|"Refresh overlay schema"| Seeder
+        Seeder -->|"Write street_lighting + tile SQL"| PostGIS
         PostGIS -->|"ST_AsMVT read-only"| Martin
     end
 
@@ -71,7 +71,7 @@ flowchart TD
     PickleCache -->|"Load cached graph"| FlaskAPI
 
     %% NOTE: No edges cross VOLATILE / PERSISTENT boundary.
-    %% osm2pgsql can DROP all spatial tables without affecting user_db.
+    %% Seeder refreshes overlay tables/functions without affecting user_db.
 ```
 
 ## Blast Radius Isolation
@@ -82,7 +82,7 @@ The core architectural invariant is:
 
 This means:
 
-1. The `osm2pgsql` seeder can aggressively `DROP` and recreate all `planet_osm_*` tables during a map update without any risk to user accounts, saved routes, or saved pins.
+1. The seeder can rebuild `street_lighting` (and related overlay SQL such as `street_lighting_filtered`) during map refreshes without any risk to user accounts, saved routes, or saved pins.
 2. The Flask API's `SQLALCHEMY_DATABASE_URI` points **only** to `user_db` — there is no SQLAlchemy bind to the spatial database.
 3. Celery workers parse `.pbf` files locally via `pyrosm` and write pickle-serialised NetworkX graphs to a shared disk volume — PostGIS is never queried during graph building.
 4. PostGIS is **exclusively** consumed by the Martin tile server for read-only Mapbox Vector Tile (MVT) generation, streamed directly to the client's Leaflet map layer.

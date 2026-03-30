@@ -33,10 +33,10 @@ ScenicPathFinder/
 │   │   ├── processors/              # Edge attribute processors
 │   │   │   ├── greenness/           # Green visibility (FAST/NOVACK)
 │   │   │   ├── water.py             # Water proximity scoring
+│   │   │   ├── streetlights.py       # Council point snapping + way-level lighting enrichment
 │   │   │   ├── social.py            # POI proximity scoring
 │   │   │   ├── elevation.py         # Gradient calculation
 │   │   │   ├── quietness.py         # Highway noise classification
-│   │   │   ├── normalisation.py     # UI weight & cost normalisation
 │   │   │   ├── normalisation.py     # UI weight & cost normalisation
 │   │   │   └── orchestrator.py      # Scenic pipeline coordinator
 │   │   │
@@ -166,6 +166,7 @@ Downloads and parses OpenStreetMap data.
 - `extract_buildings()` - Building polygons for occlusion
 - `extract_water()` - Rivers, lakes for scenic scoring
 - `extract_pois()` - Tourist/social POIs for social scoring
+- `extract_streetlights()` - Council streetlight points (`combined_streetlights.gpkg`)
 
 **Data source:** Geofabrik regional extracts (e.g., `bristol.osm.pbf`)
 Originally used Overpass api (https://wiki.openstreetmap.org/wiki/Overpass_API).
@@ -213,6 +214,35 @@ Coordinates the scenic processing pipeline based on configuration.
 - Read config modes (GREENNESS_MODE, WATER_MODE, SOCIAL_MODE)
 - Call enabled processors in sequence
 - Pass timing information to graph_manager
+
+**Current scenic stage order:**
+
+1. Greenness
+2. Water
+3. Council streetlights
+4. Social POIs
+
+---
+
+### StreetlightProcessor (`app/services/processors/streetlights.py`)
+
+Enriches routing graph edges using council streetlight point datasets.
+
+**Core behaviour:**
+
+- Builds an edge spatial index and snaps council points to nearest graph edges (default 15 m radius).
+- Applies council-first semantics to matched edges (`lit`, source/provenance, regime metadata).
+- Propagates matched council lighting across all edges sharing the same OSM way id.
+- Canonicalises way ids before propagation lookup so mixed representations (for example `1472097444` and `1472097444.0`) are treated as the same way.
+
+**Edge attributes written/updated:**
+
+- `lit`
+- `lit_source`
+- `lit_source_detail`
+- `lit_tag_type`
+- `lighting_regime`
+- `lighting_regime_text`
 
 ---
 
@@ -311,7 +341,7 @@ A\* pathfinding with pluggable cost functions.
 **Modes:**
 
 - `use_wsm=False`: Standard A\* using `length` attribute for shortest path
-- `use_wsm=True`: WSM A* using normalised scenic features with configurable weights
+- `use_wsm=True`: WSM A\* using normalised scenic features with configurable weights
 
 **Key Classes:**
 
@@ -325,6 +355,7 @@ A\* pathfinding with pluggable cost functions.
 Generates round-trip walking routes starting and ending at the same location without direct backtracking where possible.
 
 **Key Components:**
+
 - Uses internal heuristics to ensure circular variations.
 - Integrates with standard RouteFinder for actual path calculation.
 
@@ -335,10 +366,41 @@ Generates round-trip walking routes starting and ending at the same location wit
 The user interface is powered by a modular Vanilla JS frontend using `Leaflet.js`.
 
 **Key Elements:**
+
 - **Navigation Rail**: A vertical, collapsible sidebar providing switching between core contexts (Routes, Admin Panel).
-- **Routes Panel**: Divided into *Standard Route* (A to B) and *Round Trip* (Loop generation) tabs.
+- **Routes Panel**: Divided into _Standard Route_ (A to B) and _Round Trip_ (Loop generation) tabs.
 - **Advanced Options**: Configurable routing overlays and soft-avoidances (prefer lit, paved, avoid unsafe) shared globally.
-- **Map Overlays**: Toggleable tile layers (Voyager, CartoDB Light/Dark) and data overlays (Street Lights mapping) integrated directly on top of Leaflet layers.
+- **Map Overlays**: Toggleable tile layers (Voyager, CartoDB Light/Dark) and data overlays (street lighting vector tiles with source/regime filters, hover provenance card, and optional basemap-only dimming).
+
+---
+
+## Street Lighting Data Model
+
+Street lighting has two distinct runtime consumers.
+
+### 1) Routing graph enrichment (in-memory NetworkX edges)
+
+Routing uses council-enriched edge attributes from `StreetlightProcessor` and evaluates them in WSM A\*.
+
+- `lighting_context` (`daylight | twilight | night`) is resolved per request.
+- `effective_lit_class` is derived from `lit` + `lighting_regime` + context.
+- `heavily_avoid_unlit` and `prefer_lit` penalties operate on this derived class.
+
+### 2) Visual overlay (PostGIS + Martin vector tiles)
+
+Overlay tiles are produced from `public.street_lighting` (seeded by `lighting.lua` and enriched by `merge_council_streetlights.sql`).
+
+Key columns used by the frontend overlay include:
+
+- `osm_id`
+- `lit_status`
+- `lit_source_primary`
+- `lit_source_detail`
+- `lit_tag_type`
+- `lighting_regime`
+- `lighting_regime_text`
+- `osm_lit_raw`
+- `council_match_count`
 
 ---
 
@@ -356,10 +418,10 @@ PostGIS Container (scenic-db)
 
 ### ORM Models (`app/models/`)
 
-| Model | Table | Key Columns |
-|-------|-------|-------------|
-| `User` | `users` | `email` (unique), `password_hash`, `created_at` |
-| `SavedPin` | `saved_pins` | `user_id` (FK), `label`, `latitude`, `longitude` |
+| Model        | Table           | Key Columns                                                                      |
+| ------------ | --------------- | -------------------------------------------------------------------------------- |
+| `User`       | `users`         | `email` (unique), `password_hash`, `created_at`                                  |
+| `SavedPin`   | `saved_pins`    | `user_id` (FK), `label`, `latitude`, `longitude`                                 |
 | `SavedQuery` | `saved_queries` | `user_id` (FK), `start/end_lat/lon`, `weights_json`, `route_geometry` (optional) |
 
 ### Authentication (`app/blueprints/auth.py`)
@@ -416,11 +478,11 @@ class Config:
     # Cache capacity
     MAX_CACHED_REGIONS = 3
     MAX_CACHED_TILES = 16
-    
+
     # Tile caching configuration
     TILE_SIZE_KM = 15
     TILE_OVERLAP_KM = 2
-    
+
     # Async Mode Enable
     ASYNC_MODE = False
 ```
@@ -461,8 +523,20 @@ class Config:
                              │
                              ▼
 ┌──────────────────────────────────────────────────────────────────┐
+│                   QUIETNESS PROCESSOR                             │
+│      Highway class mapping → edge noise_factor assignment         │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────────────┐
 │                   SCENIC ORCHESTRATOR                             │
-│    Quietness → Greenness → Water → Social → Elevation             │
+│          Greenness → Water → Streetlights → Social                 │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                ELEVATION + NORMALISATION                         │
+│        ElevationProcessor → NormalisationProcessor               │
 └────────────────────────────┬─────────────────────────────────────┘
                              │
                              ▼
@@ -507,6 +581,13 @@ edge = G[node_u][node_v][0]
     'surface': 'asphalt',
     'lit': 'yes',
 
+    # From StreetlightProcessor (council enrichment)
+    'lit_source': 'council',
+    'lit_source_detail': 'south_glos',
+    'lit_tag_type': 'council_times',
+    'lighting_regime': 'all_night',
+    'lighting_regime_text': 'Sunset to sunrise',
+
     # From QuietnessProcessor
     'noise_factor': 2.0,      # 1.0-5.0 (higher = noisier)
 
@@ -550,10 +631,10 @@ The Weighted Sum Model A\* extends standard pathfinding to incorporate user pref
 
 Two algorithms are available, configured via `COST_FUNCTION`:
 
-| Algorithm            | Semantics | Formula                                      | Use Case                     |
-| -------------------- | --------- | -------------------------------------------- | ---------------------------- |
-| `WSM_ADDITIVE`       | AND / OR  | `Σ(wᵢ × normᵢ)` with `min(green, water)`     | Best of both worlds          |
-| `HYBRID_DISJUNCTIVE` | OR        | `w_d×l̂ + Σw_scenic × min(active)`            | Good at ANY criterion        |
+| Algorithm            | Semantics | Formula                                  | Use Case              |
+| -------------------- | --------- | ---------------------------------------- | --------------------- |
+| `WSM_ADDITIVE`       | AND / OR  | `Σ(wᵢ × normᵢ)` with `min(green, water)` | Best of both worlds   |
+| `HYBRID_DISJUNCTIVE` | OR        | `w_d×l̂ + Σw_scenic × min(active)`        | Good at ANY criterion |
 
 **Recommendation:** Use `WSM_ADDITIVE` (default) with `combine_nature=True` to avoid multi-criteria collapse specifically for correlated nature features.
 
