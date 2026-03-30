@@ -382,7 +382,11 @@ async function handleStandardSubmit() {
   }
 
   setLoadingState("Calculating route...");
-  hideResults();
+  hideResults({
+    showLoading: true,
+    message: "Calculating route...",
+    keepPrevious: true,
+  });
 
   try {
     const response = await createRouteTask(payload);
@@ -463,7 +467,11 @@ async function handleLoopSubmit() {
   }
 
   setLoadingState("Calculating loop...");
-  hideResults();
+  hideResults({
+    showLoading: true,
+    message: "Calculating loop...",
+    keepPrevious: true,
+  });
 
   try {
     const response = await createLoopTask(payload);
@@ -617,6 +625,7 @@ function showError(msg) {
     errorMsg.textContent = msg;
     errorMsg.classList.remove("hidden");
   }
+  hideResults({ showLoading: false, keepPrevious: true });
   clearLoadingState();
 }
 

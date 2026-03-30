@@ -530,6 +530,12 @@
                 </div>
 
                 <div class="p-6 flex-1 overflow-y-auto min-h-0">
+
+                    <!-- Recalculating Banner (shown when keeping last known routes visible) -->
+                    <div id="routes-recalculating-banner" class="hidden mb-4 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm flex items-center gap-2">
+                        <i class="fas fa-circle-notch fa-spin"></i>
+                        <p id="routes-recalculating-message" class="font-medium">Recalculating route...</p>
+                    </div>
                     
                     <!-- Empty State -->
                     <div id="routes-empty-state" class="text-center text-gray-400 dark:text-gray-500 mt-10">
@@ -539,6 +545,13 @@
                         <button class="mt-4 px-4 py-2 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors text-sm font-medium" onclick="document.querySelector('[data-view=\'finder-view\']').click()">
                             Go to Finder
                         </button>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="routes-loading-state" class="hidden text-center text-gray-500 dark:text-gray-400 mt-10">
+                        <i class="fas fa-circle-notch fa-spin text-4xl mb-4 text-primary-500"></i>
+                        <p id="routes-loading-message" class="text-lg font-medium">Calculating route...</p>
+                        <p class="text-sm mt-1">Updating route options and ETA</p>
                     </div>
 
                     <!-- Routes Content Container -->

@@ -24,6 +24,14 @@ import {
 const routeOptionsList = document.getElementById("route-options-list");
 const routeOptionsContainer = document.getElementById("route-options");
 const routesEmptyState = document.getElementById("routes-empty-state");
+const routesLoadingState = document.getElementById("routes-loading-state");
+const routesLoadingMessage = document.getElementById("routes-loading-message");
+const routesRecalculatingBanner = document.getElementById(
+  "routes-recalculating-banner",
+);
+const routesRecalculatingMessage = document.getElementById(
+  "routes-recalculating-message",
+);
 const routeStatsContainer = document.getElementById("route-stats");
 const statDistance = document.getElementById("stat-distance");
 const statDistanceUnit = document.getElementById("stat-distance-unit");
@@ -91,6 +99,12 @@ function resolvePaceText(stats = {}) {
   }
 
   return "n/a";
+}
+
+function hasRenderedResults() {
+  if (!routeOptionsList || !routeOptionsContainer) return false;
+  if (routeOptionsContainer.classList.contains("hidden")) return false;
+  return routeOptionsList.children.length > 0;
 }
 
 // ============================================================================
@@ -302,6 +316,9 @@ export function renderRouteOptions(routes) {
 
   routeOptionsList.innerHTML = html;
   routeOptionsContainer.classList.remove("hidden");
+  if (routesLoadingState) routesLoadingState.classList.add("hidden");
+  if (routesRecalculatingBanner)
+    routesRecalculatingBanner.classList.add("hidden");
   if (routesEmptyState) routesEmptyState.classList.add("hidden");
   if (routeStatsContainer) routeStatsContainer.classList.remove("hidden");
 
@@ -432,6 +449,9 @@ export function renderLoopOptions(loops) {
 
   routeOptionsList.innerHTML = html;
   routeOptionsContainer.classList.remove("hidden");
+  if (routesLoadingState) routesLoadingState.classList.add("hidden");
+  if (routesRecalculatingBanner)
+    routesRecalculatingBanner.classList.add("hidden");
   if (routesEmptyState) routesEmptyState.classList.add("hidden");
   if (routeStatsContainer) routeStatsContainer.classList.remove("hidden");
 
@@ -628,8 +648,52 @@ function initGpxExport() {
 
 initGpxExport();
 
-export function hideResults() {
-  if (routeOptionsContainer) routeOptionsContainer.classList.add("hidden");
-  if (routeStatsContainer) routeStatsContainer.classList.add("hidden");
+export function hideResults(options = {}) {
+  const {
+    showLoading = false,
+    message = "Calculating route...",
+    keepPrevious = false,
+  } = options;
+
+  const canKeepPrevious = keepPrevious && hasRenderedResults();
+
+  if (!canKeepPrevious) {
+    if (routeOptionsContainer) routeOptionsContainer.classList.add("hidden");
+    if (routeStatsContainer) routeStatsContainer.classList.add("hidden");
+  }
+
+  if (showLoading) {
+    if (canKeepPrevious) {
+      if (routeOptionsContainer)
+        routeOptionsContainer.classList.remove("hidden");
+      if (routeStatsContainer) routeStatsContainer.classList.remove("hidden");
+      if (routesRecalculatingMessage)
+        routesRecalculatingMessage.textContent = message;
+      if (routesRecalculatingBanner)
+        routesRecalculatingBanner.classList.remove("hidden");
+      if (routesLoadingState) routesLoadingState.classList.add("hidden");
+      if (routesEmptyState) routesEmptyState.classList.add("hidden");
+      return;
+    }
+
+    if (routesLoadingMessage) routesLoadingMessage.textContent = message;
+    if (routesLoadingState) routesLoadingState.classList.remove("hidden");
+    if (routesRecalculatingBanner)
+      routesRecalculatingBanner.classList.add("hidden");
+    if (routesEmptyState) routesEmptyState.classList.add("hidden");
+    return;
+  }
+
+  if (routesRecalculatingBanner)
+    routesRecalculatingBanner.classList.add("hidden");
+  if (routesLoadingState) routesLoadingState.classList.add("hidden");
+
+  if (canKeepPrevious) {
+    if (routeOptionsContainer) routeOptionsContainer.classList.remove("hidden");
+    if (routeStatsContainer) routeStatsContainer.classList.remove("hidden");
+    if (routesEmptyState) routesEmptyState.classList.add("hidden");
+    return;
+  }
+
   if (routesEmptyState) routesEmptyState.classList.remove("hidden");
 }
