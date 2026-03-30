@@ -493,7 +493,27 @@ async function handleLoopSubmit() {
 
     if (response.ok) {
       if (data.task_id) {
-        pollTask(data.task_id, onLoopSuccess, (err) => showError(err));
+        pollTask(
+          data.task_id,
+          (result) => {
+            // In async cold-cache mode, task completion means tile/graph build
+            // is ready. Re-submit to run the actual loop solver.
+            if (
+              !result.loops &&
+              !result.route_coords &&
+              !result.routes &&
+              result.node_count
+            ) {
+              console.log(
+                "[RoutingUI] Tile build complete. Re-requesting loop...",
+              );
+              handleLoopSubmit();
+            } else {
+              onLoopSuccess(result);
+            }
+          },
+          (err) => showError(err),
+        );
       } else if (data.loops || data.route_coords || data.routes) {
         onLoopSuccess(data);
       } else {
