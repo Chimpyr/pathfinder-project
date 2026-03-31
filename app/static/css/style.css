@@ -705,6 +705,20 @@ body.resizing {
   accent-color: #818cf8;
 }
 
+#map.loop-demo-focus .leaflet-tile-pane {
+  filter: brightness(0.58) saturate(0.62) contrast(1.04);
+}
+
+#map.loop-demo-focus .leaflet-overlay-pane path,
+#map.loop-demo-focus .leaflet-marker-icon,
+#map.loop-demo-focus .leaflet-interactive {
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.55));
+}
+
+.dark #map.loop-demo-focus .leaflet-tile-pane {
+  filter: brightness(0.5) saturate(0.7) contrast(1.08);
+}
+
 .dark .loop-stats-badge.budget {
   background: rgba(59, 130, 246, 0.2);
   color: #93c5fd;

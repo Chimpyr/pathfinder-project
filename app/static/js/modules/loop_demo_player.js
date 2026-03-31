@@ -12,6 +12,7 @@ const BEARING_LINE_METRES = 900;
 const PAUSE_POLL_MS = 120;
 const BEARING_TOLERANCE_DEG = 1.0;
 const MAX_ROUTE_VIEW_POINTS = 40;
+const MAX_LEG_VISUAL_STEPS = 4;
 
 let demoBaseLayerGroup = null;
 let demoStageLayerGroup = null;
@@ -34,12 +35,21 @@ const ui = {
   isInitialised: false,
   container: null,
   status: null,
+  note: null,
   scrubber: null,
   stepIndicator: null,
   playToggle: null,
   skipBtn: null,
   stopBtn: null,
 };
+
+function setMapFocusMode(active) {
+  const mapElement =
+    mapController?.map?.getContainer?.() || document.getElementById("map");
+  if (!mapElement) return;
+
+  mapElement.classList.toggle("loop-demo-focus", Boolean(active));
+}
 
 function createPlaybackStateFromSeed(seed) {
   return {
@@ -58,11 +68,17 @@ function createPlaybackStateFromSeed(seed) {
 function updateControlsVisibility(visible) {
   if (!ui.container) return;
   ui.container.classList.toggle("hidden", !visible);
+  setMapFocusMode(visible);
 }
 
 function updateStatus(text) {
   if (!ui.status) return;
   ui.status.textContent = text || "";
+}
+
+function updateNote(text) {
+  if (!ui.note) return;
+  ui.note.textContent = text || "";
 }
 
 function updateStepIndicator(index, total) {
@@ -153,6 +169,7 @@ function stopPlayback({ clearFrames = false, clearVisuals = true } = {}) {
     playbackState = createPlaybackStateFromSeed(playbackSeed);
     configureScrubber(0);
     updateStepIndicator(null, 0);
+    updateNote("Select a loop demo to begin.");
   }
 }
 
@@ -419,6 +436,17 @@ function findFirstFrame(frames, eventName, predicate = () => true) {
   return null;
 }
 
+function findMatchingFrames(frames, eventName, predicate = () => true) {
+  const matches = [];
+  for (const frame of frames) {
+    if (!frame || frame.event !== eventName) continue;
+    if (predicate(frame)) {
+      matches.push(frame);
+    }
+  }
+  return matches;
+}
+
 function buildNarrativeFrames(frames, focus) {
   const source = Array.isArray(frames) ? frames : [];
   const selected = [];
@@ -432,31 +460,99 @@ function buildNarrativeFrames(frames, focus) {
   );
 
   const isFallbackFocus = focus?.type === "out-and-back";
-  const preferredEvents = isFallbackFocus
-    ? [
-        "fallback_started",
-        "fallback_out_and_back_started",
-        "fallback_waypoint_projected",
-        "fallback_out_and_back_completed",
-        "fallback_accepted",
-      ]
-    : [
-        "skeleton_projected",
-        "skeleton_snapped",
-        "distance_evaluated",
-        "tau_adjusted",
-        "candidate_accepted",
-      ];
+  if (isFallbackFocus) {
+    [
+      "fallback_started",
+      "fallback_out_and_back_started",
+      "fallback_waypoint_projected",
+    ].forEach((eventName) => {
+      includeUniqueFrame(
+        selected,
+        findFirstFrame(source, eventName, (frame) =>
+          frameMatchesFocus(frame, focus),
+        ),
+        seen,
+      );
+    });
 
-  preferredEvents.forEach((eventName) => {
-    includeUniqueFrame(
-      selected,
-      findFirstFrame(source, eventName, (frame) =>
-        frameMatchesFocus(frame, focus),
-      ),
-      seen,
+    const fallbackLegFrames = findMatchingFrames(
+      source,
+      "fallback_leg_routed",
+      (frame) => frameMatchesFocus(frame, focus),
     );
-  });
+    const fallbackSeenKeys = new Set();
+    const fallbackDeduped = [];
+    for (const frame of fallbackLegFrames) {
+      const legIndex = Number(frame?.leg_index);
+      const totalLegs = Number(frame?.total_legs);
+      const key =
+        Number.isFinite(legIndex) && Number.isFinite(totalLegs)
+          ? `${legIndex}/${totalLegs}`
+          : null;
+      if (key && fallbackSeenKeys.has(key)) continue;
+      if (key) fallbackSeenKeys.add(key);
+      fallbackDeduped.push(frame);
+      if (fallbackDeduped.length >= MAX_LEG_VISUAL_STEPS) break;
+    }
+    fallbackDeduped.forEach((frame) => {
+      includeUniqueFrame(selected, frame, seen);
+    });
+
+    ["fallback_out_and_back_completed", "fallback_accepted"].forEach(
+      (eventName) => {
+        includeUniqueFrame(
+          selected,
+          findFirstFrame(source, eventName, (frame) =>
+            frameMatchesFocus(frame, focus),
+          ),
+          seen,
+        );
+      },
+    );
+  } else {
+    ["skeleton_projected", "skeleton_snapped"].forEach((eventName) => {
+      includeUniqueFrame(
+        selected,
+        findFirstFrame(source, eventName, (frame) =>
+          frameMatchesFocus(frame, focus),
+        ),
+        seen,
+      );
+    });
+
+    const legFrames = findMatchingFrames(source, "leg_routed", (frame) =>
+      frameMatchesFocus(frame, focus),
+    );
+    const seenLegKeys = new Set();
+    const dedupedLegFrames = [];
+    for (const frame of legFrames) {
+      const legIndex = Number(frame?.leg_index);
+      const totalLegs = Number(frame?.total_legs);
+      const key =
+        Number.isFinite(legIndex) && Number.isFinite(totalLegs)
+          ? `${legIndex}/${totalLegs}`
+          : null;
+      if (key && seenLegKeys.has(key)) continue;
+      if (key) seenLegKeys.add(key);
+      dedupedLegFrames.push(frame);
+      if (dedupedLegFrames.length >= MAX_LEG_VISUAL_STEPS) break;
+    }
+    dedupedLegFrames.forEach((frame) => {
+      includeUniqueFrame(selected, frame, seen);
+    });
+
+    ["distance_evaluated", "tau_adjusted", "candidate_accepted"].forEach(
+      (eventName) => {
+        includeUniqueFrame(
+          selected,
+          findFirstFrame(source, eventName, (frame) =>
+            frameMatchesFocus(frame, focus),
+          ),
+          seen,
+        );
+      },
+    );
+  }
 
   if (!selected.some((frame) => frame.event === "candidate_accepted")) {
     includeUniqueFrame(
@@ -486,6 +582,8 @@ function buildNarrativeFrames(frames, focus) {
     "bearings_selected",
     "skeleton_projected",
     "skeleton_snapped",
+    "leg_routed",
+    "fallback_leg_routed",
     "distance_evaluated",
     "tau_adjusted",
     "candidate_accepted",
@@ -676,19 +774,27 @@ function drawBearingOptions(frame, state, startPoint, layerGroup) {
       ? bearingDelta(bearing, selectedBearing) <= BEARING_TOLERANCE_DEG
       : false;
 
+    if (isSelected) {
+      L.polyline([startPoint, endpoint], {
+        color: "#e0f2fe",
+        weight: 8,
+        opacity: 0.95,
+      }).addTo(layerGroup);
+    }
+
     L.polyline([startPoint, endpoint], {
-      color: isSelected ? "#1d4ed8" : "#60a5fa",
-      weight: isSelected ? 4 : 2,
-      opacity: isSelected ? 0.95 : 0.45,
-      dashArray: isSelected ? "" : "6 6",
+      color: isSelected ? "#1e3a8a" : "#0ea5e9",
+      weight: isSelected ? 4.5 : 3,
+      opacity: isSelected ? 1 : 0.78,
+      dashArray: isSelected ? "" : "8 6",
     }).addTo(layerGroup);
 
     L.circleMarker(endpoint, {
-      radius: isSelected ? 5 : 3,
-      color: isSelected ? "#1e3a8a" : "#2563eb",
+      radius: isSelected ? 6 : 4,
+      color: isSelected ? "#1e3a8a" : "#0369a1",
       weight: 2,
-      fillColor: isSelected ? "#60a5fa" : "#bfdbfe",
-      fillOpacity: isSelected ? 0.95 : 0.7,
+      fillColor: isSelected ? "#60a5fa" : "#67e8f9",
+      fillOpacity: isSelected ? 1 : 0.88,
     }).addTo(layerGroup);
   });
 }
@@ -975,6 +1081,71 @@ function drawFallbackWaypointFrame(frame, startPoint, layerGroup) {
   }).addTo(layerGroup);
 }
 
+function drawLegRoutedFrame(frame, state, startPoint, layerGroup) {
+  const path = normalisePoints(frame.path);
+
+  if (state.lastSnappedPoints.length) {
+    drawSkeletonFromPoints(startPoint, state.lastSnappedPoints, layerGroup, {
+      color: "#16a34a",
+      fillColor: "#86efac",
+      dashArray: "4 4",
+      weight: 2,
+      pointRadius: 3.5,
+      haloRadius: 7,
+      haloColor: "#16a34a",
+      haloFillColor: "#4ade80",
+      haloOpacity: 0.12,
+      haloStrokeOpacity: 0.26,
+    });
+  }
+
+  if (path.length < 2) {
+    return;
+  }
+
+  L.polyline([path[0], path[path.length - 1]], {
+    color: "#a5b4fc",
+    weight: 2,
+    opacity: 0.8,
+    dashArray: "6 6",
+  }).addTo(layerGroup);
+
+  L.polyline(path, {
+    color: "#06b6d4",
+    weight: 5,
+    opacity: 0.96,
+    lineJoin: "round",
+    lineCap: "round",
+  }).addTo(layerGroup);
+
+  [path[0], path[path.length - 1]].forEach((point) => {
+    L.circleMarker(point, {
+      radius: 6,
+      color: "#155e75",
+      weight: 2,
+      fillColor: "#67e8f9",
+      fillOpacity: 0.95,
+    }).addTo(layerGroup);
+  });
+
+  const mid = path[Math.floor(path.length / 2)];
+  const legIndex = Number(frame.leg_index);
+  const totalLegs = Number(frame.total_legs);
+  const legLabel = Number.isFinite(legIndex) && Number.isFinite(totalLegs)
+    ? `WSM A* leg ${legIndex}/${totalLegs}`
+    : "WSM A* routed leg";
+
+  L.circleMarker(mid, {
+    radius: 4,
+    color: "#0f172a",
+    weight: 1,
+    fillColor: "#22d3ee",
+    fillOpacity: 0.95,
+  })
+    .bindTooltip(legLabel, { direction: "top", opacity: 0.95 })
+    .addTo(layerGroup);
+}
+
 function drawAcceptedCandidate(state, layerGroup, isComplete = false) {
   if (state.selectedLoop) {
     highlightSelectedLoop(state.selectedLoop, layerGroup);
@@ -1056,6 +1227,11 @@ function renderFrame(frame, state, startPoint, stageLayer) {
     return;
   }
 
+  if (frame.event === "leg_routed" || frame.event === "fallback_leg_routed") {
+    drawLegRoutedFrame(frame, state, startPoint, stageLayer);
+    return;
+  }
+
   if (frame.event === "tau_adjusted") {
     drawTauAdjustment(frame, state, startPoint, stageLayer);
     return;
@@ -1130,6 +1306,30 @@ function describeFrame(frame, state, stepIndex, totalSteps) {
     case "skeleton_snapped":
       message = "Skeleton snapped onto graph edges (green points + halos).";
       break;
+    case "leg_routed": {
+      const legIndex = Number(frame.leg_index);
+      const totalLegs = Number(frame.total_legs);
+      const legDistance = formatDistanceMeters(frame.leg_distance_m);
+      if (Number.isFinite(legIndex) && Number.isFinite(totalLegs)) {
+        message = legDistance
+          ? `WSM A* routed leg ${legIndex}/${totalLegs} on graph edges (${legDistance}).`
+          : `WSM A* routed leg ${legIndex}/${totalLegs} on graph edges.`;
+      } else {
+        message = "WSM A* routed a leg on graph edges.";
+      }
+      break;
+    }
+    case "fallback_leg_routed": {
+      const legIndex = Number(frame.leg_index);
+      const totalLegs = Number(frame.total_legs);
+      const direction = String(frame.direction || "").trim();
+      const legLabel =
+        Number.isFinite(legIndex) && Number.isFinite(totalLegs)
+          ? `Fallback WSM A* leg ${legIndex}/${totalLegs}`
+          : "Fallback WSM A* leg";
+      message = direction ? `${legLabel} (${direction}).` : `${legLabel}.`;
+      break;
+    }
     case "distance_evaluated": {
       const actual = formatDistanceMeters(frame.actual_distance_m);
       const deviation = Number(frame.deviation_percent);
@@ -1163,7 +1363,7 @@ function describeFrame(frame, state, stepIndex, totalSteps) {
       message = "Fallback out-and-back legs connected.";
       break;
     case "candidate_accepted":
-      message = "Candidate accepted as a valid loop option.";
+      message = "Candidate accepted and highlighted as the selected final loop.";
       break;
     case "fallback_accepted":
       message = "Fallback candidate accepted.";
@@ -1182,6 +1382,36 @@ function describeFrame(frame, state, stepIndex, totalSteps) {
   return `${loopLabel}${message} (${stepIndex}/${totalSteps})`;
 }
 
+function describeFrameNote(frame) {
+  if (!frame || !frame.event) {
+    return "";
+  }
+
+  switch (frame.event) {
+    case "solver_started":
+      return "Dashed blue radius marks the requested target loop distance from the start point.";
+    case "bearings_selected":
+      return "Dashed cyan rays are candidate bearings. The darkest blue ray is the selected bearing for this candidate.";
+    case "skeleton_projected":
+      return "Orange dashed skeleton is theoretical geometry before graph snapping.";
+    case "skeleton_snapped":
+      return "Green points (with halos) show snapped waypoints anchored to reachable graph nodes.";
+    case "leg_routed":
+    case "fallback_leg_routed":
+      return "Cyan path shows one WSM A* leg between snapped waypoints. Purple dashed segment is straight-line reference only.";
+    case "distance_evaluated":
+      return "Dashed blue circle is target distance; solid cyan circle is this candidate's actual loop distance.";
+    case "tau_adjusted":
+      return "Orange shape is previous scale; purple shape is the tau-adjusted retry geometry.";
+    case "candidate_accepted":
+      return "Solid blue route is the accepted candidate. Any diagonal-looking segment is routed path, not a bearing guide.";
+    case "solver_completed":
+      return "Ranking complete for this candidate path. Use other loop cards to compare alternatives.";
+    default:
+      return "";
+  }
+}
+
 function buildStepViewPoints(frame, state, startPoint) {
   const points = [];
 
@@ -1198,6 +1428,10 @@ function buildStepViewPoints(frame, state, startPoint) {
     frame?.event === "skeleton_snapped"
   ) {
     points.push(...normalisePoints(frame.points));
+  }
+
+  if (frame?.event === "leg_routed" || frame?.event === "fallback_leg_routed") {
+    points.push(...normalisePoints(frame.path));
   }
 
   if (frame?.event === "fallback_waypoint_projected") {
@@ -1276,6 +1510,7 @@ function renderStep(stepIndex, options = {}) {
   updateStatus(
     describeFrame(frame, playbackState, index + 1, currentFrames.length),
   );
+  updateNote(describeFrameNote(frame));
   updatePlayButton();
 }
 
@@ -1354,6 +1589,7 @@ export function initLoopDemoPlayer() {
   }
 
   ui.status = document.getElementById("loop-demo-status");
+  ui.note = document.getElementById("loop-demo-note");
   ui.scrubber = document.getElementById("loop-demo-scrubber");
   ui.stepIndicator = document.getElementById("loop-demo-step-indicator");
   ui.playToggle = document.getElementById("loop-demo-play-toggle");
@@ -1394,6 +1630,7 @@ export function initLoopDemoPlayer() {
     configureScrubber(currentFrames.length);
     updateStepIndicator(null, currentFrames.length);
     updateStatus("Demo stopped. Scrub timeline or press Play.");
+    updateNote("Use the timeline to inspect any step or press Play to continue.");
     if (currentFrames.length) {
       updateControlsVisibility(true);
     }
@@ -1405,6 +1642,7 @@ export function initLoopDemoPlayer() {
   configureScrubber(0);
   updateStepIndicator(null, 0);
   updateStatus("");
+  updateNote("Select a loop demo to begin.");
   updatePlayButton();
 }
 
@@ -1412,6 +1650,7 @@ export function cancelLoopDemoPlayback() {
   stopPlayback({ clearFrames: true, clearVisuals: true });
   updateControlsVisibility(false);
   updateStatus("");
+  updateNote("Select a loop demo to begin.");
 }
 
 export async function playLoopDemo(loopDemo, startPoint, selectedLoop = null) {
@@ -1463,6 +1702,7 @@ export async function playLoopDemo(loopDemo, startPoint, selectedLoop = null) {
   updateControlsVisibility(true);
   const loopLabel = selectedLoop?.label || "loop";
   updateStatus(`Loaded ${currentFrames.length} story steps for ${loopLabel}.`);
+  updateNote("Autoplay will advance each step. Drag the timeline to inspect any step.");
   updatePlayButton();
 
   renderBaseScene(layerGroup.base);

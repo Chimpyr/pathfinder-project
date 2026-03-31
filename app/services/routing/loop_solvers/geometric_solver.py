@@ -73,6 +73,7 @@ _HIGHWAY_ONLY_TAGS = frozenset({
 
 _LOOP_DEMO_SCHEMA_VERSION = 1
 _LOOP_DEMO_DEFAULT_MAX_FRAMES = 400
+_LOOP_DEMO_MAX_PATH_POINTS = 80
 
 
 def _demo_event(loop_demo_context, event, **payload):
@@ -93,6 +94,22 @@ def _demo_event(loop_demo_context, event, **payload):
 
 def _round_coord_pair(lat, lon):
     return [round(float(lat), 6), round(float(lon), 6)]
+
+
+def _sample_route_coords(graph, path_nodes, max_points=_LOOP_DEMO_MAX_PATH_POINTS):
+    """Convert a routed node path to a bounded list of rounded coordinates."""
+    if not path_nodes:
+        return []
+
+    coords = [_round_coord_pair(*_node_coords(graph, node)) for node in path_nodes]
+    if len(coords) <= max_points:
+        return coords
+
+    step = max(1, math.ceil((len(coords) - 1) / max(1, max_points - 1)))
+    sampled = coords[::step]
+    if sampled[-1] != coords[-1]:
+        sampled.append(coords[-1])
+    return sampled
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -918,6 +935,7 @@ def _try_polygon(
     # Skipping for now to keep it simple.
     
     legs_routed = 0
+    total_legs = len(sequence) - 1
     
     for i in range(len(sequence) - 1):
         u = sequence[i]
@@ -958,6 +976,18 @@ def _try_polygon(
                  detour_factor=round(float(l_dist / air_d), 3),
              )
              return None
+
+        _demo_event(
+            loop_demo_context,
+            'leg_routed',
+            leg_index=i + 1,
+            total_legs=total_legs,
+            bearing=round(float(bearing), 3),
+            num_vertices=int(num_vertices),
+            path=_sample_route_coords(graph, l_path),
+            leg_distance_m=round(float(l_dist), 2),
+            scenic_cost=round(float(l_cost), 4),
+        )
              
         if i == 0:
             full_route.extend(l_path)
@@ -1074,6 +1104,29 @@ def _try_out_and_back(
 
     path_out, dist_out, cost_out = leg_out
     path_back, dist_back, cost_back = leg_back
+
+    _demo_event(
+        loop_demo_context,
+        'fallback_leg_routed',
+        leg_index=1,
+        total_legs=2,
+        bearing=round(float(bearing), 3),
+        direction='outbound',
+        path=_sample_route_coords(graph, path_out),
+        leg_distance_m=round(float(dist_out), 2),
+        scenic_cost=round(float(cost_out), 4),
+    )
+    _demo_event(
+        loop_demo_context,
+        'fallback_leg_routed',
+        leg_index=2,
+        total_legs=2,
+        bearing=round(float(bearing), 3),
+        direction='return',
+        path=_sample_route_coords(graph, path_back),
+        leg_distance_m=round(float(dist_back), 2),
+        scenic_cost=round(float(cost_back), 4),
+    )
 
     route = path_out + path_back[1:]
     total_distance = dist_out + dist_back
