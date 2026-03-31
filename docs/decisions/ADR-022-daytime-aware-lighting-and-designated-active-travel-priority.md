@@ -81,7 +81,7 @@ Route debug edge payloads will include enough information to explain decisions c
 
 - Reduces daytime detours that were caused by night-focused penalties.
 - Uses council regime semantics when present, improving correctness at night.
-- Better aligns `prefer_paved` and `avoid_unsafe_roads` with user expectations on designated paved cycleways.
+- Better aligns `prefer_dedicated_pavements` and `avoid_unsafe_roads` with user expectations on designated paved cycleways.
 - Improves route explainability for debugging and UX messaging.
 
 ### Tradeoffs

@@ -22,6 +22,7 @@ Functional documentation grouped by user-visible capability.
 
 - [routing/wsm_feature.md](routing/wsm_feature.md)
 - [routing/distinct_paths_feature.md](routing/distinct_paths_feature.md)
+- [routing/advanced_options.md](routing/advanced_options.md)
 - [routing/elevation_feature.md](routing/elevation_feature.md)
 - [routing/water_feature.md](routing/water_feature.md)
 - [routing/normalisation_feature.md](routing/normalisation_feature.md)

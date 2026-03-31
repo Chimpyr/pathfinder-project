@@ -101,11 +101,10 @@ This mode guarantees that advanced options are visible and comparable even witho
 
 The baseline route intentionally disables all advanced modifiers, including:
 
-- `prefer_lit`
+- `prefer_lit_streets`
 - `heavily_avoid_unlit`
 - `prefer_dedicated_pavements`
 - `prefer_nature_trails`
-- `prefer_paved`
 - `avoid_unsafe_roads`
 
 This keeps baseline comparisons stable and interpretable.

@@ -137,9 +137,7 @@ response = requests.post('/api/route', json={
     'weights': {'greenness': 5, 'distance': 3},  # Optional
     'prefer_dedicated_pavements': True,  # Optional advanced modifiers
     'prefer_nature_trails': False,
-    'prefer_pedestrian': False,      # Legacy alias (accepted)
-    'prefer_paved': False,
-    'prefer_lit': False,
+    'prefer_lit_streets': False,
     'heavily_avoid_unlit': False,
     'avoid_unsafe_roads': False,
 })
@@ -149,11 +147,12 @@ response = requests.post('/api/route', json={
 
 On top of the general WSM scoring, the engine applies multipliers before finalizing an edge's cost:
 
-- `prefer_lit` / `heavily_avoid_unlit`: Provides a bonus (<1.0) to routes correctly flagged as lit, or massive penalties (up to 5.0x) for unknown or unlit segments.
+- `prefer_lit_streets` / `heavily_avoid_unlit`: Provides a bonus (<1.0) to routes correctly flagged as lit, or massive penalties (up to 5.0x) for unknown or unlit segments.
 - `prefer_dedicated_pavements`: Strongly favors designated active-travel corridors with hard surfaces and penalizes vehicle-focused roads.
-- `prefer_nature_trails`: Favors trail-like highways and natural surfaces while penalizing vehicle-heavy corridors.
-- `prefer_paved`: Penalizes soft and unpaved surfaces (`mud`, `dirt`, `sand`, `grass`) while keeping paved surfaces near baseline.
+- `prefer_nature_trails`: Favors trail-like highways and natural surfaces while penalizing vehicle-heavy corridors and hard paved options.
 - `avoid_unsafe_roads`: Applies a heavy penalty to primary/secondary/tertiary roads that lack `sidewalk` and `foot` safety indicators.
+
+See [advanced_options.md](advanced_options.md) for full descriptions of environmental constraints and safety metrics.
 
 Unsafe-road classification depends on edge metadata from OSM extraction (`highway`, `sidewalk`, `foot`), so those tags are explicitly retained in the graph loader.
 

@@ -98,9 +98,9 @@ Calculate a scenic route between two points.
 | `prefer_dedicated_pavements` | bool   | `false`         | Prefer designated hard-surface active-travel corridors                                     |
 | `prefer_nature_trails`       | bool   | `false`         | Prefer trail-like highways and natural surfaces                                            |
 | `prefer_pedestrian`          | bool   | `false`         | Legacy alias accepted for backward compatibility (mapped to dedicated pavements)           |
-| `prefer_paved`               | bool   | `false`         | Prefer paved surfaces                                                                      |
-| `prefer_lit`                 | bool   | `false`         | Prefer lit streets                                                                         |
-| `heavily_avoid_unlit`        | bool   | `false`         | Strongly avoid unlit/unknown-lit streets                                                   |
+| `prefer_paved`               | bool   | `false`         | Legacy alias accepted for backward compatibility.                                          |
+| `prefer_lit_streets`         | bool   | `false`         | Prefer explicitly lit streets or mapped streetlights                                       |
+| `heavily_avoid_unlit`        | bool   | `false`         | Strongly avoid unlit/unknown-lit streets ($5 \times$ cost penalty)                         |
 | `avoid_unsafe_roads`         | bool   | `false`         | Penalize major roads lacking foot safety indicators                                        |
 | `travel_profile`             | string | profile default | Movement profile (`walking`, `running_easy`, `running_race`)                               |
 | `speed_kmh`                  | float  | profile default | Optional speed override                                                                    |
@@ -211,7 +211,7 @@ When `ASYNC_MODE=True` and cache miss:
 
 ---
 
-### `POST /calculate_loop_route`
+### `POST /api/loop`
 
 Calculate multiple loop (round-trip) route candidates from a single start
 point.
@@ -225,6 +225,8 @@ point.
   "target_distance": 5.0
 }
 ```
+
+_Note:_ Supports all advanced optional parameters (mutually exclusive pairs such as `prefer_dedicated_pavements`/`prefer_nature_trails` and `prefer_lit_streets`/`heavily_avoid_unlit`, as well as `avoid_unsafe_roads`) identical to `/api/route`.
 
 **Key Response Fields** (200):
 

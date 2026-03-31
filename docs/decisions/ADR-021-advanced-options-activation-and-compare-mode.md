@@ -49,7 +49,7 @@ Frontend route cards render this metadata so users can see which options contrib
 
 WSM edge-cost multipliers were expanded so advanced options are complete and consistent:
 
-- `prefer_paved`: surface-based penalties for unpaved/soft terrain.
+- `prefer_dedicated_pavements` / `prefer_nature_trails`: surface-based penalties for unpaved/soft terrain.
 - `avoid_unsafe_roads`: heavy penalties for major roads lacking sidewalk/foot indicators.
 
 To support unsafe-road logic, graph extraction explicitly retains `foot` and `sidewalk` tags.
@@ -60,8 +60,8 @@ In multi-route generation, baseline route calls must disable all advanced modifi
 
 - `prefer_lit`
 - `heavily_avoid_unlit`
-- `prefer_pedestrian`
-- `prefer_paved`
+- backwards-compatibility legacy alias
+- `prefer_dedicated_pavements` / `prefer_nature_trails`
 - `avoid_unsafe_roads`
 
 ## Consequences

@@ -38,6 +38,7 @@ Each ADR follows this structure:
 | [ADR-021](ADR-021-advanced-options-activation-and-compare-mode.md)                 | Advanced Options Activation and Baseline Compare Mode                         | Accepted | 2026-03-29 |
 | [ADR-022](ADR-022-daytime-aware-lighting-and-designated-active-travel-priority.md) | Daytime-Aware Lighting Penalties and Designated Active-Travel Priority        | Proposed | 2026-03-29 |
 | [ADR-023](ADR-023-way-id-canonicalization-and-runtime-cache-consistency.md)        | Way-ID Canonicalization and Runtime Cache Consistency for Streetlight Routing | Accepted | 2026-03-29 |
+| [ADR-024](ADR-024-advanced-routing-toggles-refactor.md)                            | Advanced Routing Toggles Refactor & Mutual Exclusivity                        | Accepted | 2026-03-31 |
 
 ## Related Documentation
 
