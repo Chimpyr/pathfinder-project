@@ -45,6 +45,7 @@ class RouteFinder:
         speed_kmh=None,
         activity=None,
         lighting_context='night',
+        loop_demo_context=None,
     ):
         """
         Finds multiple circular (loop) route candidates.
@@ -71,6 +72,8 @@ class RouteFinder:
             prefer_lit (bool): If True, penalise unlit streets, bonus lit ones.
             avoid_unsafe_roads (bool): If True, heavily penalise main roads without sidewalks.
             lighting_context (str): Request lighting relevance (`daylight|twilight|night`).
+            loop_demo_context (dict|None): Optional mutable dict for loop
+                demo frame capture in debug mode.
 
         Returns:
             list: List of LoopCandidate objects (may be empty if no loops found).
@@ -151,6 +154,7 @@ class RouteFinder:
                 'heavily_avoid_unlit': heavily_avoid_unlit,
                 'activity': resolved_activity,
                 'lighting_context': lighting_context,
+                'loop_demo_context': loop_demo_context,
             }
 
             try:

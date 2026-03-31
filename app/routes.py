@@ -259,7 +259,10 @@ def index():
     Returns:
         str: Rendered HTML template.
     """
-    return render_template('index.html')
+    return render_template(
+        'index.html',
+        debug_mode=bool(current_app.config.get('DEBUG', False)),
+    )
 
 
 @main.route('/api/geocode', methods=['POST'])
@@ -366,6 +369,20 @@ def calculate_loop_route():
             return jsonify({'error': 'No data provided'}), 400
 
         movement_ctx = _resolve_movement_context(data)
+
+        demo_visualisation_requested = bool(data.get('demo_visualisation', False))
+        demo_visualisation_enabled = (
+            bool(current_app.config.get('DEBUG', False))
+            and demo_visualisation_requested
+        )
+        loop_demo_context = None
+        if demo_visualisation_enabled:
+            loop_demo_context = {
+                'schema_version': 1,
+                'frames': [],
+                'max_frames': int(current_app.config.get('LOOP_DEMO_MAX_FRAMES', 400)),
+                'truncated': False,
+            }
         
         # Validate required fields
         if data.get('start_lat') is None or data.get('start_lon') is None:
@@ -526,7 +543,8 @@ def calculate_loop_route():
                         'message': f'Building {len(missing_tiles)} tile(s). Poll /api/task/<task_id> for status.',
                         'start_point': list(start_point),
                         'route_mode': 'loop',
-                        'target_distance_km': target_distance_km
+                        'target_distance_km': target_distance_km,
+                        'demo_visualisation': demo_visualisation_enabled,
                     }), 202
         
         # =====================================================================
@@ -576,6 +594,7 @@ def calculate_loop_route():
             speed_kmh=movement_ctx['effective_speed_kmh'],
             activity=movement_ctx['activity'],
             lighting_context=lighting_ctx['lighting_context'],
+            loop_demo_context=loop_demo_context,
         )
         
         if not candidates:
@@ -702,6 +721,29 @@ def calculate_loop_route():
             'tiles_required': tile_ids,
             'warning': warning,
         }
+
+        if demo_visualisation_requested:
+            solver_supports_demo = str(algorithm).upper() == 'GEOMETRIC'
+            frames = []
+            truncated = False
+            if loop_demo_context is not None:
+                frames = loop_demo_context.get('frames', [])
+                truncated = bool(loop_demo_context.get('truncated', False))
+
+            loop_demo_payload = {
+                'enabled': bool(demo_visualisation_enabled and solver_supports_demo),
+                'schema_version': 1,
+                'frame_count': len(frames),
+                'truncated': truncated,
+                'frames': frames if demo_visualisation_enabled and solver_supports_demo else [],
+            }
+
+            if not demo_visualisation_enabled:
+                loop_demo_payload['reason'] = 'debug_disabled'
+            elif not solver_supports_demo:
+                loop_demo_payload['reason'] = 'solver_not_supported'
+
+            response_data['loop_demo'] = loop_demo_payload
         
         # Add debug info if enabled
         if current_app.config.get('VERBOSE_LOGGING') or current_app.config.get('DEBUG'):

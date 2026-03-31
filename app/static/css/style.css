@@ -661,6 +661,50 @@ body.resizing {
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
+.loop-demo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: rgba(99, 102, 241, 0.1);
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.loop-demo-btn:hover,
+.loop-demo-btn:focus-visible {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.45);
+  color: #3730a3;
+  outline: none;
+}
+
+.dark .loop-demo-btn {
+  background: rgba(129, 140, 248, 0.22);
+  border-color: rgba(129, 140, 248, 0.45);
+  color: #c7d2fe;
+}
+
+.dark .loop-demo-btn:hover,
+.dark .loop-demo-btn:focus-visible {
+  background: rgba(129, 140, 248, 0.32);
+  border-color: rgba(165, 180, 252, 0.6);
+  color: #e0e7ff;
+}
+
+#loop-demo-scrubber {
+  accent-color: #4f46e5;
+}
+
+.dark #loop-demo-scrubber {
+  accent-color: #818cf8;
+}
+
 .dark .loop-stats-badge.budget {
   background: rgba(59, 130, 246, 0.2);
   color: #93c5fd;

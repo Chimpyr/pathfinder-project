@@ -513,6 +513,15 @@
                             <p class="text-xs text-gray-400">Your selected profile affects ETA and slope effort scoring during routing.</p>
                         </div>
 
+                        {% if debug_mode %}
+                        <div class="pt-2">
+                            <button type="button" id="loop-demo-btn"
+                                class="w-full py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold rounded-lg border border-amber-300 transition-colors">
+                                <i class="fas fa-flask mr-1"></i> DEMO
+                            </button>
+                        </div>
+                        {% endif %}
+
                         <!-- Action Buttons -->
                         <div class="flex gap-3 pt-2">
                             <button type="submit" id="find-route-btn"
@@ -587,6 +596,35 @@
                                     <i class="fas fa-eye mr-1"></i> Toggle visibility
                                 </span>
                             </div>
+
+                            {% if debug_mode %}
+                            <div id="loop-demo-controls" class="hidden mb-3 px-3 py-2 rounded-lg border border-indigo-200 dark:border-indigo-700/40 bg-indigo-50 dark:bg-indigo-900/20">
+                                <div class="flex items-center justify-between gap-2">
+                                    <h4 class="text-xs font-semibold tracking-wide uppercase text-indigo-700 dark:text-indigo-300">Loop Demo Playback</h4>
+                                    <span id="loop-demo-status" class="text-[11px] text-indigo-700/80 dark:text-indigo-300/80">Idle</span>
+                                </div>
+                                <div class="mt-2">
+                                    <input type="range" id="loop-demo-scrubber" min="1" max="1" value="1" step="1"
+                                        class="w-full h-1.5 rounded-lg cursor-pointer bg-indigo-200/80 dark:bg-indigo-800/70"
+                                        aria-label="Loop demo timeline scrubber">
+                                    <div class="mt-1 flex justify-between items-center text-[11px] text-indigo-700/80 dark:text-indigo-300/80">
+                                        <span>Timeline</span>
+                                        <span id="loop-demo-step-indicator">Step 0 / 0</span>
+                                    </div>
+                                </div>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <button type="button" id="loop-demo-play-toggle" class="px-2.5 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors">
+                                        <i class="fas fa-play mr-1"></i><span>Play</span>
+                                    </button>
+                                    <button type="button" id="loop-demo-skip-btn" class="px-2.5 py-1.5 rounded-md bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-800/70 dark:hover:bg-indigo-700 text-indigo-800 dark:text-indigo-100 text-xs font-medium transition-colors">
+                                        <i class="fas fa-forward mr-1"></i><span>Skip</span>
+                                    </button>
+                                    <button type="button" id="loop-demo-stop-btn" class="px-2.5 py-1.5 rounded-md bg-rose-100 hover:bg-rose-200 dark:bg-rose-800/70 dark:hover:bg-rose-700 text-rose-800 dark:text-rose-100 text-xs font-medium transition-colors">
+                                        <i class="fas fa-stop mr-1"></i><span>Stop</span>
+                                    </button>
+                                </div>
+                            </div>
+                            {% endif %}
                             
                             <div id="route-options-list" class="space-y-2">
                                 <!-- Route cards populated by JavaScript -->

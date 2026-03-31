@@ -12,6 +12,7 @@ import {
 import { ROUTE_CONFIG } from "./config.js";
 import { mapController } from "./map_manager.js";
 import { showToast, isAuthenticated } from "./ui_common.js";
+import { playLoopDemo } from "./loop_demo_player.js";
 import { buildGpxXml, buildExportFilename, downloadGpx } from "./gpx_export.js";
 import {
   formatPaceFromSpeed,
@@ -458,6 +459,13 @@ export function renderLoopOptions(loops) {
   if (!routeOptionsList || !routeOptionsContainer || !loops) return;
 
   let html = "";
+  const demoPayload = loopState.demoPayload;
+  const hasDemoFrames = Boolean(
+    demoPayload &&
+    demoPayload.enabled &&
+    Array.isArray(demoPayload.frames) &&
+    demoPayload.frames.length,
+  );
 
   loops.forEach((loop) => {
     const isSelected = loopState.selectedId === loop.id;
@@ -509,6 +517,7 @@ export function renderLoopOptions(loops) {
                         </div>
                     </div>
                     <div class="flex items-center gap-1">
+                      ${hasDemoFrames ? `<button class="loop-demo-btn" data-loop-id="${loop.id}" title="Replay how this loop candidate was produced"><i class="fas fa-play-circle"></i> Demo</button>` : ""}
                         <button class="save-query-btn" data-route-type="${loop.id}" data-is-loop="true" title="Save this query">
                             <i class="fas fa-bookmark"></i> Save
                         </button>
@@ -525,6 +534,14 @@ export function renderLoopOptions(loops) {
             </div>
         `;
   });
+
+  if (!hasDemoFrames) {
+    html += `
+        <div class="loop-demo-tip mt-1 px-3 py-2 rounded-lg border border-indigo-100 dark:border-indigo-800/50 bg-indigo-50/70 dark:bg-indigo-900/20 text-[11px] text-indigo-700 dark:text-indigo-300">
+            <i class="fas fa-flask mr-1"></i>Use Finder <strong>DEMO</strong> to capture a step-by-step replay for each loop option.
+        </div>
+    `;
+  }
 
   html += `
         <div class="loop-routes-footer text-xs text-gray-400 mt-3 px-1 border-t border-gray-100 dark:border-gray-700 pt-2">
@@ -566,8 +583,17 @@ export function renderLoopOptions(loops) {
   document.querySelectorAll(".loop-option-card").forEach((card) => {
     card.addEventListener("click", (e) => {
       if (e.target.closest(".loop-visibility-toggle")) return;
+      if (e.target.closest(".loop-demo-btn")) return;
       if (e.target.closest(".save-query-btn")) return;
       handleLoopSelect(card.dataset.loopId, loops);
+    });
+  });
+
+  document.querySelectorAll(".loop-demo-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const loopId = btn.dataset.loopId;
+      await handleLoopDemoPlay(loopId, loops);
     });
   });
 
@@ -590,7 +616,37 @@ export function renderLoopOptions(loops) {
   });
 }
 
+async function handleLoopDemoPlay(loopId, loops) {
+  const demoPayload = loopState.demoPayload;
+  const startPoint = loopState.demoStartPoint;
+
+  if (
+    !demoPayload ||
+    !demoPayload.enabled ||
+    !Array.isArray(demoPayload.frames) ||
+    demoPayload.frames.length === 0
+  ) {
+    showToast("No demo frames available. Run Finder DEMO first.", "info");
+    return;
+  }
+
+  const selectedLoop = loops.find((loop) => loop.id === loopId);
+  if (!selectedLoop) {
+    showToast("Unable to play demo for this loop.", "error");
+    return;
+  }
+
+  handleLoopSelect(loopId, loops);
+  await playLoopDemo(demoPayload, startPoint, selectedLoop);
+}
+
 function handleLoopSelect(loopId, loops) {
+  document.dispatchEvent(
+    new CustomEvent("loop-demo-interrupt", {
+      detail: { reason: "loop-selected" },
+    }),
+  );
+
   loopState.selectedId = loopId;
 
   if (mapController) mapController.highlightLoop(loopId);
@@ -626,6 +682,12 @@ function handleLoopSelect(loopId, loops) {
 }
 
 function handleLoopVisibilityToggle(loopId, loops) {
+  document.dispatchEvent(
+    new CustomEvent("loop-demo-interrupt", {
+      detail: { reason: "loop-visibility-toggle" },
+    }),
+  );
+
   const isVisible = loopState.visibility[loopId] !== false;
   loopState.visibility[loopId] = !isVisible;
 

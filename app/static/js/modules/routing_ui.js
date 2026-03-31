@@ -10,6 +10,7 @@ import {
   loopState,
   setRoutingMode,
   setSelectedDirection,
+  setLoopDemoMode,
 } from "./state.js";
 import {
   createRouteTask,
@@ -20,6 +21,10 @@ import {
 import { getScenicWeights } from "./scenic_controls.js";
 import { setLoadingState, clearLoadingState } from "./ui_common.js";
 import { mapController } from "./map_manager.js";
+import {
+  initLoopDemoPlayer,
+  cancelLoopDemoPlayback,
+} from "./loop_demo_player.js";
 import {
   renderRouteOptions,
   renderLoopOptions,
@@ -72,13 +77,43 @@ const groupNatureToggle = document.getElementById("group-nature-toggle");
 const finderNavBtn = document.querySelector(
   '.nav-rail-btn[data-view="finder-view"]',
 );
+const loopDemoBtn = document.getElementById("loop-demo-btn");
+const clearAllBtn = document.getElementById("clear-all-btn");
 
 export function initRoutingUI() {
+  initLoopDemoPlayer();
   initModeToggles();
   initLoopControls();
   initTravelProfileControl();
   initAdvancedToggles();
+  initLoopDemoControl();
+  initDemoCleanup();
   initFormSubmit();
+}
+
+function initLoopDemoControl() {
+  if (!loopDemoBtn) return;
+
+  loopDemoBtn.addEventListener("click", async () => {
+    if (appState.routingMode !== "loop") {
+      switchRoutingMode("loop");
+    }
+
+    setLoopDemoMode(true);
+    await handleLoopSubmit({ demoVisualisation: true });
+  });
+}
+
+function initDemoCleanup() {
+  clearAllBtn?.addEventListener("click", () => {
+    setLoopDemoMode(false);
+    cancelLoopDemoPlayback();
+  });
+
+  document.addEventListener("loop-demo-interrupt", () => {
+    setLoopDemoMode(false);
+    cancelLoopDemoPlayback();
+  });
 }
 
 function updateTravelProfileOptionLabels(prefs = getMovementPrefs()) {
@@ -207,7 +242,12 @@ function syncEndMarkerVisibility(isStandard) {
 }
 
 function switchRoutingMode(mode) {
+  cancelLoopDemoPlayback();
+
   setRoutingMode(mode);
+  if (mode !== "loop") {
+    setLoopDemoMode(false);
+  }
 
   // UI Update
   const isStandard = mode === "standard";
@@ -384,6 +424,9 @@ function initFormSubmit() {
 // ----------------------------------------------------------------------------
 
 async function handleStandardSubmit() {
+  setLoopDemoMode(false);
+  cancelLoopDemoPlayback();
+
   if (!startState.lat || !endState.lat) {
     showError("Please select both a start and end location.");
     return;
@@ -505,11 +548,21 @@ async function handleStandardSubmit() {
   }
 }
 
-async function handleLoopSubmit() {
+async function handleLoopSubmit(options = {}) {
   if (!startState.lat) {
+    setLoopDemoMode(false);
     showError("Please set a start location.");
     return;
   }
+
+  cancelLoopDemoPlayback();
+
+  const demoVisualisation = Boolean(
+    options.demoVisualisation !== undefined
+      ? options.demoVisualisation
+      : appState.loopDemoMode,
+  );
+  setLoopDemoMode(demoVisualisation);
 
   const distKm = parseFloat(loopDistanceSlider ? loopDistanceSlider.value : 5);
   const preferDedicatedPavements = Boolean(
@@ -538,6 +591,7 @@ async function handleLoopSubmit() {
       ? heavilyAvoidUnlitToggle.checked
       : false,
     avoid_unsafe_roads: avoidUnsafeToggle ? avoidUnsafeToggle.checked : false,
+    demo_visualisation: demoVisualisation,
   };
 
   const scenicWeights = getScenicWeights();
@@ -576,7 +630,7 @@ async function handleLoopSubmit() {
               console.log(
                 "[RoutingUI] Tile build complete. Re-requesting loop...",
               );
-              handleLoopSubmit();
+              handleLoopSubmit({ demoVisualisation });
             } else {
               onLoopSuccess(result);
             }
@@ -586,14 +640,17 @@ async function handleLoopSubmit() {
       } else if (data.loops || data.route_coords || data.routes) {
         onLoopSuccess(data);
       } else {
+        setLoopDemoMode(false);
         showError(data.error || "Failed to start loop task");
         clearLoadingState();
       }
     } else {
+      setLoopDemoMode(false);
       showError(data.error || "Network response was not ok");
       clearLoadingState();
     }
   } catch (err) {
+    setLoopDemoMode(false);
     showError("Network error. Please try again.");
     clearLoadingState();
   }
@@ -656,8 +713,19 @@ function onRouteSuccess(result) {
 
 function onLoopSuccess(result) {
   clearLoadingState();
+  setLoopDemoMode(false);
   console.log("[RoutingUI] onLoopSuccess with:", result);
   switchView("routes-view");
+
+  if (result?.loop_demo?.enabled && Array.isArray(result.loop_demo.frames)) {
+    loopState.demoPayload = result.loop_demo;
+    loopState.demoStartPoint = Array.isArray(result.start_point)
+      ? [...result.start_point]
+      : null;
+  } else {
+    loopState.demoPayload = null;
+    loopState.demoStartPoint = null;
+  }
 
   if (mapController) {
     if (result.loops && Array.isArray(result.loops)) {

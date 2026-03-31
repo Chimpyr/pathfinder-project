@@ -172,6 +172,10 @@ class Config:
     # Loop candidate selection strategy
     # Options: 'DIVERSE' (maximise route difference), 'TOP_K' (best K by score)
     LOOP_CANDIDATE_STRATEGY = 'DIVERSE'
+
+    # Maximum number of loop demo frames returned when demo visualization is
+    # enabled in DEBUG mode.
+    LOOP_DEMO_MAX_FRAMES = 400
     
     # Multi-route mode (Distinct Paths strategy)
     # When True: Returns 3 routes per request (Baseline, Extremist, Balanced)

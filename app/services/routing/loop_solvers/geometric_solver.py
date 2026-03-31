@@ -71,6 +71,29 @@ _HIGHWAY_ONLY_TAGS = frozenset({
     'primary', 'primary_link',
 })
 
+_LOOP_DEMO_SCHEMA_VERSION = 1
+_LOOP_DEMO_DEFAULT_MAX_FRAMES = 400
+
+
+def _demo_event(loop_demo_context, event, **payload):
+    """Append a bounded demo frame when loop demo capture is enabled."""
+    if loop_demo_context is None:
+        return
+
+    frames = loop_demo_context.setdefault('frames', [])
+    max_frames = int(loop_demo_context.get('max_frames', _LOOP_DEMO_DEFAULT_MAX_FRAMES))
+    if len(frames) >= max_frames:
+        loop_demo_context['truncated'] = True
+        return
+
+    frame = {'event': event}
+    frame.update(payload)
+    frames.append(frame)
+
+
+def _round_coord_pair(lat, lon):
+    return [round(float(lat), 6), round(float(lon), 6)]
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -714,6 +737,7 @@ def _try_polygon(
     heavily_avoid_unlit: bool = False,
     activity: str = 'walking',
     lighting_context: str = 'night',
+    loop_demo_context=None,
 ) -> Optional[Tuple[List[int], float, float, float]]:
     """
     Attempt to build and route a 'Natural Shape' polygon loop.
@@ -759,6 +783,15 @@ def _try_polygon(
         
     print(f"[GeometricSolver]   Polygon attempt (N={num_vertices}): bearing={bearing:.1f}, "
           f"arc={arc_angle}°, tau={tau:.3f}, radius={radius:.0f}m, jitter={irregularity:.2f}")
+    _demo_event(
+        loop_demo_context,
+        'polygon_attempt_started',
+        bearing=round(float(bearing), 3),
+        num_vertices=int(num_vertices),
+        arc_angle=round(float(arc_angle), 3),
+        tau=round(float(tau), 6),
+        radius_m=round(float(radius), 2),
+    )
 
     # 3. Project Waypoints (Theoretical)
     theoretical_points = [] # List of (lat, lon)
@@ -789,6 +822,15 @@ def _try_polygon(
         w_lat, w_lon = _project_point(s_lat, s_lon, final_bearing, final_radius)
         theoretical_points.append((w_lat, w_lon))
 
+    _demo_event(
+        loop_demo_context,
+        'skeleton_projected',
+        start=_round_coord_pair(s_lat, s_lon),
+        points=[_round_coord_pair(lat, lon) for lat, lon in theoretical_points],
+        bearing=round(float(bearing), 3),
+        num_vertices=int(num_vertices),
+    )
+
     # 4. Snap Waypoints with Flow Awareness
     # We need to know previous and next points to penalize U-turns.
     # Sequence: Start -> W1 -> W2 ... -> Wn -> Start
@@ -801,6 +843,7 @@ def _try_polygon(
     prev_node = start_node
     # We need coords of prev_node for angle calc
     prev_coords = _node_coords(graph, start_node) 
+    snapped_points = []
     
     for i in range(num_waypoints):
         w_lat, w_lon = theoretical_points[i]
@@ -821,16 +864,37 @@ def _try_polygon(
         
         if w_node is None or w_node == start_node or w_node == prev_node:
             print(f"[GeometricSolver]   [FAILED] Waypoint {i+1} snap failed or duplicate")
+            _demo_event(
+                loop_demo_context,
+                'waypoint_snap_failed',
+                waypoint_index=i + 1,
+                bearing=round(float(bearing), 3),
+                target_point=_round_coord_pair(w_lat, w_lon),
+            )
             return None
             
         waypoints_data.append(w_node)
         prev_node = w_node
         prev_coords = _node_coords(graph, w_node)
+        snapped_points.append(_round_coord_pair(prev_coords[0], prev_coords[1]))
         
     # Check if waypoints are unique
     if len(set(waypoints_data)) != len(waypoints_data):
          print(f"[GeometricSolver]   [FAILED] Duplicate waypoints in shape")
+         _demo_event(
+             loop_demo_context,
+             'waypoint_snap_failed',
+             bearing=round(float(bearing), 3),
+             reason='duplicate_waypoints',
+         )
          return None
+
+    _demo_event(
+        loop_demo_context,
+        'skeleton_snapped',
+        points=snapped_points,
+        bearing=round(float(bearing), 3),
+    )
 
     # 5. Route Legs
     # Sequence: Start -> W1 -> W2 ... -> Wn -> Start
@@ -869,6 +933,12 @@ def _try_polygon(
                              lighting_context=lighting_context)
         if leg_res is None:
             print(f"[GeometricSolver]   [FAILED] Leg {i+1} ({u}->{v}) failed")
+            _demo_event(
+                loop_demo_context,
+                'leg_failed',
+                leg_index=i + 1,
+                bearing=round(float(bearing), 3),
+            )
             return None
             
         l_path, l_dist, l_cost = leg_res
@@ -879,6 +949,14 @@ def _try_polygon(
         air_d = _haversine(u_c[0], u_c[1], v_c[0], v_c[1])
         if air_d > 0 and l_dist > BRIDGE_LEG_DETOUR_FACTOR * air_d:
              print(f"[GeometricSolver]   [FAILED] Leg {i+1} detour too high ({l_dist/air_d:.1f}x)")
+             _demo_event(
+                 loop_demo_context,
+                 'leg_failed',
+                 leg_index=i + 1,
+                 bearing=round(float(bearing), 3),
+                 reason='detour_factor_exceeded',
+                 detour_factor=round(float(l_dist / air_d), 3),
+             )
              return None
              
         if i == 0:
@@ -891,6 +969,13 @@ def _try_polygon(
         legs_routed += 1
         
     print(f"[GeometricSolver]   [SUCCESS] Polygon complete: {total_dist:.0f}m, cost={total_cost:.4f}")
+    _demo_event(
+        loop_demo_context,
+        'polygon_attempt_completed',
+        bearing=round(float(bearing), 3),
+        total_distance_m=round(float(total_dist), 2),
+        scenic_cost=round(float(total_cost), 4),
+    )
     return (full_route, total_dist, total_cost, tau)
 
 
@@ -911,6 +996,7 @@ def _try_out_and_back(
     heavily_avoid_unlit: bool = False,
     activity: str = 'walking',
     lighting_context: str = 'night',
+    loop_demo_context=None,
 ) -> Optional[Tuple[List[int], float, float]]:
     """
     Fallback: out-and-back route when all triangle attempts fail.
@@ -925,12 +1011,27 @@ def _try_out_and_back(
     s_lat, s_lon = _node_coords(graph, start_node)
     half_dist = target_distance / (2.0 * tau)
 
+    _demo_event(
+        loop_demo_context,
+        'fallback_out_and_back_started',
+        bearing=round(float(bearing), 3),
+        tau=round(float(tau), 6),
+        projected_distance_m=round(float(half_dist), 2),
+    )
+
     print(f"[GeometricSolver]   Projecting waypoint at {half_dist:.0f}m")
     w_lat, w_lon = _project_point(s_lat, s_lon, bearing, half_dist)
+    _demo_event(
+        loop_demo_context,
+        'fallback_waypoint_projected',
+        waypoint=_round_coord_pair(w_lat, w_lon),
+        start=_round_coord_pair(s_lat, s_lon),
+    )
     w_node = _smart_snap(graph, w_lat, w_lon)
 
     if w_node is None or w_node == start_node:
         print(f"[GeometricSolver]   [FAILED] Out-and-back snap failed or degenerate")
+        _demo_event(loop_demo_context, 'fallback_out_and_back_failed', reason='snap_failed')
         return None
 
     print(f"[GeometricSolver]   Snapped to W={w_node}")
@@ -938,6 +1039,7 @@ def _try_out_and_back(
     if not (_are_reachable(graph, start_node, w_node)
             and _are_reachable(graph, w_node, start_node)):
         print(f"[GeometricSolver]   [FAILED] Out-and-back reachability failed")
+        _demo_event(loop_demo_context, 'fallback_out_and_back_failed', reason='reachability_failed')
         return None
 
     print(f"[GeometricSolver]   -> Routing outbound leg: S->W")
@@ -952,6 +1054,7 @@ def _try_out_and_back(
                          lighting_context=lighting_context)
     if leg_out is None:
         print(f"[GeometricSolver]   [FAILED] Outbound leg failed")
+        _demo_event(loop_demo_context, 'fallback_out_and_back_failed', reason='outbound_failed')
         return None
 
     print(f"[GeometricSolver]   -> Routing return leg: W->S")
@@ -966,6 +1069,7 @@ def _try_out_and_back(
                           lighting_context=lighting_context)
     if leg_back is None:
         print(f"[GeometricSolver]   [FAILED] Return leg failed")
+        _demo_event(loop_demo_context, 'fallback_out_and_back_failed', reason='return_failed')
         return None
 
     path_out, dist_out, cost_out = leg_out
@@ -976,6 +1080,12 @@ def _try_out_and_back(
     total_cost = cost_out + cost_back
     print(f"[GeometricSolver]   [SUCCESS] Out-and-back complete: {len(route)} nodes, "
           f"{total_distance:.0f}m, scenic_cost={total_cost:.4f}")
+    _demo_event(
+        loop_demo_context,
+        'fallback_out_and_back_completed',
+        total_distance_m=round(float(total_distance), 2),
+        scenic_cost=round(float(total_cost), 4),
+    )
     return (route, total_distance, total_cost)
 
 
@@ -1064,6 +1174,7 @@ class GeometricLoopSolver(LoopSolverBase):
         heavily_avoid_unlit: bool = False,
         activity: str = 'walking',
         lighting_context: str = 'night',
+        loop_demo_context=None,
     ) -> List[LoopCandidate]:
         """
         Find multiple loop route candidates using the geometric skeleton
@@ -1076,6 +1187,22 @@ class GeometricLoopSolver(LoopSolverBase):
         t0 = time.time()
         weights = validate_weights(weights)
         length_range = find_length_range(graph)
+
+        if loop_demo_context is not None:
+            loop_demo_context.setdefault('schema_version', _LOOP_DEMO_SCHEMA_VERSION)
+            loop_demo_context.setdefault('frames', [])
+            loop_demo_context.setdefault('max_frames', _LOOP_DEMO_DEFAULT_MAX_FRAMES)
+            loop_demo_context.setdefault('truncated', False)
+
+            start_lat, start_lon = _node_coords(graph, start_node)
+            _demo_event(
+                loop_demo_context,
+                'solver_started',
+                start=_round_coord_pair(start_lat, start_lon),
+                target_distance_m=round(float(target_distance), 2),
+                directional_bias=str(directional_bias),
+                variety_level=int(variety_level),
+            )
 
         print(f"\n[GeometricSolver] ======================================================")
         print(f"[GeometricSolver] Starting Geometric Loop Solver")
@@ -1175,6 +1302,14 @@ class GeometricLoopSolver(LoopSolverBase):
                 (i * rotation_step) % 360
                 for i in range(num_attempts)
             ]
+
+        _demo_event(
+            loop_demo_context,
+            'bearings_selected',
+            bearings=[round(float(b), 3) for b in raw_bearings],
+            target_distance_m=round(float(target_distance), 2),
+            use_smart_bearing=bool(use_smart_bearing),
+        )
         
         # Define candidate configurations: (num_vertices, arc_angle, irregularity)
         # We generate a mix of shapes for each bearing.
@@ -1221,6 +1356,15 @@ class GeometricLoopSolver(LoopSolverBase):
             for cfg in bearing_configs:
                 n_verts = cfg['n']
                 tau = cfg['tau']
+
+                _demo_event(
+                    loop_demo_context,
+                    'shape_attempt_started',
+                    bearing=round(float(bearing), 3),
+                    shape_sides=int(n_verts),
+                    arc_angle=round(float(cfg['arc']), 3),
+                    tau=round(float(tau), 6),
+                )
                 
                 print(f"\n[GeometricSolver] ------------------------------------------------")
                 print(f"[GeometricSolver] Bearing {bearing:.0f}° | Shape N={n_verts} (elapsed: {elapsed:.1f}s)")
@@ -1232,6 +1376,15 @@ class GeometricLoopSolver(LoopSolverBase):
                 for retry in range(MAX_FEEDBACK_RETRIES):
                     if time.time() - t0 > max_search_time:
                         break
+
+                    _demo_event(
+                        loop_demo_context,
+                        'retry_started',
+                        bearing=round(float(bearing), 3),
+                        shape_sides=int(n_verts),
+                        retry=int(retry),
+                        tau=round(float(tau), 6),
+                    )
 
                     result = _try_polygon(
                         graph, start_node, target_distance, weights,
@@ -1247,11 +1400,20 @@ class GeometricLoopSolver(LoopSolverBase):
                         heavily_avoid_unlit=heavily_avoid_unlit,
                         activity=activity,
                         lighting_context=lighting_context,
+                        loop_demo_context=loop_demo_context,
                     )
 
                     if result is None:
                         # Shape construction failed entirely -- no feedback
                         print(f"[GeometricSolver]   [FAILED] Retry {retry}: shape construction failed")
+                        _demo_event(
+                            loop_demo_context,
+                            'shape_attempt_failed',
+                            bearing=round(float(bearing), 3),
+                            shape_sides=int(n_verts),
+                            retry=int(retry),
+                            reason='shape_construction_failed',
+                        )
                         break
 
                     route, actual_dist, scenic_cost, _ = result
@@ -1278,6 +1440,17 @@ class GeometricLoopSolver(LoopSolverBase):
                     deviation_pct = frac * 100
                     print(f"[GeometricSolver]   Distance check (clean): {actual_dist:.0f}m "
                           f"(target: {target_distance:.0f}m, deviation: {deviation_pct:+.1f}%)")
+
+                    _demo_event(
+                        loop_demo_context,
+                        'distance_evaluated',
+                        bearing=round(float(bearing), 3),
+                        shape_sides=int(n_verts),
+                        retry=int(retry),
+                        actual_distance_m=round(float(actual_dist), 2),
+                        target_distance_m=round(float(target_distance), 2),
+                        deviation_percent=round(float(deviation_pct), 3),
+                    )
                     
                     if -TOLERANCE_UNDER <= frac <= TOLERANCE_OVER:
                         # Success!
@@ -1285,11 +1458,21 @@ class GeometricLoopSolver(LoopSolverBase):
                             route, actual_dist, scenic_cost, 
                             {'bearing': bearing, 'shape': f"N={n_verts}", 'tau': tau}
                         ))
+                        _demo_event(
+                            loop_demo_context,
+                            'candidate_accepted',
+                            bearing=round(float(bearing), 3),
+                            shape_sides=int(n_verts),
+                            retry=int(retry),
+                            actual_distance_m=round(float(actual_dist), 2),
+                            scenic_cost=round(float(scenic_cost), 4),
+                        )
                         shape_success = True
                         break # Break retry loop
 
                     # -- Clamped update --------------------------------
                     if target_distance > 0:
+                        tau_before = tau
                         raw_ratio = actual_dist / target_distance
                         clamped_ratio = max(
                             TAU_CLAMP_LOW,
@@ -1297,6 +1480,16 @@ class GeometricLoopSolver(LoopSolverBase):
                         )
                         tau_new = tau * clamped_ratio
                         print(f"[GeometricSolver]   Tau adjustment: {tau:.3f} -> {tau_new:.3f}")
+                        _demo_event(
+                            loop_demo_context,
+                            'tau_adjusted',
+                            bearing=round(float(bearing), 3),
+                            shape_sides=int(n_verts),
+                            retry=int(retry),
+                            tau_before=round(float(tau_before), 6),
+                            tau_after=round(float(tau_new), 6),
+                            clamp_ratio=round(float(clamped_ratio), 6),
+                        )
                         tau = tau_new
                     else:
                         break
@@ -1312,6 +1505,11 @@ class GeometricLoopSolver(LoopSolverBase):
                     continue
                     
                 print(f"\n[GeometricSolver]   [WARNING] All polygon attempts failed for bearing {bearing:.0f}°, trying out-and-back...")
+                _demo_event(
+                    loop_demo_context,
+                    'fallback_started',
+                    bearing=round(float(bearing), 3),
+                )
                 oab = _try_out_and_back(
                     graph, start_node, target_distance, weights,
                     combine_nature, bearing, DEFAULT_TAU, length_range,
@@ -1323,6 +1521,7 @@ class GeometricLoopSolver(LoopSolverBase):
                     heavily_avoid_unlit=heavily_avoid_unlit,
                     activity=activity,
                     lighting_context=lighting_context,
+                    loop_demo_context=loop_demo_context,
                 )
                 if oab is not None:
                     route_oab, dist_oab, cost_oab = oab
@@ -1347,9 +1546,22 @@ class GeometricLoopSolver(LoopSolverBase):
                             route_oab, dist_oab, cost_oab,
                             {'bearing': bearing, 'type': 'out-and-back'}
                         ))
+                        _demo_event(
+                            loop_demo_context,
+                            'fallback_accepted',
+                            bearing=round(float(bearing), 3),
+                            actual_distance_m=round(float(dist_oab), 2),
+                            scenic_cost=round(float(cost_oab), 4),
+                        )
                         print(f"[GeometricSolver]   [SUCCESS] Out-and-back ACCEPTED: "
                               f"{dist_oab:.0f}m ({deviation_oab_pct:+.1f}%)")
                     else:
+                        _demo_event(
+                            loop_demo_context,
+                            'fallback_rejected',
+                            bearing=round(float(bearing), 3),
+                            deviation_percent=round(float(deviation_oab_pct), 3),
+                        )
                         print(f"[GeometricSolver]   [FAILED] Out-and-back outside tolerance")
 
         # -- Convert to LoopCandidates ------------------------------------
@@ -1361,6 +1573,14 @@ class GeometricLoopSolver(LoopSolverBase):
         
         if not all_candidates:
             print(f"[GeometricSolver] [FAILED] No viable loops found")
+            _demo_event(
+                loop_demo_context,
+                'solver_completed',
+                elapsed_seconds=round(float(elapsed), 3),
+                raw_candidates=0,
+                returned_candidates=0,
+                labels=[],
+            )
             return []
 
         max_cost = max(c for _, _, c, _ in all_candidates) if all_candidates else 1.0
@@ -1405,5 +1625,14 @@ class GeometricLoopSolver(LoopSolverBase):
                   f"{len(candidate.route)} nodes")
         print(f"[GeometricSolver] Total time: {elapsed:.1f}s")
         print(f"[GeometricSolver] ======================================================\n")
+
+        _demo_event(
+            loop_demo_context,
+            'solver_completed',
+            elapsed_seconds=round(float(elapsed), 3),
+            raw_candidates=int(len(all_candidates)),
+            returned_candidates=int(len(result)),
+            labels=[candidate.label for candidate in result],
+        )
 
         return result
