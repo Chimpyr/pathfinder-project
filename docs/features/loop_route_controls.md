@@ -255,14 +255,14 @@ Most toggles can be mixed freely, with two built-in conflict rules:
 
 Some useful combinations:
 
-| Profile               | Controls                                                        |
-| --------------------- | --------------------------------------------------------------- |
+| Profile               | Controls                                                             |
+| --------------------- | -------------------------------------------------------------------- |
 | **Safety first**      | Prefer dedicated pavements + Avoid unsafe roads + Prefer lit streets |
-| **Night walk**        | Prefer lit streets + Avoid unsafe roads                         |
-| **Night walk strict** | Heavily avoid unlit streets + Avoid unsafe roads                |
-| **Accessible**        | Prefer paved surfaces + Avoid unsafe roads                      |
-| **Adventurous**       | Route variety 3, all toggles off                                |
-| **Trail runner**      | Prefer nature trails, all others off                            |
+| **Night walk**        | Prefer lit streets + Avoid unsafe roads                              |
+| **Night walk strict** | Heavily avoid unlit streets + Avoid unsafe roads                     |
+| **Accessible**        | Prefer paved surfaces + Avoid unsafe roads                           |
+| **Adventurous**       | Route variety 3, all toggles off                                     |
+| **Trail runner**      | Prefer nature trails, all others off                                 |
 
 > **Note:** Conflict rules are enforced in both UI and backend payload handling,
 > so direct API clients receive the same deterministic behaviour.
