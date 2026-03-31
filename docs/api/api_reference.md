@@ -95,7 +95,9 @@ Calculate a scenic route between two points.
 | `combine_nature`             | bool   | `false`         | Combine water + greenness in nature mode                                                   |
 | `scenic_preferences_enabled` | bool   | `false`         | Frontend hint indicating scenic sliders are active                                         |
 | `advanced_compare_mode`      | bool   | `false`         | Frontend hint for baseline-vs-advanced compare flow                                        |
-| `prefer_pedestrian`          | bool   | `false`         | Prefer paths/trails over vehicle-focused roads                                             |
+| `prefer_dedicated_pavements` | bool   | `false`         | Prefer designated hard-surface active-travel corridors                                     |
+| `prefer_nature_trails`       | bool   | `false`         | Prefer trail-like highways and natural surfaces                                             |
+| `prefer_pedestrian`          | bool   | `false`         | Legacy alias accepted for backward compatibility (mapped to dedicated pavements)           |
 | `prefer_paved`               | bool   | `false`         | Prefer paved surfaces                                                                      |
 | `prefer_lit`                 | bool   | `false`         | Prefer lit streets                                                                         |
 | `heavily_avoid_unlit`        | bool   | `false`         | Strongly avoid unlit/unknown-lit streets                                                   |

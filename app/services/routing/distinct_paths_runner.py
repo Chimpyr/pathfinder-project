@@ -151,6 +151,8 @@ def find_distinct_paths(
     prefer_lit: bool = False,
     heavily_avoid_unlit: bool = False,
     prefer_pedestrian: bool = False,
+    prefer_dedicated_pavements: bool = False,
+    prefer_nature_trails: bool = False,
     prefer_paved: bool = False,
     avoid_unsafe_roads: bool = False,
     travel_profile: str = 'walking',
@@ -194,6 +196,8 @@ def find_distinct_paths(
         lit,
         avoid_unlit,
         pedestrian,
+        dedicated_pavements,
+        nature_trails,
         paved,
         avoid_unsafe,
     ):
@@ -205,6 +209,8 @@ def find_distinct_paths(
             'prefer_lit': lit,
             'heavily_avoid_unlit': avoid_unlit,
             'prefer_pedestrian': pedestrian,
+            'prefer_dedicated_pavements': dedicated_pavements,
+            'prefer_nature_trails': nature_trails,
             'prefer_paved': paved,
             'avoid_unsafe_roads': avoid_unsafe,
         }
@@ -244,6 +250,8 @@ def find_distinct_paths(
             kwargs.pop('speed_kmh', None)
             kwargs.pop('activity', None)
             kwargs.pop('prefer_pedestrian', None)
+            kwargs.pop('prefer_dedicated_pavements', None)
+            kwargs.pop('prefer_nature_trails', None)
             kwargs.pop('prefer_paved', None)
             kwargs.pop('avoid_unsafe_roads', None)
             return route_finder.find_route(start_point, end_point, **kwargs)
@@ -262,6 +270,8 @@ def find_distinct_paths(
         lit=False,              # Baseline must be pure shortest path
         avoid_unlit=False,      # No lit modifiers on Direct route
         pedestrian=False,       # No pedestrian modifiers on Direct route
+        dedicated_pavements=False,
+        nature_trails=False,
         paved=False,            # No surface modifiers on Direct route
         avoid_unsafe=False,     # No unsafe-road modifiers on Direct route
     )
@@ -286,6 +296,8 @@ def find_distinct_paths(
         lit=prefer_lit,
         avoid_unlit=heavily_avoid_unlit,
         pedestrian=prefer_pedestrian,
+        dedicated_pavements=prefer_dedicated_pavements,
+        nature_trails=prefer_nature_trails,
         paved=prefer_paved,
         avoid_unsafe=avoid_unsafe_roads,
     )
@@ -309,6 +321,8 @@ def find_distinct_paths(
         lit=prefer_lit,
         avoid_unlit=heavily_avoid_unlit,
         pedestrian=prefer_pedestrian,
+        dedicated_pavements=prefer_dedicated_pavements,
+        nature_trails=prefer_nature_trails,
         paved=prefer_paved,
         avoid_unsafe=avoid_unsafe_roads,
     )

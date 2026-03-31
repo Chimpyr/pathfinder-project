@@ -86,6 +86,20 @@ _SAFE_SIDEWALK_VALUES = frozenset({'both', 'left', 'right', 'yes', 'separate'})
 _SAFE_FOOT_VALUES = frozenset({'yes', 'designated'})
 _UNSAFE_ROAD_PENALTY: float = 3.5
 
+# Highway/surface groupings used by newer intent-led routing toggles.
+_VEHICLE_FOCUSED_HIGHWAY_TAGS = frozenset({
+    'motorway', 'motorway_link', 'trunk', 'trunk_link',
+    'primary', 'primary_link', 'secondary', 'secondary_link',
+    'tertiary', 'tertiary_link',
+})
+_NATURE_TRAIL_HIGHWAY_TAGS = frozenset({
+    'path', 'track', 'bridleway', 'footway', 'steps',
+})
+_NATURE_TRAIL_SURFACE_TAGS = frozenset({
+    'dirt', 'earth', 'ground', 'mud', 'sand', 'grass',
+    'grass_paver', 'woodchips', 'gravel', 'fine_gravel', 'compacted',
+})
+
 
 def _primary_tag_value(value):
     """Normalise scalar/list edge tags to a lowercased comparable string."""
@@ -230,6 +244,59 @@ def _compute_unsafe_road_multiplier(edge_data: dict) -> float:
     return _UNSAFE_ROAD_PENALTY
 
 
+def _compute_dedicated_pavements_multiplier(edge_data: dict) -> float:
+    """Bias towards designated hard-surface active-travel corridors."""
+    highway = _primary_tag_value(edge_data.get('highway'))
+    surface = _primary_tag_value(edge_data.get('surface'))
+
+    multiplier = 1.0
+
+    if highway in _VEHICLE_FOCUSED_HIGHWAY_TAGS:
+        multiplier *= 2.8
+    elif highway in _DEDICATED_PATH_HIGHWAY_TAGS or highway == 'living_street':
+        multiplier *= 0.78
+
+    if surface in _ACTIVE_TRAVEL_HARD_SURFACE_TAGS:
+        multiplier *= 0.90
+    elif surface in _NATURE_TRAIL_SURFACE_TAGS:
+        multiplier *= 1.35
+
+    tier = classify_active_travel_quality_tier(edge_data)
+    if tier == 'tier_a':
+        multiplier *= 0.85
+    elif tier == 'tier_b':
+        multiplier *= 0.92
+
+    return multiplier
+
+
+def _compute_nature_trails_multiplier(edge_data: dict) -> float:
+    """Bias towards trail-like highways/surfaces and away from vehicle corridors."""
+    highway = _primary_tag_value(edge_data.get('highway'))
+    surface = _primary_tag_value(edge_data.get('surface'))
+
+    multiplier = 1.0
+
+    if highway in _VEHICLE_FOCUSED_HIGHWAY_TAGS:
+        multiplier *= 4.0
+    elif highway in {'residential', 'unclassified', 'service', 'living_street'}:
+        multiplier *= 1.35
+    elif highway in _NATURE_TRAIL_HIGHWAY_TAGS:
+        multiplier *= 0.72
+
+    if surface in _NATURE_TRAIL_SURFACE_TAGS:
+        multiplier *= 0.78
+    elif surface in _ACTIVE_TRAVEL_HARD_SURFACE_TAGS:
+        multiplier *= 1.35
+
+    # Generic path tag without detailed surface mapping should still get
+    # a moderate trail preference.
+    if highway in _NATURE_TRAIL_HIGHWAY_TAGS and surface is None:
+        multiplier *= 0.90
+
+    return multiplier
+
+
 def classify_active_travel_quality_tier(edge_data: dict) -> str:
     """Classify quality tier for dedicated paved active-travel corridors."""
     if not _is_dedicated_path(edge_data):
@@ -259,11 +326,17 @@ def classify_active_travel_quality_tier(edge_data: dict) -> str:
 def _compute_active_travel_quality_multiplier(
     edge_data: dict,
     prefer_pedestrian: bool,
+    prefer_dedicated_pavements: bool,
     prefer_paved: bool,
     avoid_unsafe_roads: bool,
 ) -> float:
     """Bonus multiplier for high-quality designated active-travel corridors."""
-    if not (prefer_pedestrian or prefer_paved or avoid_unsafe_roads):
+    if not (
+        prefer_pedestrian
+        or prefer_dedicated_pavements
+        or prefer_paved
+        or avoid_unsafe_roads
+    ):
         return 1.0
 
     tier = classify_active_travel_quality_tier(edge_data)
@@ -274,6 +347,7 @@ def describe_edge_modifier_context(
     edge_data: dict,
     lighting_context: str = 'night',
     prefer_pedestrian: bool = False,
+    prefer_dedicated_pavements: bool = False,
     prefer_paved: bool = False,
     avoid_unsafe_roads: bool = False,
 ) -> Dict[str, object]:
@@ -291,6 +365,7 @@ def describe_edge_modifier_context(
         'active_travel_quality_multiplier': _compute_active_travel_quality_multiplier(
             edge_data,
             prefer_pedestrian=prefer_pedestrian,
+            prefer_dedicated_pavements=prefer_dedicated_pavements,
             prefer_paved=prefer_paved,
             avoid_unsafe_roads=avoid_unsafe_roads,
         ),
@@ -311,6 +386,8 @@ class WSMNetworkXAStar(AStar):
         max_length: Maximum edge length in graph (for normalisation).
         prefer_lit: Apply mild lit-preference penalties.
         heavily_avoid_unlit: Apply strong unlit-avoidance penalties.
+        prefer_dedicated_pavements: Favour designated hard-surface active routes.
+        prefer_nature_trails: Favour trail-like highways and softer surfaces.
         prefer_paved: Prefer paved surfaces by penalising soft/unpaved tags.
         avoid_unsafe_roads: Penalise major roads lacking foot safety indicators.
         lighting_context: Request-scoped context (`daylight|twilight|night`).
@@ -324,6 +401,8 @@ class WSMNetworkXAStar(AStar):
         combine_nature: bool = False,
         prefer_lit: bool = False,
         heavily_avoid_unlit: bool = False,
+        prefer_dedicated_pavements: bool = False,
+        prefer_nature_trails: bool = False,
         prefer_pedestrian: bool = False,
         prefer_paved: bool = False,
         avoid_unsafe_roads: bool = False,
@@ -340,18 +419,30 @@ class WSMNetworkXAStar(AStar):
             combine_nature: If True, combine greenness and water into a single "nature" score.
             prefer_lit: If True, apply mild multiplicative lit-preference penalty.
             heavily_avoid_unlit: If True, apply strong multiplicative unlit-avoidance penalty (overrides prefer_lit).
+            prefer_dedicated_pavements: If True, favour designated hard-surface active-travel corridors.
+            prefer_nature_trails: If True, favour trail-like highways and natural surfaces.
             lighting_context: Lighting relevance context (`daylight`, `twilight`, `night`).
         """
         self.graph = graph
         self.combine_nature = combine_nature
         self.prefer_lit = prefer_lit
         self.heavily_avoid_unlit = heavily_avoid_unlit
+        self.prefer_dedicated_pavements = prefer_dedicated_pavements
+        self.prefer_nature_trails = prefer_nature_trails
         self.prefer_pedestrian = prefer_pedestrian
         self.prefer_paved = prefer_paved
         self.avoid_unsafe_roads = avoid_unsafe_roads
         self.lighting_context = _normalise_lighting_context(lighting_context)
         activity_norm = str(activity or 'walking').strip().lower()
         self.activity = 'running' if activity_norm.startswith('running') else 'walking'
+
+        # Keep solver behavior deterministic and safe even when UI constraints
+        # are bypassed by direct API callers.
+        if self.heavily_avoid_unlit:
+            self.prefer_lit = False
+        if self.prefer_nature_trails:
+            self.prefer_dedicated_pavements = False
+            self.prefer_paved = False
         
         # Validate and set weights
         if weights is None:
@@ -371,6 +462,8 @@ class WSMNetworkXAStar(AStar):
         print(
             f"[WSM A*] Using cost function: {cost_func.value}, "
             f"lit_mode: {lit_mode}, "
+            f"dedicated_mode: {'on' if self.prefer_dedicated_pavements else 'off'}, "
+            f"trail_mode: {'on' if self.prefer_nature_trails else 'off'}, "
             f"pedestrian_mode: {'on' if self.prefer_pedestrian else 'off'}, "
             f"paved_mode: {'on' if self.prefer_paved else 'off'}, "
             f"unsafe_mode: {'on' if self.avoid_unsafe_roads else 'off'}, "
@@ -515,6 +608,14 @@ class WSMNetworkXAStar(AStar):
                 elif highway in ['pedestrian', 'path', 'footway', 'cycleway', 'track', 'living_street']:
                     cost *= 0.2
 
+            # Prefer dedicated paved active-travel corridors (road running).
+            if self.prefer_dedicated_pavements:
+                cost *= _compute_dedicated_pavements_multiplier(data)
+
+            # Prefer trail-like paths and natural surfaces (trail running).
+            if self.prefer_nature_trails:
+                cost *= _compute_nature_trails_multiplier(data)
+
             # Apply paved-surface preference multiplier (if enabled)
             if self.prefer_paved:
                 cost *= _compute_surface_multiplier(data)
@@ -528,6 +629,7 @@ class WSMNetworkXAStar(AStar):
             cost *= _compute_active_travel_quality_multiplier(
                 data,
                 prefer_pedestrian=self.prefer_pedestrian,
+                prefer_dedicated_pavements=self.prefer_dedicated_pavements,
                 prefer_paved=self.prefer_paved,
                 avoid_unsafe_roads=self.avoid_unsafe_roads,
             )

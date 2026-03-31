@@ -487,6 +487,8 @@ class LoopSolverBase(ABC):
         max_search_time: float = 120,
         variety_level: int = 0,
         prefer_pedestrian: bool = False,
+        prefer_dedicated_pavements: bool = False,
+        prefer_nature_trails: bool = False,
         prefer_paved: bool = False,
         prefer_lit: bool = False,
         avoid_unsafe_roads: bool = False,
@@ -507,6 +509,8 @@ class LoopSolverBase(ABC):
             max_search_time: Maximum search time in seconds.
             variety_level: Route variety 0-3 (0 = deterministic, 3 = most varied).
             prefer_pedestrian: If True, strongly favour footpaths/cycleways.
+            prefer_dedicated_pavements: If True, favour dedicated hard-surface active corridors.
+            prefer_nature_trails: If True, favour trail-like roads/surfaces.
             prefer_paved: If True, penalise unpaved/soft surfaces.
             prefer_lit: If True, penalise unlit streets and bonus lit ones.
             avoid_unsafe_roads: If True, heavily penalise main roads without sidewalks.

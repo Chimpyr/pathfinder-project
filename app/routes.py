@@ -93,12 +93,56 @@ def _build_movement_payload(movement_ctx):
     }
 
 
+def _resolve_advanced_options(request_data):
+    """Parse and canonicalize advanced routing option toggles."""
+    data = request_data or {}
+
+    prefer_lit = bool(data.get('prefer_lit', False))
+    heavily_avoid_unlit = bool(data.get('heavily_avoid_unlit', False))
+    prefer_paved = bool(data.get('prefer_paved', False))
+    avoid_unsafe_roads = bool(data.get('avoid_unsafe_roads', data.get('avoid_unsafe', False)))
+    prefer_dedicated_pavements = bool(data.get('prefer_dedicated_pavements', False))
+    prefer_nature_trails = bool(data.get('prefer_nature_trails', False))
+    legacy_prefer_pedestrian = bool(data.get('prefer_pedestrian', False))
+    legacy_only_prefer_pedestrian = legacy_prefer_pedestrian and not (
+        prefer_dedicated_pavements or prefer_nature_trails
+    )
+
+    # Backward compatibility: map legacy paths/trails toggle to the dedicated
+    # pavement intent when no newer intent toggle was provided.
+    if legacy_only_prefer_pedestrian:
+        prefer_dedicated_pavements = True
+
+    # Existing behavior: heavy mode supersedes the mild lit preference.
+    if heavily_avoid_unlit:
+        prefer_lit = False
+
+    # Trail mode conflicts with paved-focused intents.
+    if prefer_nature_trails:
+        prefer_dedicated_pavements = False
+        prefer_paved = False
+
+    return {
+        'prefer_lit': prefer_lit,
+        'heavily_avoid_unlit': heavily_avoid_unlit,
+        # Deprecated runtime flag: kept false to avoid stacking the old
+        # pedestrian multiplier with the newer dedicated/trail intents.
+        'prefer_pedestrian': False,
+        'prefer_dedicated_pavements': prefer_dedicated_pavements,
+        'prefer_nature_trails': prefer_nature_trails,
+        'prefer_paved': prefer_paved,
+        'avoid_unsafe_roads': avoid_unsafe_roads,
+        'legacy_prefer_pedestrian': legacy_only_prefer_pedestrian,
+    }
+
+
 def _extract_edge_features(
     graph,
     route,
     max_edges=None,
     lighting_context='night',
     prefer_pedestrian=False,
+    prefer_dedicated_pavements=False,
     prefer_paved=False,
     avoid_unsafe_roads=False,
 ):
@@ -194,6 +238,7 @@ def _extract_edge_features(
                         data,
                         lighting_context=lighting_context,
                         prefer_pedestrian=prefer_pedestrian,
+                        prefer_dedicated_pavements=prefer_dedicated_pavements,
                         prefer_paved=prefer_paved,
                         avoid_unsafe_roads=avoid_unsafe_roads,
                     )
@@ -285,7 +330,9 @@ def calculate_loop_route():
             "weights": {...},
             "combine_nature": bool,
             "variety_level": int (0-3, default 0),
-            "prefer_pedestrian": bool (default false),
+            "prefer_dedicated_pavements": bool (default false),
+            "prefer_nature_trails": bool (default false),
+            "prefer_pedestrian": bool (legacy alias),
             "prefer_paved": bool (default false),
             "prefer_lit": bool (default false),
             "avoid_unsafe_roads": bool (default false)
@@ -343,14 +390,15 @@ def calculate_loop_route():
         variety_level = int(data.get('variety_level', 0))
         variety_level = max(0, min(3, variety_level))  # Clamp to [0, 3]
         
-        # Pedestrian preference toggle
-        prefer_pedestrian = bool(data.get('prefer_pedestrian', False))
-        
-        # Surface, lighting, and safety toggles (ADR-010 §3–§5)
-        prefer_paved = bool(data.get('prefer_paved', False))
-        prefer_lit = bool(data.get('prefer_lit', False))
-        heavily_avoid_unlit = bool(data.get('heavily_avoid_unlit', False))
-        avoid_unsafe_roads = bool(data.get('avoid_unsafe_roads', False))
+        # Parse and canonicalize advanced routing options.
+        advanced_options = _resolve_advanced_options(data)
+        prefer_pedestrian = advanced_options['prefer_pedestrian']
+        prefer_dedicated_pavements = advanced_options['prefer_dedicated_pavements']
+        prefer_nature_trails = advanced_options['prefer_nature_trails']
+        prefer_paved = advanced_options['prefer_paved']
+        prefer_lit = advanced_options['prefer_lit']
+        heavily_avoid_unlit = advanced_options['heavily_avoid_unlit']
+        avoid_unsafe_roads = advanced_options['avoid_unsafe_roads']
         
         # Smart Bearing Toggle
         use_smart_bearing = bool(data.get('use_smart_bearing', True))
@@ -517,6 +565,8 @@ def calculate_loop_route():
             directional_bias=directional_bias,
             variety_level=variety_level,
             prefer_pedestrian=prefer_pedestrian,
+            prefer_dedicated_pavements=prefer_dedicated_pavements,
+            prefer_nature_trails=prefer_nature_trails,
             prefer_paved=prefer_paved,
             prefer_lit=prefer_lit,
             avoid_unsafe_roads=avoid_unsafe_roads,
@@ -677,6 +727,7 @@ def calculate_loop_route():
                     best.route,
                     lighting_context=lighting_ctx['lighting_context'],
                     prefer_pedestrian=prefer_pedestrian,
+                    prefer_dedicated_pavements=prefer_dedicated_pavements,
                     prefer_paved=prefer_paved,
                     avoid_unsafe_roads=avoid_unsafe_roads,
                 )
@@ -980,16 +1031,28 @@ def calculate_route():
         combine_nature = bool(data.get('combine_nature', False))
         scenic_preferences_enabled = bool(data.get('scenic_preferences_enabled', False))
 
-        prefer_lit = bool(data.get('prefer_lit', False))
-        heavily_avoid_unlit = bool(data.get('heavily_avoid_unlit', False))
-        prefer_pedestrian = bool(data.get('prefer_pedestrian', False))
-        prefer_paved = bool(data.get('prefer_paved', False))
-        avoid_unsafe_roads = bool(data.get('avoid_unsafe_roads', False))
+        advanced_options = _resolve_advanced_options(data)
+        prefer_lit = advanced_options['prefer_lit']
+        heavily_avoid_unlit = advanced_options['heavily_avoid_unlit']
+        prefer_pedestrian = advanced_options['prefer_pedestrian']
+        prefer_dedicated_pavements = advanced_options['prefer_dedicated_pavements']
+        prefer_nature_trails = advanced_options['prefer_nature_trails']
+        prefer_paved = advanced_options['prefer_paved']
+        avoid_unsafe_roads = advanced_options['avoid_unsafe_roads']
         advanced_compare_mode = bool(data.get('advanced_compare_mode', False))
 
         enabled_advanced_modifiers = []
-        if prefer_pedestrian:
-            enabled_advanced_modifiers.append('Prefer paths and trails')
+        if prefer_dedicated_pavements:
+            enabled_advanced_modifiers.append('Prefer dedicated pavements')
+        if prefer_nature_trails:
+            enabled_advanced_modifiers.append('Prefer nature trails')
+        if (
+            prefer_pedestrian
+            and not prefer_dedicated_pavements
+            and not prefer_nature_trails
+            and advanced_options['legacy_prefer_pedestrian']
+        ):
+            enabled_advanced_modifiers.append('Prefer paths and trails (legacy)')
         if prefer_paved:
             enabled_advanced_modifiers.append('Prefer paved surfaces')
         if prefer_lit:
@@ -1066,6 +1129,8 @@ def calculate_route():
                 prefer_lit=False,
                 heavily_avoid_unlit=False,
                 prefer_pedestrian=False,
+                prefer_dedicated_pavements=False,
+                prefer_nature_trails=False,
                 prefer_paved=False,
                 avoid_unsafe_roads=False,
                 travel_profile=movement_ctx['travel_profile'],
@@ -1082,6 +1147,8 @@ def calculate_route():
                 prefer_lit=prefer_lit,
                 heavily_avoid_unlit=heavily_avoid_unlit,
                 prefer_pedestrian=prefer_pedestrian,
+                prefer_dedicated_pavements=prefer_dedicated_pavements,
+                prefer_nature_trails=prefer_nature_trails,
                 prefer_paved=prefer_paved,
                 avoid_unsafe_roads=avoid_unsafe_roads,
                 travel_profile=movement_ctx['travel_profile'],
@@ -1149,6 +1216,7 @@ def calculate_route():
                         balanced_route,
                         lighting_context=lighting_ctx['lighting_context'],
                         prefer_pedestrian=prefer_pedestrian,
+                        prefer_dedicated_pavements=prefer_dedicated_pavements,
                         prefer_paved=prefer_paved,
                         avoid_unsafe_roads=avoid_unsafe_roads,
                     )
@@ -1167,6 +1235,8 @@ def calculate_route():
                 prefer_lit=prefer_lit,
                 heavily_avoid_unlit=heavily_avoid_unlit,
                 prefer_pedestrian=prefer_pedestrian,
+                prefer_dedicated_pavements=prefer_dedicated_pavements,
+                prefer_nature_trails=prefer_nature_trails,
                 prefer_paved=prefer_paved,
                 avoid_unsafe_roads=avoid_unsafe_roads,
                 travel_profile=movement_ctx['travel_profile'],
@@ -1241,6 +1311,7 @@ def calculate_route():
                         balanced_route,
                         lighting_context=lighting_ctx['lighting_context'],
                         prefer_pedestrian=prefer_pedestrian,
+                        prefer_dedicated_pavements=prefer_dedicated_pavements,
                         prefer_paved=prefer_paved,
                         avoid_unsafe_roads=avoid_unsafe_roads,
                     )
@@ -1258,6 +1329,8 @@ def calculate_route():
             prefer_lit=prefer_lit,
             heavily_avoid_unlit=heavily_avoid_unlit,
             prefer_pedestrian=prefer_pedestrian,
+            prefer_dedicated_pavements=prefer_dedicated_pavements,
+            prefer_nature_trails=prefer_nature_trails,
             prefer_paved=prefer_paved,
             avoid_unsafe_roads=avoid_unsafe_roads,
             travel_profile=movement_ctx['travel_profile'],
@@ -1321,6 +1394,7 @@ def calculate_route():
                 max_edges=5,
                 lighting_context=lighting_ctx['lighting_context'],
                 prefer_pedestrian=prefer_pedestrian,
+                prefer_dedicated_pavements=prefer_dedicated_pavements,
                 prefer_paved=prefer_paved,
                 avoid_unsafe_roads=avoid_unsafe_roads,
             )
@@ -1333,6 +1407,7 @@ def calculate_route():
                     route,
                     lighting_context=lighting_ctx['lighting_context'],
                     prefer_pedestrian=prefer_pedestrian,
+                    prefer_dedicated_pavements=prefer_dedicated_pavements,
                     prefer_paved=prefer_paved,
                     avoid_unsafe_roads=avoid_unsafe_roads,
                 )

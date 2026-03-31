@@ -103,7 +103,8 @@ The baseline route intentionally disables all advanced modifiers, including:
 
 - `prefer_lit`
 - `heavily_avoid_unlit`
-- `prefer_pedestrian`
+- `prefer_dedicated_pavements`
+- `prefer_nature_trails`
 - `prefer_paved`
 - `avoid_unsafe_roads`
 

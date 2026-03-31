@@ -31,28 +31,45 @@ and want to ensure the loop heads that way rather than east.
 
 ---
 
-## Prefer Paths & Trails
+## Prefer Dedicated Pavements
 
-**UI label:** _Prefer paths & trails_ (toggle)
+**UI label:** _Prefer dedicated pavements_ (toggle)
 
-When enabled, the solver **strongly favours dedicated walking
-infrastructure** — footpaths, tracks, bridleways, and pedestrian zones —
-over roads shared with motor traffic.
+When enabled, the solver favours **designated active-travel corridors with
+hard surfaces** (for example, paved cycleways, footways, and shared paths)
+and discourages vehicle-focused roads.
 
-Roads are penalised based on their OpenStreetMap `highway` tag:
+High-level behaviour:
 
-| Road type                                                    | Penalty            |
-| ------------------------------------------------------------ | ------------------ |
-| Footway, path, pedestrian, cycleway, track, bridleway, steps | × 1.0 (no penalty) |
-| Residential, living street, service road                     | × 1.2              |
-| Unclassified, tertiary                                       | × 1.5              |
-| Secondary                                                    | × 2.0              |
-| Primary                                                      | × 2.5              |
-| Trunk, motorway                                              | × 3.0              |
+- Vehicle-focused roads (trunk/primary/secondary/tertiary families) are heavily penalised.
+- Dedicated path-like highways (`cycleway`, `path`, `footway`, `pedestrian`, `track`, `bridleway`, `steps`) are rewarded.
+- Hard surfaces are rewarded; softer natural surfaces are penalised.
+- Designated mixed-use corridors receive additional quality bonuses.
 
-**When to use:** You are walking in a suburban or rural area and want the
-route to stick to off-road paths and quiet lanes rather than following main
-roads, even if the main roads have higher scenic scores.
+**When to use:** You want road-running style routes on predictable, paved,
+people-focused infrastructure.
+
+---
+
+## Prefer Nature Trails
+
+**UI label:** _Prefer nature trails_ (toggle)
+
+When enabled, the solver favours **trail-like paths and natural surfaces**
+and strongly avoids vehicle-heavy corridors.
+
+High-level behaviour:
+
+- Trail-like highways are rewarded.
+- Natural surfaces (`dirt`, `earth`, `ground`, `mud`, `sand`, `grass`, `woodchips`, `gravel`, `compacted`) are rewarded.
+- Vehicle-focused roads are strongly penalised.
+- Hard paved surfaces are mildly penalised.
+
+**When to use:** You are trail running or walking for terrain and greenery,
+and you are happy to trade directness for softer surfaces and off-road paths.
+
+> **Conflict handling:** Enabling _Prefer nature trails_ automatically
+> disables _Prefer dedicated pavements_ and _Prefer paved surfaces_.
 
 ---
 
@@ -106,7 +123,7 @@ well-lit residential streets can compete with scenic but dark park paths.
 **When to use:**
 
 - **Evening / night walks** when personal safety is a priority.
-- **Combined with "Prefer paths & trails"** for a safety-first profile:
+- **Combined with "Prefer dedicated pavements"** for a safety-first profile:
   footpaths are preferred, but only when they are lit.
 
 > Lighting data (`lit` tag) is well covered in urban centres but sparse in
@@ -191,9 +208,9 @@ for pedestrians.
 - **Walking with children** along roads that may have fast traffic.
 - **Unfamiliar areas** where you want to avoid being forced onto a dual
   carriageway with no pavement.
-- **Combined with "Prefer paths & trails"** for maximum safety: the
-  pedestrian toggle favours footpaths proportionally, while this toggle
-  blocks the worst main roads entirely.
+- **Combined with "Prefer dedicated pavements"** for maximum safety:
+  dedicated active-travel corridors are preferred while this toggle blocks
+  the worst main roads entirely.
 
 > Sidewalk tagging in OpenStreetMap is inconsistent — some roads that have a
 > wide pavement in reality may be penalised because no one has mapped the
@@ -231,19 +248,24 @@ Running the same query multiple times with variety > 0 will produce
 
 ## Combining Controls
 
-The toggles are independent and can be mixed freely. Some useful
-combinations:
+Most toggles can be mixed freely, with two built-in conflict rules:
+
+- _Prefer lit streets_ and _Heavily avoid unlit streets_ are mutually exclusive.
+- _Prefer nature trails_ disables _Prefer dedicated pavements_ and _Prefer paved surfaces_.
+
+Some useful combinations:
 
 | Profile               | Controls                                                        |
 | --------------------- | --------------------------------------------------------------- |
-| **Safety first**      | Prefer paths & trails + Avoid unsafe roads + Prefer lit streets |
+| **Safety first**      | Prefer dedicated pavements + Avoid unsafe roads + Prefer lit streets |
 | **Night walk**        | Prefer lit streets + Avoid unsafe roads                         |
 | **Night walk strict** | Heavily avoid unlit streets + Avoid unsafe roads                |
 | **Accessible**        | Prefer paved surfaces + Avoid unsafe roads                      |
 | **Adventurous**       | Route variety 3, all toggles off                                |
-| **Trail runner**      | Prefer paths & trails, all others off                           |
+| **Trail runner**      | Prefer nature trails, all others off                            |
 
-> **Note:** _Prefer lit streets_ and _Heavily avoid unlit streets_ are **mutually exclusive** — enabling one automatically disables the other in the UI.
+> **Note:** Conflict rules are enforced in both UI and backend payload handling,
+> so direct API clients receive the same deterministic behaviour.
 
 Each toggle multiplies the edge cost independently. When multiple toggles
 are enabled, their penalties **stack multiplicatively** — a dark, unsurfaced

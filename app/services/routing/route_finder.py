@@ -34,6 +34,8 @@ class RouteFinder:
         directional_bias="none",
         variety_level=0,
         prefer_pedestrian=False,
+        prefer_dedicated_pavements=False,
+        prefer_nature_trails=False,
         prefer_paved=False,
         prefer_lit=False,
         avoid_unsafe_roads=False,
@@ -63,6 +65,8 @@ class RouteFinder:
             directional_bias (str): Direction preference ("north"/"east"/"south"/"west"/"none").
             variety_level (int): Route variety 0-3 (0 = deterministic).
             prefer_pedestrian (bool): If True, strongly favour footpaths/cycleways.
+            prefer_dedicated_pavements (bool): If True, favour dedicated hard-surface active corridors.
+            prefer_nature_trails (bool): If True, favour trail-like roads/surfaces.
             prefer_paved (bool): If True, penalise unpaved/soft surfaces.
             prefer_lit (bool): If True, penalise unlit streets, bonus lit ones.
             avoid_unsafe_roads (bool): If True, heavily penalise main roads without sidewalks.
@@ -138,6 +142,8 @@ class RouteFinder:
                 'max_search_time': max_search_time,
                 'variety_level': variety_level,
                 'prefer_pedestrian': prefer_pedestrian,
+                'prefer_dedicated_pavements': prefer_dedicated_pavements,
+                'prefer_nature_trails': prefer_nature_trails,
                 'prefer_paved': prefer_paved,
                 'prefer_lit': prefer_lit,
                 'avoid_unsafe_roads': avoid_unsafe_roads,
@@ -190,6 +196,8 @@ class RouteFinder:
         prefer_lit=False,
         heavily_avoid_unlit=False,
         prefer_pedestrian=False,
+        prefer_dedicated_pavements=False,
+        prefer_nature_trails=False,
         prefer_paved=False,
         avoid_unsafe_roads=False,
         travel_profile='walking',
@@ -213,6 +221,8 @@ class RouteFinder:
             prefer_lit (bool): If True, apply mild multiplicative lit-preference penalty.
             heavily_avoid_unlit (bool): If True, apply strong multiplicative unlit-avoidance penalty.
             prefer_pedestrian (bool): If True, apply penalty to primary/secondary roads and bonus to paths.
+            prefer_dedicated_pavements (bool): If True, favour designated hard-surface active routes.
+            prefer_nature_trails (bool): If True, favour trail-like roads/surfaces.
             prefer_paved (bool): If True, penalise unpaved/soft surfaces.
             avoid_unsafe_roads (bool): If True, heavily penalise unsafe major roads.
             lighting_context (str): Request lighting relevance (`daylight|twilight|night`).
@@ -254,6 +264,8 @@ class RouteFinder:
                     self.graph, weights, combine_nature=combine_nature,
                     prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
                     prefer_pedestrian=prefer_pedestrian,
+                    prefer_dedicated_pavements=prefer_dedicated_pavements,
+                    prefer_nature_trails=prefer_nature_trails,
                     prefer_paved=prefer_paved,
                     avoid_unsafe_roads=avoid_unsafe_roads,
                     activity=resolved_activity,

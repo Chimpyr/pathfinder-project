@@ -283,64 +283,83 @@
                                         </button>
                                     </div>
 
-                                    <!-- Prefer Pedestrian Paths Toggle -->
-                                    <div class="flex items-center justify-between">
-                                        <label for="prefer-pedestrian-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                            <i class="fas fa-walking text-green-500 mr-2 w-5 text-center"></i>
-                                            Prefer paths &amp; trails
-                                        </label>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="prefer-pedestrian-toggle" class="sr-only peer">
-                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-green-500"></div>
-                                        </label>
+                                    <div class="rounded-lg border border-gray-200 dark:border-gray-600 p-3 space-y-3">
+                                        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Path &amp; Surface Preferences</h4>
+
+                                        <div class="flex items-center justify-between">
+                                            <label for="prefer-dedicated-pavements-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                                <i class="fas fa-shoe-prints text-green-500 mr-2 w-5 text-center"></i>
+                                                Prefer dedicated pavements
+                                            </label>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="prefer-dedicated-pavements-toggle" class="sr-only peer">
+                                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-green-500"></div>
+                                            </label>
+                                        </div>
+
+                                        <div class="flex items-center justify-between">
+                                            <label for="prefer-nature-trails-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                                <i class="fas fa-tree text-emerald-500 mr-2 w-5 text-center"></i>
+                                                Prefer nature trails
+                                            </label>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="prefer-nature-trails-toggle" class="sr-only peer">
+                                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-emerald-500"></div>
+                                            </label>
+                                        </div>
+
+                                        <div class="flex items-center justify-between">
+                                            <label for="prefer-paved-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                                <i class="fas fa-road text-gray-500 mr-2 w-5 text-center"></i>
+                                                Prefer paved surfaces
+                                            </label>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="prefer-paved-toggle" class="sr-only peer">
+                                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-gray-500"></div>
+                                            </label>
+                                        </div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Nature trails mode disables contradictory paved-focused toggles automatically.</p>
                                     </div>
 
-                                    <!-- Prefer Paved Surfaces Toggle -->
-                                    <div class="flex items-center justify-between">
-                                        <label for="prefer-paved-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                            <i class="fas fa-road text-gray-500 mr-2 w-5 text-center"></i>
-                                            Prefer paved surfaces
-                                        </label>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="prefer-paved-toggle" class="sr-only peer">
-                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-gray-500"></div>
-                                        </label>
+                                    <div class="rounded-lg border border-gray-200 dark:border-gray-600 p-3 space-y-3">
+                                        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Lighting Preferences</h4>
+
+                                        <div class="flex items-center justify-between">
+                                            <label for="prefer-lit-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                                <i class="fas fa-lightbulb text-yellow-500 mr-2 w-5 text-center"></i>
+                                                Prefer lit streets
+                                            </label>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="prefer-lit-toggle" class="sr-only peer">
+                                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-yellow-500"></div>
+                                            </label>
+                                        </div>
+
+                                        <div class="flex items-center justify-between">
+                                            <label for="heavily-avoid-unlit-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                                <i class="fas fa-moon text-indigo-400 mr-2 w-5 text-center"></i>
+                                                Heavily avoid unlit streets
+                                            </label>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="heavily-avoid-unlit-toggle" class="sr-only peer">
+                                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-500"></div>
+                                            </label>
+                                        </div>
                                     </div>
 
-                                    <!-- Prefer Lit Streets Toggle -->
-                                    <div class="flex items-center justify-between">
-                                        <label for="prefer-lit-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                            <i class="fas fa-lightbulb text-yellow-500 mr-2 w-5 text-center"></i>
-                                            Prefer lit streets
-                                        </label>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="prefer-lit-toggle" class="sr-only peer">
-                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-yellow-500"></div>
-                                        </label>
-                                    </div>
+                                    <div class="rounded-lg border border-gray-200 dark:border-gray-600 p-3 space-y-3">
+                                        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Road Safety</h4>
 
-                                    <!-- Heavily Avoid Unlit Streets Toggle -->
-                                    <div class="flex items-center justify-between">
-                                        <label for="heavily-avoid-unlit-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                            <i class="fas fa-moon text-indigo-400 mr-2 w-5 text-center"></i>
-                                            Heavily avoid unlit streets
-                                        </label>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="heavily-avoid-unlit-toggle" class="sr-only peer">
-                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-500"></div>
-                                        </label>
-                                    </div>
-
-                                    <!-- Avoid Unsafe Roads Toggle -->
-                                    <div class="flex items-center justify-between">
-                                        <label for="avoid-unsafe-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                            <i class="fas fa-shield-alt text-red-500 mr-2 w-5 text-center"></i>
-                                            Avoid unsafe roads
-                                        </label>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="avoid-unsafe-toggle" class="sr-only peer">
-                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-red-500"></div>
-                                        </label>
+                                        <div class="flex items-center justify-between">
+                                            <label for="avoid-unsafe-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                                <i class="fas fa-shield-alt text-red-500 mr-2 w-5 text-center"></i>
+                                                Avoid unsafe roads
+                                            </label>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="avoid-unsafe-toggle" class="sr-only peer">
+                                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-red-500"></div>
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                             </details>
@@ -1260,10 +1279,18 @@
                     <!-- Standard Toggles -->
                     <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                         <div class="flex items-center font-semibold text-gray-800 dark:text-white mb-1">
-                            <i class="fas fa-walking text-green-500 w-6 text-center mr-2"></i>
-                            Prefer Paths & Trails
+                            <i class="fas fa-shoe-prints text-green-500 w-6 text-center mr-2"></i>
+                            Prefer Dedicated Pavements
                         </div>
-                        <p>Prioritises pedestrian paths, cycleways, and footways. It won't strictly enforce paths if a road is significantly shorter, but makes them much more likely.</p>
+                        <p>Prefers designated, hard-surface walking and cycling corridors suitable for road running or steady pavement pace.</p>
+                    </div>
+
+                    <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <div class="flex items-center font-semibold text-gray-800 dark:text-white mb-1">
+                            <i class="fas fa-tree text-emerald-500 w-6 text-center mr-2"></i>
+                            Prefer Nature Trails
+                        </div>
+                        <p>Prefers trail-like paths and natural surfaces (where mapped), while strongly discouraging vehicle-heavy roads.</p>
                     </div>
 
                     <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -1279,7 +1306,7 @@
                             <i class="fas fa-lightbulb text-yellow-500 w-6 text-center mr-2"></i>
                             Prefer Lit Streets
                         </div>
-                        <p>Avoids unlit paths or dark areas where data is available. <em>Note: Depends on OpenStreetMap data completeness.</em></p>
+                        <p>Applies lighting-aware bias using OSM and council-augmented edge lighting where available. <em>Note: Sparse OSM data or missing local council data can reduce effect strength.</em></p>
                     </div>
 
                     <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -1287,7 +1314,7 @@
                             <i class="fas fa-moon text-indigo-400 w-6 text-center mr-2"></i>
                             Heavily Avoid Unlit Streets
                         </div>
-                        <p>Much stronger version of "Prefer lit streets". Unlit or unknown streets receive a <strong>5&times; cost penalty</strong>, making the router actively avoid them even if the detour is significant. Ideal for night-time safety. <em>Note: Areas with sparse OSM lighting data may produce longer routes.</em></p>
+                        <p>Much stronger version of "Prefer lit streets". Confirmed unlit streets receive a <strong>5&times; cost penalty</strong>; unknown street lighting receives a <strong>3&times; penalty</strong>. Unknown lighting on dedicated paths is treated as neutral. <em>Note: Sparse OSM lighting data, or missing/non-overlapping council lighting data, can produce longer detours.</em></p>
                     </div>
 
                     <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">

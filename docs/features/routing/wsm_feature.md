@@ -135,7 +135,9 @@ response = requests.post('/api/route', json={
     'end_lon': -2.591,
     'use_wsm': True,
     'weights': {'greenness': 5, 'distance': 3},  # Optional
-    'prefer_pedestrian': True,       # Optional advanced modifiers
+    'prefer_dedicated_pavements': True,  # Optional advanced modifiers
+    'prefer_nature_trails': False,
+    'prefer_pedestrian': False,      # Legacy alias (accepted)
     'prefer_paved': False,
     'prefer_lit': False,
     'heavily_avoid_unlit': False,
@@ -148,7 +150,8 @@ response = requests.post('/api/route', json={
 On top of the general WSM scoring, the engine applies multipliers before finalizing an edge's cost:
 
 - `prefer_lit` / `heavily_avoid_unlit`: Provides a bonus (<1.0) to routes correctly flagged as lit, or massive penalties (up to 5.0x) for unknown or unlit segments.
-- `prefer_pedestrian`: Heavily penalizes vehicle-focused roads (trunk, primary - up to 5.0x) and rewards dedicated walking paths (down to 0.2x).
+- `prefer_dedicated_pavements`: Strongly favors designated active-travel corridors with hard surfaces and penalizes vehicle-focused roads.
+- `prefer_nature_trails`: Favors trail-like highways and natural surfaces while penalizing vehicle-heavy corridors.
 - `prefer_paved`: Penalizes soft and unpaved surfaces (`mud`, `dirt`, `sand`, `grass`) while keeping paved surfaces near baseline.
 - `avoid_unsafe_roads`: Applies a heavy penalty to primary/secondary/tertiary roads that lack `sidewalk` and `foot` safety indicators.
 

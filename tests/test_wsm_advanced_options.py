@@ -2,6 +2,7 @@
 
 import networkx as nx
 
+from app.routes import _resolve_advanced_options
 from app.services.routing.astar.wsm_astar import WSMNetworkXAStar
 
 
@@ -163,6 +164,80 @@ def _build_designated_cycleway_choice_graph():
     return graph
 
 
+def _build_dedicated_pavement_choice_graph():
+    """Short primary-road option vs slightly longer dedicated paved corridor."""
+    graph = nx.MultiDiGraph()
+
+    graph.add_node(1, x=0.0, y=0.0)
+    graph.add_node(2, x=0.001, y=0.0)
+    graph.add_node(3, x=0.0, y=0.001)
+    graph.add_node(4, x=0.001, y=0.001)
+
+    # Calibration edges to stabilise graph-wide length range.
+    graph.add_node(90, x=0.01, y=0.01)
+    graph.add_node(91, x=0.011, y=0.01)
+    graph.add_node(92, x=0.02, y=0.02)
+    graph.add_node(93, x=0.021, y=0.02)
+    _add_edge(graph, 90, 91, length=30.0, highway='residential', surface='asphalt')
+    _add_edge(graph, 92, 93, length=90.0, highway='residential', surface='asphalt')
+
+    # Path A: shortest vehicle-focused option.
+    _add_edge(graph, 1, 2, length=48.0, highway='primary', surface='asphalt')
+    _add_edge(graph, 2, 4, length=48.0, highway='primary', surface='asphalt')
+
+    # Path B: slightly longer designated cycleway.
+    _add_edge(
+        graph,
+        1,
+        3,
+        length=52.0,
+        highway='cycleway',
+        surface='asphalt',
+        foot='designated',
+        bicycle='designated',
+    )
+    _add_edge(
+        graph,
+        3,
+        4,
+        length=52.0,
+        highway='cycleway',
+        surface='asphalt',
+        foot='designated',
+        bicycle='designated',
+    )
+
+    return graph
+
+
+def _build_nature_trail_choice_graph():
+    """Short urban paved route vs slightly longer trail-like natural route."""
+    graph = nx.MultiDiGraph()
+
+    graph.add_node(1, x=0.0, y=0.0)
+    graph.add_node(2, x=0.001, y=0.0)
+    graph.add_node(3, x=0.0, y=0.001)
+    graph.add_node(4, x=0.001, y=0.001)
+
+    # Calibration edges to stabilise graph-wide length range.
+    graph.add_node(90, x=0.01, y=0.01)
+    graph.add_node(91, x=0.011, y=0.01)
+    graph.add_node(92, x=0.02, y=0.02)
+    graph.add_node(93, x=0.021, y=0.02)
+    _add_edge(graph, 90, 91, length=30.0, highway='residential', surface='asphalt')
+    _add_edge(graph, 92, 93, length=90.0, highway='residential', surface='asphalt')
+
+    # Path A: shortest urban paved option.
+    _add_edge(graph, 1, 2, length=48.0, highway='residential', surface='asphalt')
+    _add_edge(graph, 2, 4, length=48.0, highway='residential', surface='asphalt')
+
+    # Path B: slightly longer nature-trail option.
+    _add_edge(graph, 1, 3, length=52.0, highway='path', surface='dirt')
+    _add_edge(graph, 3, 4, length=52.0, highway='path', surface='dirt')
+
+    return graph
+
+
 def test_prefer_paved_changes_selected_path():
     graph = _build_surface_choice_graph()
     weights = _distance_only_weights()
@@ -228,3 +303,89 @@ def test_designated_paved_cycleway_gets_preference_bonus():
 
     assert path_default == [1, 2, 4]
     assert path_advanced == [1, 3, 4]
+
+
+def test_prefer_dedicated_pavements_changes_selected_path():
+    graph = _build_dedicated_pavement_choice_graph()
+    weights = _distance_only_weights()
+
+    default_solver = WSMNetworkXAStar(graph, weights=weights)
+    path_default = list(default_solver.astar(1, 4))
+
+    dedicated_solver = WSMNetworkXAStar(
+        graph,
+        weights=weights,
+        prefer_dedicated_pavements=True,
+    )
+    path_dedicated = list(dedicated_solver.astar(1, 4))
+
+    assert path_default == [1, 2, 4]
+    assert path_dedicated == [1, 3, 4]
+
+
+def test_prefer_nature_trails_changes_selected_path():
+    graph = _build_nature_trail_choice_graph()
+    weights = _distance_only_weights()
+
+    default_solver = WSMNetworkXAStar(graph, weights=weights)
+    path_default = list(default_solver.astar(1, 4))
+
+    trail_solver = WSMNetworkXAStar(
+        graph,
+        weights=weights,
+        prefer_nature_trails=True,
+    )
+    path_trail = list(trail_solver.astar(1, 4))
+
+    assert path_default == [1, 2, 4]
+    assert path_trail == [1, 3, 4]
+
+
+def test_nature_trails_disables_conflicting_path_surface_modes():
+    graph = _build_nature_trail_choice_graph()
+    weights = _distance_only_weights()
+
+    solver = WSMNetworkXAStar(
+        graph,
+        weights=weights,
+        prefer_nature_trails=True,
+        prefer_dedicated_pavements=True,
+        prefer_paved=True,
+    )
+
+    assert solver.prefer_nature_trails is True
+    assert solver.prefer_dedicated_pavements is False
+    assert solver.prefer_paved is False
+
+
+def test_resolve_advanced_options_maps_legacy_toggle_to_dedicated_mode():
+    options = _resolve_advanced_options(
+        {
+            'prefer_pedestrian': True,
+        }
+    )
+
+    assert options['legacy_prefer_pedestrian'] is True
+    assert options['prefer_dedicated_pavements'] is True
+    assert options['prefer_nature_trails'] is False
+    assert options['prefer_pedestrian'] is False
+
+
+def test_resolve_advanced_options_enforces_conflicts_and_aliases():
+    options = _resolve_advanced_options(
+        {
+            'prefer_dedicated_pavements': True,
+            'prefer_nature_trails': True,
+            'prefer_paved': True,
+            'prefer_lit': True,
+            'heavily_avoid_unlit': True,
+            'avoid_unsafe': True,
+        }
+    )
+
+    assert options['prefer_nature_trails'] is True
+    assert options['prefer_dedicated_pavements'] is False
+    assert options['prefer_paved'] is False
+    assert options['prefer_lit'] is False
+    assert options['heavily_avoid_unlit'] is True
+    assert options['avoid_unsafe_roads'] is True

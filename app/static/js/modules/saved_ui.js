@@ -553,10 +553,12 @@ export function initSavedUI() {
 
             // Restore advanced option toggles
             const advToggles = [
-                ['prefer_pedestrian', 'prefer-pedestrian-toggle'],
+                ['prefer_dedicated_pavements', 'prefer-dedicated-pavements-toggle'],
+                ['prefer_nature_trails', 'prefer-nature-trails-toggle'],
                 ['prefer_paved', 'prefer-paved-toggle'],
                 ['prefer_lit', 'prefer-lit-toggle'],
                 ['heavily_avoid_unlit', 'heavily-avoid-unlit-toggle'],
+                ['avoid_unsafe_roads', 'avoid-unsafe-toggle'],
                 ['avoid_unsafe', 'avoid-unsafe-toggle'],
             ];
             for (const [key, elId] of advToggles) {
@@ -565,6 +567,32 @@ export function initSavedUI() {
                     if (el) el.checked = !!w[key];
                 }
             }
+
+            // Legacy fallback: older queries used prefer_pedestrian only.
+            if (
+                w.prefer_pedestrian === true
+                && w.prefer_dedicated_pavements === undefined
+                && w.prefer_nature_trails === undefined
+            ) {
+                const legacyToDedicated = document.getElementById("prefer-dedicated-pavements-toggle");
+                if (legacyToDedicated) {
+                    legacyToDedicated.checked = true;
+                }
+            }
+
+            // Re-run toggle conflict logic after restore.
+            [
+                "prefer-nature-trails-toggle",
+                "prefer-dedicated-pavements-toggle",
+                "prefer-paved-toggle",
+                "prefer-lit-toggle",
+                "heavily-avoid-unlit-toggle",
+            ].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.dispatchEvent(new Event("change"));
+                }
+            });
         }
 
         // 4. Switch to Finder view
@@ -587,10 +615,13 @@ export function initSavedUI() {
             { key: "nature",     icon: "🌳", name: "Nature",    type: "slider" },
             { key: "social",     icon: "🏛️", name: "Social",    type: "toggle" },
             { key: "group_nature", icon: "🌿💧", name: "Combined Scenery", type: "toggle" },
-            { key: "prefer_pedestrian", icon: "🚶", name: "Paths/Trails", type: "toggle" },
+            { key: "prefer_dedicated_pavements", icon: "👟", name: "Dedicated pavements", type: "toggle" },
+            { key: "prefer_nature_trails", icon: "🌲", name: "Nature trails", type: "toggle" },
+            { key: "prefer_pedestrian", icon: "🚶", name: "Paths/Trails (legacy)", type: "toggle" },
             { key: "prefer_paved",      icon: "🛤️", name: "Paved",        type: "toggle" },
             { key: "prefer_lit",        icon: "💡", name: "Lit streets",  type: "toggle" },
             { key: "heavily_avoid_unlit", icon: "🌑", name: "Avoid unlit", type: "toggle" },
+            { key: "avoid_unsafe_roads", icon: "⚠️", name: "Avoid unsafe", type: "toggle" },
             { key: "avoid_unsafe",      icon: "⚠️", name: "Avoid unsafe", type: "toggle" },
         ];
 

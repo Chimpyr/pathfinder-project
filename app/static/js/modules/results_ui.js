@@ -183,15 +183,24 @@ function collectWeights() {
 
   // Advanced options
   const advToggles = [
-    ["prefer_pedestrian", "prefer-pedestrian-toggle"],
+    ["prefer_dedicated_pavements", "prefer-dedicated-pavements-toggle"],
+    ["prefer_nature_trails", "prefer-nature-trails-toggle"],
     ["prefer_paved", "prefer-paved-toggle"],
     ["prefer_lit", "prefer-lit-toggle"],
     ["heavily_avoid_unlit", "heavily-avoid-unlit-toggle"],
-    ["avoid_unsafe", "avoid-unsafe-toggle"],
+    ["avoid_unsafe_roads", "avoid-unsafe-toggle"],
   ];
   for (const [key, id] of advToggles) {
     const el = document.getElementById(id);
     if (el) w[key] = el.checked;
+  }
+
+  // Legacy compatibility with previously stored query snapshots.
+  if (w.prefer_dedicated_pavements === true) {
+    w.prefer_pedestrian = true;
+  }
+  if (w.avoid_unsafe_roads === true) {
+    w.avoid_unsafe = true;
   }
 
   return w;
