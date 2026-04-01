@@ -44,6 +44,15 @@ export let appState = {
   loopDemoMode: false,
 };
 
+function syncLegacyRoutingMode(mode) {
+  if (typeof window !== "undefined") {
+    window.routingMode = mode;
+  }
+}
+
+// Keep legacy global mode in sync for non-module map controller logic.
+syncLegacyRoutingMode(appState.routingMode);
+
 /**
  * Reset route and loop state.
  */
@@ -64,6 +73,7 @@ export function resetRouteState() {
 
 export function setRoutingMode(mode) {
   appState.routingMode = mode;
+  syncLegacyRoutingMode(mode);
 }
 
 export function setSelectedDirection(direction) {
