@@ -12,7 +12,46 @@ const BEARING_LINE_METRES = 900;
 const PAUSE_POLL_MS = 120;
 const BEARING_TOLERANCE_DEG = 1.0;
 const MAX_ROUTE_VIEW_POINTS = 40;
-const MAX_LEG_VISUAL_STEPS = 4;
+const MAX_STACKED_LEGS_PER_RETRY = 24;
+const MAX_CONTEXT_FAILED_RETRY_WINDOWS = 2;
+const FRAME_CONTEXT_KEY = "__loopDemoFrameContext";
+const FRAME_CONTEXT_FAILED_ATTEMPT = "failed_attempt";
+
+const WSM_CURRENT_LEG_COLOR = "#e11d48";
+const WSM_PREVIOUS_LEG_COLOR = "#fb7185";
+const WSM_ENDPOINT_STROKE = "#9f1239";
+const WSM_ENDPOINT_FILL = "#fecdd3";
+const WSM_MARKER_FILL = "#f43f5e";
+const WSM_REFERENCE_COLOR = "#94a3b8";
+
+const CONTEXT_SELECTED_LOOP_OPACITY = 0.0;
+const CONTEXT_OTHER_LOOP_OPACITY = 0.0;
+const DEMO_NON_SELECTED_LOOP_OPACITY = 0.0;
+
+const POLYGON_STORY_EVENTS = new Set([
+  "shape_attempt_started",
+  "retry_started",
+  "polygon_attempt_started",
+  "skeleton_projected",
+  "skeleton_snapped",
+  "leg_routed",
+  "leg_failed",
+  "distance_evaluated",
+  "tau_adjusted",
+  "candidate_accepted",
+  "shape_attempt_failed",
+]);
+
+const FALLBACK_STORY_EVENTS = new Set([
+  "fallback_started",
+  "fallback_out_and_back_started",
+  "fallback_waypoint_projected",
+  "fallback_leg_routed",
+  "fallback_out_and_back_completed",
+  "fallback_accepted",
+  "fallback_rejected",
+  "fallback_out_and_back_failed",
+]);
 
 let demoBaseLayerGroup = null;
 let demoStageLayerGroup = null;
@@ -39,9 +78,30 @@ const ui = {
   scrubber: null,
   stepIndicator: null,
   playToggle: null,
+  prevFrameBtn: null,
+  nextFrameBtn: null,
   skipBtn: null,
   stopBtn: null,
 };
+
+function updateFrameStepButtons() {
+  const hasFrames = currentFrames.length > 0;
+  const shownIndex =
+    lastRenderedIndex >= 0
+      ? lastRenderedIndex
+      : hasFrames
+        ? Math.max(0, Math.min(currentIndex, currentFrames.length - 1))
+        : -1;
+
+  if (ui.prevFrameBtn) {
+    ui.prevFrameBtn.disabled = !hasFrames || shownIndex <= 0;
+  }
+
+  if (ui.nextFrameBtn) {
+    ui.nextFrameBtn.disabled =
+      !hasFrames || shownIndex < 0 || shownIndex >= currentFrames.length - 1;
+  }
+}
 
 function setMapFocusMode(active) {
   const mapElement =
@@ -59,6 +119,8 @@ function createPlaybackStateFromSeed(seed) {
     focusType: seed.focusType ?? null,
     selectedLoop: seed.selectedLoop ?? null,
     currentBearing: null,
+    currentRetry: null,
+    currentTau: null,
     lastProjectedPoints: [],
     lastSnappedPoints: [],
     lastActualDistanceM: null,
@@ -110,6 +172,8 @@ function syncScrubber(displayedIndex) {
 }
 
 function updatePlayButton() {
+  updateFrameStepButtons();
+
   if (!ui.playToggle) return;
 
   const icon = ui.playToggle.querySelector("i");
@@ -141,6 +205,39 @@ function updatePlayButton() {
   if (text) text.textContent = "Play";
 }
 
+function seekToStep(stepIndex, options = { fitView: true }) {
+  if (!currentFrames.length || !loadedStartPoint) {
+    return;
+  }
+
+  stopAutoPlayback();
+  const index = clampStepIndex(stepIndex);
+  if (index < 0) {
+    return;
+  }
+
+  renderStep(index, { fitView: options.fitView !== false });
+  currentIndex = index + 1;
+}
+
+function stepByFrame(delta, options = { fitView: true }) {
+  if (!currentFrames.length || !Number.isFinite(delta)) {
+    return;
+  }
+
+  const originIndex =
+    lastRenderedIndex >= 0
+      ? lastRenderedIndex
+      : Math.max(0, Math.min(currentIndex, currentFrames.length - 1));
+  const targetIndex = clampStepIndex(originIndex + delta);
+  if (targetIndex < 0 || targetIndex === originIndex) {
+    updateFrameStepButtons();
+    return;
+  }
+
+  seekToStep(targetIndex, { fitView: options.fitView !== false });
+}
+
 function stopAutoPlayback() {
   playbackToken += 1;
   isPlaying = false;
@@ -150,6 +247,7 @@ function stopAutoPlayback() {
 
 function stopPlayback({ clearFrames = false, clearVisuals = true } = {}) {
   stopAutoPlayback();
+  applyLoopCandidateContextStyles(false, false);
 
   if (clearVisuals) {
     clearLayers();
@@ -312,6 +410,22 @@ function parseShapeSides(value) {
   return Number.parseInt(match[1], 10);
 }
 
+function parseRetryIndex(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.floor(n));
+}
+
+function resolveRetryIndex(frame, state = null) {
+  const directRetry = parseRetryIndex(frame?.retry);
+  if (Number.isFinite(directRetry)) {
+    return directRetry;
+  }
+
+  const stateRetry = parseRetryIndex(state?.currentRetry);
+  return Number.isFinite(stateRetry) ? stateRetry : null;
+}
+
 function normaliseLoopType(value) {
   const token = String(value || "")
     .trim()
@@ -419,6 +533,24 @@ function frameMatchesFocus(frame, focus) {
   );
 }
 
+function clearFrameContextFlags(frames) {
+  const source = Array.isArray(frames) ? frames : [];
+  source.forEach((frame) => {
+    if (frame && typeof frame === "object" && FRAME_CONTEXT_KEY in frame) {
+      delete frame[FRAME_CONTEXT_KEY];
+    }
+  });
+}
+
+function markFrameAsFailedContext(frame) {
+  if (!frame || typeof frame !== "object") return;
+  frame[FRAME_CONTEXT_KEY] = FRAME_CONTEXT_FAILED_ATTEMPT;
+}
+
+function isFailedContextFrame(frame) {
+  return frame?.[FRAME_CONTEXT_KEY] === FRAME_CONTEXT_FAILED_ATTEMPT;
+}
+
 function includeUniqueFrame(list, frame, seen) {
   if (!frame) return;
   if (seen.has(frame)) return;
@@ -436,21 +568,255 @@ function findFirstFrame(frames, eventName, predicate = () => true) {
   return null;
 }
 
-function findMatchingFrames(frames, eventName, predicate = () => true) {
-  const matches = [];
-  for (const frame of frames) {
+function findFirstFrameIndex(frames, eventName, predicate = () => true) {
+  for (let i = 0; i < frames.length; i += 1) {
+    const frame = frames[i];
     if (!frame || frame.event !== eventName) continue;
-    if (predicate(frame)) {
-      matches.push(frame);
+    if (predicate(frame)) return i;
+  }
+
+  return -1;
+}
+
+function framesShareAttemptIdentity(a, b) {
+  if (!a || !b) return false;
+
+  const retryA = parseRetryIndex(a.retry);
+  const retryB = parseRetryIndex(b.retry);
+  if (Number.isFinite(retryA) && Number.isFinite(retryB) && retryA !== retryB) {
+    return false;
+  }
+
+  const bearingA = normaliseBearing(a.bearing);
+  const bearingB = normaliseBearing(b.bearing);
+  if (
+    Number.isFinite(bearingA) &&
+    Number.isFinite(bearingB) &&
+    bearingDelta(bearingA, bearingB) > BEARING_TOLERANCE_DEG
+  ) {
+    return false;
+  }
+
+  const shapeA = parseShapeSides(a.shape_sides ?? a.num_vertices);
+  const shapeB = parseShapeSides(b.shape_sides ?? b.num_vertices);
+  if (Number.isFinite(shapeA) && Number.isFinite(shapeB) && shapeA !== shapeB) {
+    return false;
+  }
+
+  return true;
+}
+
+function findRetryWindowStartIndex(frames, tauAdjustedIndex) {
+  const tauFrame = frames[tauAdjustedIndex];
+  if (!tauFrame) return -1;
+
+  for (let i = tauAdjustedIndex; i >= 0; i -= 1) {
+    const frame = frames[i];
+    if (!frame) continue;
+
+    if (
+      frame.event === "retry_started" &&
+      framesShareAttemptIdentity(frame, tauFrame)
+    ) {
+      return i;
+    }
+
+    if (
+      frame.event === "shape_attempt_started" &&
+      framesShareAttemptIdentity(frame, tauFrame)
+    ) {
+      return i;
     }
   }
-  return matches;
+
+  return -1;
+}
+
+function getFrameComparableFocus(frame) {
+  const bearing = normaliseBearing(frame?.bearing);
+  const shapeSides = parseShapeSides(frame?.shape_sides ?? frame?.num_vertices);
+  return {
+    bearing: Number.isFinite(bearing) ? bearing : null,
+    shapeSides: Number.isFinite(shapeSides) ? shapeSides : null,
+  };
+}
+
+function windowMatchesFocus(windowFrames, focus) {
+  if (!focus) {
+    return true;
+  }
+
+  const focusBearing = normaliseBearing(focus.bearing);
+  const focusShapeSides = parseShapeSides(focus.shapeSides);
+  const hasFocusBearing = Number.isFinite(focusBearing);
+  const hasFocusShape = Number.isFinite(focusShapeSides);
+  if (!hasFocusBearing && !hasFocusShape) {
+    return true;
+  }
+
+  let hasComparableFocus = false;
+
+  for (const frame of windowFrames) {
+    const comparable = getFrameComparableFocus(frame);
+
+    if (hasFocusBearing && Number.isFinite(comparable.bearing)) {
+      hasComparableFocus = true;
+      if (
+        bearingDelta(comparable.bearing, focusBearing) > BEARING_TOLERANCE_DEG
+      ) {
+        return false;
+      }
+    }
+
+    if (hasFocusShape && Number.isFinite(comparable.shapeSides)) {
+      hasComparableFocus = true;
+      if (comparable.shapeSides !== focusShapeSides) {
+        return false;
+      }
+    }
+  }
+
+  return hasComparableFocus;
+}
+
+function collectRejectedRetryWindows(
+  frames,
+  endIndex,
+  maxWindows,
+  focus = null,
+) {
+  const cappedEnd = Math.max(0, Math.min(frames.length - 1, endIndex));
+  const rejectedTauIndexes = [];
+
+  for (let i = 0; i <= cappedEnd; i += 1) {
+    const frame = frames[i];
+    if (!frame || frame.event !== "tau_adjusted") continue;
+    rejectedTauIndexes.push(i);
+  }
+
+  const recentTauIndexes = rejectedTauIndexes.slice(-Math.max(0, maxWindows));
+  const windows = [];
+
+  for (const tauIndex of recentTauIndexes) {
+    const startIndex = findRetryWindowStartIndex(frames, tauIndex);
+    if (startIndex < 0 || startIndex > tauIndex) continue;
+
+    const windowFrames = [];
+    for (let i = startIndex; i <= tauIndex; i += 1) {
+      const frame = frames[i];
+      if (!frame || !POLYGON_STORY_EVENTS.has(frame.event)) continue;
+      windowFrames.push(frame);
+    }
+
+    if (!windowFrames.length) {
+      continue;
+    }
+
+    if (!windowMatchesFocus(windowFrames, focus)) {
+      continue;
+    }
+
+    windows.push(windowFrames);
+  }
+
+  return windows;
+}
+
+function collectPolygonStoryFrames(frames, focus) {
+  const anchorIndex = findFirstFrameIndex(
+    frames,
+    "shape_attempt_started",
+    (frame) => frameMatchesFocus(frame, focus),
+  );
+
+  if (anchorIndex < 0) {
+    return [];
+  }
+
+  const selected = [];
+  for (let i = anchorIndex; i < frames.length; i += 1) {
+    const frame = frames[i];
+    if (!frame || !frame.event) continue;
+
+    if (i > anchorIndex && frame.event === "shape_attempt_started") {
+      break;
+    }
+
+    if (!POLYGON_STORY_EVENTS.has(frame.event)) {
+      continue;
+    }
+
+    selected.push(frame);
+
+    if (
+      frame.event === "candidate_accepted" ||
+      frame.event === "shape_attempt_failed"
+    ) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function collectFallbackStoryFrames(frames, focus) {
+  let anchorIndex = findFirstFrameIndex(frames, "fallback_started", (frame) =>
+    frameMatchesFocus(frame, focus),
+  );
+
+  if (anchorIndex < 0) {
+    anchorIndex = findFirstFrameIndex(
+      frames,
+      "fallback_out_and_back_started",
+      (frame) => frameMatchesFocus(frame, focus),
+    );
+  }
+
+  if (anchorIndex < 0) {
+    return [];
+  }
+
+  const selected = [];
+  for (let i = anchorIndex; i < frames.length; i += 1) {
+    const frame = frames[i];
+    if (!frame || !frame.event) continue;
+
+    if (i > anchorIndex && frame.event === "fallback_started") {
+      break;
+    }
+
+    if (i > anchorIndex && frame.event === "shape_attempt_started") {
+      break;
+    }
+
+    if (!FALLBACK_STORY_EVENTS.has(frame.event)) {
+      continue;
+    }
+
+    if (!frameMatchesFocus(frame, focus)) {
+      continue;
+    }
+
+    selected.push(frame);
+
+    if (
+      frame.event === "fallback_accepted" ||
+      frame.event === "fallback_rejected" ||
+      frame.event === "fallback_out_and_back_failed"
+    ) {
+      break;
+    }
+  }
+
+  return selected;
 }
 
 function buildNarrativeFrames(frames, focus) {
   const source = Array.isArray(frames) ? frames : [];
   const selected = [];
   const seen = new Set();
+
+  clearFrameContextFlags(source);
 
   includeUniqueFrame(selected, findFirstFrame(source, "solver_started"), seen);
   includeUniqueFrame(
@@ -460,101 +826,47 @@ function buildNarrativeFrames(frames, focus) {
   );
 
   const isFallbackFocus = focus?.type === "out-and-back";
-  if (isFallbackFocus) {
-    [
-      "fallback_started",
-      "fallback_out_and_back_started",
-      "fallback_waypoint_projected",
-    ].forEach((eventName) => {
-      includeUniqueFrame(
-        selected,
-        findFirstFrame(source, eventName, (frame) =>
-          frameMatchesFocus(frame, focus),
-        ),
-        seen,
-      );
-    });
+  const focusedStory = isFallbackFocus
+    ? collectFallbackStoryFrames(source, focus)
+    : collectPolygonStoryFrames(source, focus);
 
-    const fallbackLegFrames = findMatchingFrames(
-      source,
-      "fallback_leg_routed",
-      (frame) => frameMatchesFocus(frame, focus),
-    );
-    const fallbackSeenKeys = new Set();
-    const fallbackDeduped = [];
-    for (const frame of fallbackLegFrames) {
-      const legIndex = Number(frame?.leg_index);
-      const totalLegs = Number(frame?.total_legs);
-      const key =
-        Number.isFinite(legIndex) && Number.isFinite(totalLegs)
-          ? `${legIndex}/${totalLegs}`
-          : null;
-      if (key && fallbackSeenKeys.has(key)) continue;
-      if (key) fallbackSeenKeys.add(key);
-      fallbackDeduped.push(frame);
-      if (fallbackDeduped.length >= MAX_LEG_VISUAL_STEPS) break;
-    }
-    fallbackDeduped.forEach((frame) => {
+  const focusedStorySet = new Set(focusedStory);
+
+  const failedRetryWindows = collectRejectedRetryWindows(
+    source,
+    source.length - 1,
+    MAX_CONTEXT_FAILED_RETRY_WINDOWS,
+    focus,
+  );
+  failedRetryWindows.forEach((windowFrames) => {
+    windowFrames.forEach((frame) => {
+      if (focusedStorySet.has(frame)) {
+        return;
+      }
+      markFrameAsFailedContext(frame);
       includeUniqueFrame(selected, frame, seen);
     });
+  });
 
-    ["fallback_out_and_back_completed", "fallback_accepted"].forEach(
-      (eventName) => {
-        includeUniqueFrame(
-          selected,
-          findFirstFrame(source, eventName, (frame) =>
-            frameMatchesFocus(frame, focus),
-          ),
-          seen,
-        );
-      },
+  focusedStory.forEach((frame) => {
+    includeUniqueFrame(selected, frame, seen);
+  });
+
+  if (
+    !selected.some(
+      (frame) =>
+        frame.event === "candidate_accepted" ||
+        frame.event === "fallback_accepted",
+    )
+  ) {
+    includeUniqueFrame(
+      selected,
+      findFirstFrame(source, "candidate_accepted", (frame) =>
+        frameMatchesFocus(frame, focus),
+      ),
+      seen,
     );
-  } else {
-    ["skeleton_projected", "skeleton_snapped"].forEach((eventName) => {
-      includeUniqueFrame(
-        selected,
-        findFirstFrame(source, eventName, (frame) =>
-          frameMatchesFocus(frame, focus),
-        ),
-        seen,
-      );
-    });
 
-    const legFrames = findMatchingFrames(source, "leg_routed", (frame) =>
-      frameMatchesFocus(frame, focus),
-    );
-    const seenLegKeys = new Set();
-    const dedupedLegFrames = [];
-    for (const frame of legFrames) {
-      const legIndex = Number(frame?.leg_index);
-      const totalLegs = Number(frame?.total_legs);
-      const key =
-        Number.isFinite(legIndex) && Number.isFinite(totalLegs)
-          ? `${legIndex}/${totalLegs}`
-          : null;
-      if (key && seenLegKeys.has(key)) continue;
-      if (key) seenLegKeys.add(key);
-      dedupedLegFrames.push(frame);
-      if (dedupedLegFrames.length >= MAX_LEG_VISUAL_STEPS) break;
-    }
-    dedupedLegFrames.forEach((frame) => {
-      includeUniqueFrame(selected, frame, seen);
-    });
-
-    ["distance_evaluated", "tau_adjusted", "candidate_accepted"].forEach(
-      (eventName) => {
-        includeUniqueFrame(
-          selected,
-          findFirstFrame(source, eventName, (frame) =>
-            frameMatchesFocus(frame, focus),
-          ),
-          seen,
-        );
-      },
-    );
-  }
-
-  if (!selected.some((frame) => frame.event === "candidate_accepted")) {
     includeUniqueFrame(
       selected,
       findFirstFrame(source, "fallback_accepted", (frame) =>
@@ -580,6 +892,9 @@ function buildNarrativeFrames(frames, focus) {
   [
     "solver_started",
     "bearings_selected",
+    "shape_attempt_started",
+    "retry_started",
+    "polygon_attempt_started",
     "skeleton_projected",
     "skeleton_snapped",
     "leg_routed",
@@ -598,6 +913,16 @@ function buildNarrativeFrames(frames, focus) {
 
 function applyFrameContext(state, frame) {
   if (!frame || !frame.event) return;
+
+  const retryIndex = parseRetryIndex(frame.retry);
+  if (Number.isFinite(retryIndex)) {
+    state.currentRetry = retryIndex;
+  }
+
+  const tauValue = Number(frame.tau);
+  if (Number.isFinite(tauValue)) {
+    state.currentTau = tauValue;
+  }
 
   if (
     frame.event === "solver_started" &&
@@ -631,6 +956,13 @@ function applyFrameContext(state, frame) {
 
   if (frame.event === "skeleton_snapped") {
     state.lastSnappedPoints = normalisePoints(frame.points);
+  }
+
+  if (frame.event === "tau_adjusted") {
+    const tauAfter = Number(frame.tau_after);
+    if (Number.isFinite(tauAfter)) {
+      state.currentTau = tauAfter;
+    }
   }
 
   if (
@@ -681,7 +1013,7 @@ function drawMutedSelectedLoop(loop, layerGroup) {
   L.polyline(loop.route_coords, {
     color: loop.colour || "#3B82F6",
     weight: 5,
-    opacity: 0.22,
+    opacity: 0.14,
     dashArray: "10 8",
     lineJoin: "round",
   }).addTo(layerGroup);
@@ -995,6 +1327,68 @@ function drawDistanceComparison(frame, state, startPoint, layerGroup) {
   }
 }
 
+function drawRejectedDistanceComparison(frame, state, startPoint, layerGroup) {
+  const targetDistance = Number.isFinite(state.targetDistanceM)
+    ? state.targetDistanceM
+    : null;
+  const actualDistance = Number.isFinite(frame.actual_distance_m)
+    ? frame.actual_distance_m
+    : Number.isFinite(state.lastActualDistanceM)
+      ? state.lastActualDistanceM
+      : null;
+
+  if (targetDistance) {
+    L.circle(startPoint, {
+      radius: targetDistance,
+      color: "#2563eb",
+      weight: 2,
+      opacity: 0.55,
+      dashArray: "7 7",
+      fillOpacity: 0,
+    }).addTo(layerGroup);
+  }
+
+  if (actualDistance) {
+    L.circle(startPoint, {
+      radius: actualDistance,
+      color: "#dc2626",
+      weight: 3,
+      opacity: 0.95,
+      dashArray: "8 5",
+      fillOpacity: 0,
+    }).addTo(layerGroup);
+
+    L.circleMarker(startPoint, {
+      radius: 8,
+      color: "#7f1d1d",
+      weight: 2,
+      fillColor: "#ef4444",
+      fillOpacity: 0.9,
+    })
+      .bindTooltip("Rejected attempt", {
+        direction: "top",
+        opacity: 0.95,
+      })
+      .addTo(layerGroup);
+  }
+}
+
+function drawRetryStartedMarker(frame, state, startPoint, layerGroup) {
+  const retryLabel = formatRetryLabel(frame, state) || "Retry";
+  L.circleMarker(startPoint, {
+    radius: 9,
+    color: "#78350f",
+    weight: 3,
+    fillColor: "#f59e0b",
+    fillOpacity: 0.92,
+  })
+    .bindTooltip(`${retryLabel} started`, {
+      direction: "top",
+      opacity: 0.95,
+    })
+    .addTo(layerGroup);
+}
+
 function scalePointsFromStart(points, startPoint, ratio) {
   if (!Array.isArray(points) || !points.length || !Number.isFinite(ratio)) {
     return [];
@@ -1081,7 +1475,72 @@ function drawFallbackWaypointFrame(frame, startPoint, layerGroup) {
   }).addTo(layerGroup);
 }
 
-function drawLegRoutedFrame(frame, state, startPoint, layerGroup) {
+function formatRetryLabel(frame, state) {
+  const retryIndex = resolveRetryIndex(frame, state);
+  if (!Number.isFinite(retryIndex)) return null;
+  return `Retry ${retryIndex + 1}`;
+}
+
+function collectLegFramesForRetry(stepIndex, legEventName, targetRetryIndex) {
+  const limit = clampStepIndex(stepIndex);
+  if (limit < 0) {
+    return [];
+  }
+
+  const legs = [];
+  let activeRetry = null;
+
+  for (let i = 0; i <= limit; i += 1) {
+    const frame = currentFrames[i];
+    if (!frame) continue;
+
+    if (frame.event === "retry_started") {
+      const parsedRetry = parseRetryIndex(frame.retry);
+      if (Number.isFinite(parsedRetry)) {
+        activeRetry = parsedRetry;
+      }
+      continue;
+    }
+
+    if (frame.event !== legEventName) {
+      continue;
+    }
+
+    const frameRetry = parseRetryIndex(frame.retry);
+    const effectiveRetry = Number.isFinite(frameRetry)
+      ? frameRetry
+      : activeRetry;
+
+    if (Number.isFinite(targetRetryIndex)) {
+      if (
+        !Number.isFinite(effectiveRetry) ||
+        effectiveRetry !== targetRetryIndex
+      ) {
+        continue;
+      }
+    }
+
+    legs.push(frame);
+    if (legs.length >= MAX_STACKED_LEGS_PER_RETRY) {
+      break;
+    }
+  }
+
+  return legs;
+}
+
+function drawLegRoutedFrame(frame, state, startPoint, layerGroup, stepIndex) {
+  const eventName =
+    frame.event === "fallback_leg_routed"
+      ? "fallback_leg_routed"
+      : "leg_routed";
+  const targetRetry = resolveRetryIndex(frame, state);
+  const stackedLegFrames = collectLegFramesForRetry(
+    stepIndex,
+    eventName,
+    targetRetry,
+  );
+
   const path = normalisePoints(frame.path);
 
   if (state.lastSnappedPoints.length) {
@@ -1099,47 +1558,71 @@ function drawLegRoutedFrame(frame, state, startPoint, layerGroup) {
     });
   }
 
-  if (path.length < 2) {
+  const legsToDraw = stackedLegFrames.length ? stackedLegFrames : [frame];
+  const renderedPaths = [];
+
+  for (const legFrame of legsToDraw) {
+    const legPath = normalisePoints(legFrame.path);
+    if (legPath.length < 2) continue;
+
+    const isCurrentLeg = legFrame === frame;
+    renderedPaths.push({ path: legPath, isCurrentLeg });
+
+    L.polyline(legPath, {
+      color: "#ffffff",
+      weight: isCurrentLeg ? 8 : 6,
+      opacity: isCurrentLeg ? 0.82 : 0.28,
+      lineJoin: "round",
+      lineCap: "round",
+    }).addTo(layerGroup);
+
+    L.polyline(legPath, {
+      color: isCurrentLeg ? WSM_CURRENT_LEG_COLOR : WSM_PREVIOUS_LEG_COLOR,
+      weight: isCurrentLeg ? 5 : 3.5,
+      opacity: isCurrentLeg ? 0.98 : 0.62,
+      lineJoin: "round",
+      lineCap: "round",
+    }).addTo(layerGroup);
+  }
+
+  if (!renderedPaths.length) {
     return;
   }
 
-  L.polyline([path[0], path[path.length - 1]], {
-    color: "#a5b4fc",
+  const activePath =
+    path.length >= 2 ? path : renderedPaths[renderedPaths.length - 1].path;
+
+  L.polyline([activePath[0], activePath[activePath.length - 1]], {
+    color: WSM_REFERENCE_COLOR,
     weight: 2,
-    opacity: 0.8,
+    opacity: 0.72,
     dashArray: "6 6",
   }).addTo(layerGroup);
 
-  L.polyline(path, {
-    color: "#06b6d4",
-    weight: 5,
-    opacity: 0.96,
-    lineJoin: "round",
-    lineCap: "round",
-  }).addTo(layerGroup);
-
-  [path[0], path[path.length - 1]].forEach((point) => {
+  [activePath[0], activePath[activePath.length - 1]].forEach((point) => {
     L.circleMarker(point, {
       radius: 6,
-      color: "#155e75",
+      color: WSM_ENDPOINT_STROKE,
       weight: 2,
-      fillColor: "#67e8f9",
+      fillColor: WSM_ENDPOINT_FILL,
       fillOpacity: 0.95,
     }).addTo(layerGroup);
   });
 
-  const mid = path[Math.floor(path.length / 2)];
+  const mid = activePath[Math.floor(activePath.length / 2)];
   const legIndex = Number(frame.leg_index);
   const totalLegs = Number(frame.total_legs);
-  const legLabel = Number.isFinite(legIndex) && Number.isFinite(totalLegs)
-    ? `WSM A* leg ${legIndex}/${totalLegs}`
-    : "WSM A* routed leg";
+  const retryLabel = formatRetryLabel(frame, state);
+  const legLabel =
+    Number.isFinite(legIndex) && Number.isFinite(totalLegs)
+      ? `${retryLabel ? `${retryLabel} - ` : ""}WSM A* leg ${legIndex}/${totalLegs}`
+      : "WSM A* routed leg";
 
   L.circleMarker(mid, {
     radius: 4,
-    color: "#0f172a",
+    color: WSM_ENDPOINT_STROKE,
     weight: 1,
-    fillColor: "#22d3ee",
+    fillColor: WSM_MARKER_FILL,
     fillOpacity: 0.95,
   })
     .bindTooltip(legLabel, { direction: "top", opacity: 0.95 })
@@ -1168,20 +1651,79 @@ function drawAcceptedCandidate(state, layerGroup, isComplete = false) {
   }
 }
 
-function renderBaseScene(baseLayer) {
+function applyLoopCandidateContextStyles(
+  contextFailedAttempt,
+  playbackActive = true,
+) {
+  const loopLayers = mapController?.loopLayers;
+  if (!loopLayers || typeof loopLayers !== "object") {
+    return;
+  }
+
+  const selectedLoopId =
+    mapController?.selectedLoop !== undefined &&
+    mapController?.selectedLoop !== null
+      ? String(mapController.selectedLoop)
+      : null;
+
+  for (const [id, layer] of Object.entries(loopLayers)) {
+    if (!layer?.setStyle) continue;
+
+    const isSelected = selectedLoopId !== null && String(id) === selectedLoopId;
+    if (!playbackActive) {
+      layer.setStyle({
+        weight: isSelected ? 6 : 4,
+        opacity: isSelected ? 1.0 : 0.5,
+      });
+      continue;
+    }
+
+    if (contextFailedAttempt) {
+      layer.setStyle({
+        weight: isSelected ? 4.5 : 3,
+        opacity: isSelected
+          ? CONTEXT_SELECTED_LOOP_OPACITY
+          : CONTEXT_OTHER_LOOP_OPACITY,
+      });
+      continue;
+    }
+
+    layer.setStyle({
+      weight: isSelected ? 6 : 4,
+      opacity: isSelected ? 1.0 : DEMO_NON_SELECTED_LOOP_OPACITY,
+    });
+  }
+}
+
+function renderBaseScene(baseLayer, options = {}) {
   if (!baseLayer) return;
+
+  const showSelectedLoopReference = options.showSelectedLoopReference !== false;
 
   baseLayer.clearLayers();
   if (loadedStartPoint) {
     drawStartPoint(loadedStartPoint, baseLayer);
   }
 
-  if (playbackState.selectedLoop) {
+  if (showSelectedLoopReference && playbackState.selectedLoop) {
     drawMutedSelectedLoop(playbackState.selectedLoop, baseLayer);
   }
 }
 
-function renderFrame(frame, state, startPoint, stageLayer) {
+function isRejectedDistanceStep(stepIndex) {
+  const index = clampStepIndex(stepIndex);
+  if (index < 0) return false;
+
+  const frame = currentFrames[index];
+  const nextFrame = currentFrames[index + 1];
+
+  if (!frame || frame.event !== "distance_evaluated") return false;
+  if (!nextFrame || nextFrame.event !== "tau_adjusted") return false;
+
+  return framesShareAttemptIdentity(frame, nextFrame);
+}
+
+function renderFrame(frame, state, startPoint, stageLayer, stepIndex = -1) {
   if (!frame || !frame.event || !stageLayer) return;
 
   if (frame.event === "solver_started") {
@@ -1200,6 +1742,13 @@ function renderFrame(frame, state, startPoint, stageLayer) {
   ) {
     drawBearingFrame(frame, state, startPoint, stageLayer);
     drawTargetDistanceGuide(state, startPoint, stageLayer);
+    return;
+  }
+
+  if (frame.event === "retry_started") {
+    drawBearingFrame(frame, state, startPoint, stageLayer);
+    drawTargetDistanceGuide(state, startPoint, stageLayer);
+    drawRetryStartedMarker(frame, state, startPoint, stageLayer);
     return;
   }
 
@@ -1223,12 +1772,16 @@ function renderFrame(frame, state, startPoint, stageLayer) {
   }
 
   if (frame.event === "distance_evaluated") {
-    drawDistanceComparison(frame, state, startPoint, stageLayer);
+    if (isRejectedDistanceStep(stepIndex)) {
+      drawRejectedDistanceComparison(frame, state, startPoint, stageLayer);
+    } else {
+      drawDistanceComparison(frame, state, startPoint, stageLayer);
+    }
     return;
   }
 
   if (frame.event === "leg_routed" || frame.event === "fallback_leg_routed") {
-    drawLegRoutedFrame(frame, state, startPoint, stageLayer);
+    drawLegRoutedFrame(frame, state, startPoint, stageLayer, stepIndex);
     return;
   }
 
@@ -1271,8 +1824,19 @@ function formatBearing(value) {
   return `${Math.round(bearing)}deg`;
 }
 
-function describeFrame(frame, state, stepIndex, totalSteps) {
+function classifyDeviationDirection(deviationPercent) {
+  const deviation = Number(deviationPercent);
+  if (!Number.isFinite(deviation)) return null;
+  if (Math.abs(deviation) < 0.1) return "on target";
+  return deviation > 0 ? "overshoot" : "undershoot";
+}
+
+function describeFrame(frame, state, stepIndex, totalSteps, options = {}) {
+  const contextFailed = Boolean(options.contextFailedAttempt);
+  const rejectedDistance = Boolean(options.rejectedDistance);
   const bearingText = formatBearing(frame.bearing ?? state.currentBearing);
+  const retryLabel = formatRetryLabel(frame, state);
+  const retryPrefix = retryLabel ? `${retryLabel}: ` : "";
 
   let message = "";
 
@@ -1284,38 +1848,51 @@ function describeFrame(frame, state, stepIndex, totalSteps) {
         : "Start point fixed. Solver begins.";
       break;
     }
-    case "bearings_selected":
+    case "bearings_selected": {
       message = bearingText
         ? `Choose candidate bearings; focus direction is ${bearingText}.`
         : "Choose candidate bearings.";
       break;
+    }
     case "shape_attempt_started": {
-      const sides = parseShapeSides(frame.shape_sides);
+      const sides = parseShapeSides(frame.shape_sides ?? frame.num_vertices);
       const shapeText = Number.isFinite(sides) ? `${sides}-point` : "polygon";
       message = bearingText
-        ? `Prepare ${shapeText} skeleton attempt toward ${bearingText}.`
-        : `Prepare ${shapeText} skeleton attempt.`;
+        ? `${retryPrefix}Prepare ${shapeText} skeleton attempt toward ${bearingText}.`
+        : `${retryPrefix}Prepare ${shapeText} skeleton attempt.`;
       break;
     }
-    case "polygon_attempt_started":
-      message = "Prepare theoretical waypoint projection.";
+    case "retry_started": {
+      const tau = Number(frame.tau);
+      if (Number.isFinite(tau)) {
+        message = `${retryLabel || "Retry"} begins with tau ${tau.toFixed(3)}.`;
+      } else {
+        message = `${retryLabel || "Retry"} begins with updated geometry.`;
+      }
       break;
-    case "skeleton_projected":
-      message = "Projected theoretical skeleton (orange) shown.";
+    }
+    case "polygon_attempt_started": {
+      message = `${retryPrefix}Prepare theoretical waypoint projection.`;
       break;
-    case "skeleton_snapped":
-      message = "Skeleton snapped onto graph edges (green points + halos).";
+    }
+    case "skeleton_projected": {
+      message = `${retryPrefix}Projected theoretical skeleton (orange) shown.`;
       break;
+    }
+    case "skeleton_snapped": {
+      message = `${retryPrefix}Skeleton snapped onto graph edges (green points + halos).`;
+      break;
+    }
     case "leg_routed": {
       const legIndex = Number(frame.leg_index);
       const totalLegs = Number(frame.total_legs);
       const legDistance = formatDistanceMeters(frame.leg_distance_m);
       if (Number.isFinite(legIndex) && Number.isFinite(totalLegs)) {
         message = legDistance
-          ? `WSM A* routed leg ${legIndex}/${totalLegs} on graph edges (${legDistance}).`
-          : `WSM A* routed leg ${legIndex}/${totalLegs} on graph edges.`;
+          ? `${retryPrefix}WSM A* routed leg ${legIndex}/${totalLegs} on graph edges (${legDistance}).`
+          : `${retryPrefix}WSM A* routed leg ${legIndex}/${totalLegs} on graph edges.`;
       } else {
-        message = "WSM A* routed a leg on graph edges.";
+        message = `${retryPrefix}WSM A* routed a leg on graph edges.`;
       }
       break;
     }
@@ -1325,7 +1902,7 @@ function describeFrame(frame, state, stepIndex, totalSteps) {
       const direction = String(frame.direction || "").trim();
       const legLabel =
         Number.isFinite(legIndex) && Number.isFinite(totalLegs)
-          ? `Fallback WSM A* leg ${legIndex}/${totalLegs}`
+          ? `${retryPrefix}Fallback WSM A* leg ${legIndex}/${totalLegs}`
           : "Fallback WSM A* leg";
       message = direction ? `${legLabel} (${direction}).` : `${legLabel}.`;
       break;
@@ -1333,44 +1910,73 @@ function describeFrame(frame, state, stepIndex, totalSteps) {
     case "distance_evaluated": {
       const actual = formatDistanceMeters(frame.actual_distance_m);
       const deviation = Number(frame.deviation_percent);
+      const deviationDirection = classifyDeviationDirection(deviation);
       if (actual && Number.isFinite(deviation)) {
-        message = `Distance check ${actual} (${deviation.toFixed(1)}% from target).`;
+        if (rejectedDistance) {
+          message = deviationDirection
+            ? `${retryPrefix}Rejected distance check ${actual} (${deviation.toFixed(1)}% ${deviationDirection}); retry will rescale.`
+            : `${retryPrefix}Rejected distance check ${actual}; retry will rescale.`;
+        } else {
+          message = deviationDirection
+            ? `${retryPrefix}Distance check ${actual} (${deviation.toFixed(1)}% ${deviationDirection}).`
+            : `${retryPrefix}Distance check ${actual} (${deviation.toFixed(1)}% from target).`;
+        }
       } else {
-        message = "Evaluate actual distance against target radius.";
+        message = rejectedDistance
+          ? `${retryPrefix}Rejected distance check; retry will rescale.`
+          : `${retryPrefix}Evaluate actual distance against target radius.`;
       }
       break;
     }
     case "tau_adjusted": {
       const before = Number(frame.tau_before);
       const after = Number(frame.tau_after);
+      const direction =
+        Number.isFinite(before) && Number.isFinite(after)
+          ? after > before
+            ? "increase"
+            : after < before
+              ? "decrease"
+              : "keep"
+          : null;
       if (Number.isFinite(before) && Number.isFinite(after)) {
-        message = `Adjust shape scale (tau ${before.toFixed(3)} -> ${after.toFixed(3)}).`;
+        message = direction
+          ? `${retryPrefix}Adjust shape scale (tau ${before.toFixed(3)} -> ${after.toFixed(3)}) to ${direction} route length on next retry.`
+          : `${retryPrefix}Adjust shape scale (tau ${before.toFixed(3)} -> ${after.toFixed(3)}).`;
       } else {
-        message = "Adjust shape scale and retry.";
+        message = `${retryPrefix}Adjust shape scale and retry.`;
       }
       break;
     }
-    case "fallback_started":
+    case "fallback_started": {
       message = "Polygon attempts failed; switch to out-and-back fallback.";
       break;
-    case "fallback_out_and_back_started":
+    }
+    case "fallback_out_and_back_started": {
       message = "Project turnaround waypoint for out-and-back.";
       break;
-    case "fallback_waypoint_projected":
+    }
+    case "fallback_waypoint_projected": {
       message = "Fallback waypoint projected and snapped.";
       break;
-    case "fallback_out_and_back_completed":
+    }
+    case "fallback_out_and_back_completed": {
       message = "Fallback out-and-back legs connected.";
       break;
+    }
     case "candidate_accepted":
-      message = "Candidate accepted and highlighted as the selected final loop.";
+      message = retryLabel
+        ? `${retryLabel}: candidate accepted and highlighted as the selected final loop.`
+        : "Candidate accepted and highlighted as the selected final loop.";
       break;
-    case "fallback_accepted":
+    case "fallback_accepted": {
       message = "Fallback candidate accepted.";
       break;
-    case "solver_completed":
+    }
+    case "solver_completed": {
       message = "Solver completed and ranked the returned loop options.";
       break;
+    }
     default:
       message = String(frame.event || "step").replaceAll("_", " ");
   }
@@ -1379,30 +1985,53 @@ function describeFrame(frame, state, stepIndex, totalSteps) {
     ? `${state.selectedLoop.label}: `
     : "";
 
+  if (contextFailed) {
+    message = `Context rejected retry (same run): ${message}`;
+  }
+
   return `${loopLabel}${message} (${stepIndex}/${totalSteps})`;
 }
 
-function describeFrameNote(frame) {
+function describeFrameNote(frame, options = {}) {
+  const contextFailed = Boolean(options.contextFailedAttempt);
+  const rejectedDistance = Boolean(options.rejectedDistance);
   if (!frame || !frame.event) {
     return "";
   }
+
+  const withContextSuffix = (note) => {
+    if (!contextFailed) return note;
+    return `${note} This step is from an earlier rejected retry in this loop run, shown for comparison.`;
+  };
 
   switch (frame.event) {
     case "solver_started":
       return "Dashed blue radius marks the requested target loop distance from the start point.";
     case "bearings_selected":
       return "Dashed cyan rays are candidate bearings. The darkest blue ray is the selected bearing for this candidate.";
+    case "retry_started":
+      return "A new retry starts with the latest tau value. Subsequent skeleton and WSM legs belong to this retry cycle.";
     case "skeleton_projected":
-      return "Orange dashed skeleton is theoretical geometry before graph snapping.";
+      return withContextSuffix(
+        "Orange dashed skeleton is theoretical geometry before graph snapping.",
+      );
     case "skeleton_snapped":
-      return "Green points (with halos) show snapped waypoints anchored to reachable graph nodes.";
+      return withContextSuffix(
+        "Green points (with halos) show snapped waypoints anchored to reachable graph nodes.",
+      );
     case "leg_routed":
     case "fallback_leg_routed":
-      return "Cyan path shows one WSM A* leg between snapped waypoints. Purple dashed segment is straight-line reference only.";
+      return withContextSuffix(
+        "Bright rose path is the current WSM leg; lighter rose paths are earlier legs from the same retry. Dashed slate segment is straight-line reference only.",
+      );
     case "distance_evaluated":
-      return "Dashed blue circle is target distance; solid cyan circle is this candidate's actual loop distance.";
+      return withContextSuffix(
+        rejectedDistance
+          ? "Dashed blue circle is target distance; dashed red circle is the rejected retry distance. Tau is adjusted next and all legs are rerouted."
+          : "Dashed blue circle is target distance; solid cyan circle is this retry's actual loop distance. Overshoot or undershoot triggers tau adjustment.",
+      );
     case "tau_adjusted":
-      return "Orange shape is previous scale; purple shape is the tau-adjusted retry geometry.";
+      return "Orange shape is previous scale; purple shape is the tau-adjusted geometry used for the next retry where all legs are re-routed.";
     case "candidate_accepted":
       return "Solid blue route is the accepted candidate. Any diagonal-looking segment is routed path, not a bearing guide.";
     case "solver_completed":
@@ -1442,6 +2071,7 @@ function buildStepViewPoints(frame, state, startPoint) {
   if (
     frame?.event === "bearings_selected" ||
     frame?.event === "shape_attempt_started" ||
+    frame?.event === "retry_started" ||
     frame?.event === "polygon_attempt_started" ||
     frame?.event === "fallback_started" ||
     frame?.event === "fallback_out_and_back_started"
@@ -1494,11 +2124,19 @@ function renderStep(stepIndex, options = {}) {
 
   playbackState = buildStateForStep(index);
 
-  renderBaseScene(groups.base);
-  clearStageLayer();
-
   const frame = currentFrames[index];
-  renderFrame(frame, playbackState, loadedStartPoint, groups.stage);
+  const frameViewOptions = {
+    contextFailedAttempt: isFailedContextFrame(frame),
+    rejectedDistance: isRejectedDistanceStep(index),
+  };
+
+  applyLoopCandidateContextStyles(frameViewOptions.contextFailedAttempt);
+
+  renderBaseScene(groups.base, {
+    showSelectedLoopReference: !frameViewOptions.contextFailedAttempt,
+  });
+  clearStageLayer();
+  renderFrame(frame, playbackState, loadedStartPoint, groups.stage, index);
 
   if (options.fitView) {
     fitStepView(frame, playbackState, loadedStartPoint);
@@ -1508,10 +2146,17 @@ function renderStep(stepIndex, options = {}) {
   syncScrubber(index);
   updateStepIndicator(index, currentFrames.length);
   updateStatus(
-    describeFrame(frame, playbackState, index + 1, currentFrames.length),
+    describeFrame(
+      frame,
+      playbackState,
+      index + 1,
+      currentFrames.length,
+      frameViewOptions,
+    ),
   );
-  updateNote(describeFrameNote(frame));
+  updateNote(describeFrameNote(frame, frameViewOptions));
   updatePlayButton();
+  updateFrameStepButtons();
 }
 
 async function runPlayback(localToken) {
@@ -1593,6 +2238,8 @@ export function initLoopDemoPlayer() {
   ui.scrubber = document.getElementById("loop-demo-scrubber");
   ui.stepIndicator = document.getElementById("loop-demo-step-indicator");
   ui.playToggle = document.getElementById("loop-demo-play-toggle");
+  ui.prevFrameBtn = document.getElementById("loop-demo-prev-frame-btn");
+  ui.nextFrameBtn = document.getElementById("loop-demo-next-frame-btn");
   ui.skipBtn = document.getElementById("loop-demo-skip-btn");
   ui.stopBtn = document.getElementById("loop-demo-stop-btn");
 
@@ -1610,31 +2257,38 @@ export function initLoopDemoPlayer() {
     skipToEnd();
   });
 
+  ui.prevFrameBtn?.addEventListener("click", () => {
+    stepByFrame(-1, { fitView: true });
+  });
+
+  ui.nextFrameBtn?.addEventListener("click", () => {
+    stepByFrame(1, { fitView: true });
+  });
+
   ui.scrubber?.addEventListener("input", () => {
     if (!currentFrames.length) return;
 
-    stopAutoPlayback();
     const rawValue = Number(ui.scrubber.value);
-    const selectedIndex = clampStepIndex(rawValue - 1);
-    if (selectedIndex < 0) return;
-
-    renderStep(selectedIndex, { fitView: true });
-    currentIndex = selectedIndex + 1;
+    seekToStep(rawValue - 1, { fitView: true });
   });
 
   ui.stopBtn?.addEventListener("click", () => {
     stopAutoPlayback();
+    applyLoopCandidateContextStyles(false, false);
     clearLayers();
     currentIndex = 0;
     lastRenderedIndex = -1;
     configureScrubber(currentFrames.length);
     updateStepIndicator(null, currentFrames.length);
     updateStatus("Demo stopped. Scrub timeline or press Play.");
-    updateNote("Use the timeline to inspect any step or press Play to continue.");
+    updateNote(
+      "Use the timeline to inspect any step or press Play to continue.",
+    );
     if (currentFrames.length) {
       updateControlsVisibility(true);
     }
     updatePlayButton();
+    updateFrameStepButtons();
   });
 
   ui.isInitialised = true;
@@ -1644,6 +2298,7 @@ export function initLoopDemoPlayer() {
   updateStatus("");
   updateNote("Select a loop demo to begin.");
   updatePlayButton();
+  updateFrameStepButtons();
 }
 
 export function cancelLoopDemoPlayback() {
@@ -1702,7 +2357,9 @@ export async function playLoopDemo(loopDemo, startPoint, selectedLoop = null) {
   updateControlsVisibility(true);
   const loopLabel = selectedLoop?.label || "loop";
   updateStatus(`Loaded ${currentFrames.length} story steps for ${loopLabel}.`);
-  updateNote("Autoplay will advance each step. Drag the timeline to inspect any step.");
+  updateNote(
+    "Autoplay will advance each step. Drag the timeline to inspect any step.",
+  );
   updatePlayButton();
 
   renderBaseScene(layerGroup.base);
