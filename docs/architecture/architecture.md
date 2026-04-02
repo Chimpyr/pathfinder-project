@@ -82,12 +82,39 @@ ScenicPathFinder/
 
 ### 1. User Input
 
-User enters start/end locations (addresses or postcodes).
+User enters start/end locations (addresses or coordinates) via the web interface.
 
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend (index.html)
+    participant Controller (routes.py)
+    participant GraphMgr (graph_manager.py)
+    participant RouteFinder (route_finder.py)
+    participant MapRenderer (map_renderer.py)
+
+    User->>Frontend: Enters Start/End & Clicks "Find Route"
+    Frontend->>Controller: POST /api/route (AJAX)
+
+    Controller->>GraphMgr: get_graph("Bristol, UK")
+    GraphMgr-->>Controller: Returns NetworkX Graph (Cached or Async Task)
+
+    Controller->>RouteFinder: find_route(start, end)
+    RouteFinder->>RouteFinder: Geocode addresses -> Lat/Lon
+    RouteFinder->>RouteFinder: Find nearest nodes
+    RouteFinder->>RouteFinder: Calculate A* Path
+    RouteFinder-->>Controller: Returns Route (Node IDs) & Route Stats
+
+    Controller-->>Frontend: JSON { routes: { ... } }
+    Frontend->>Frontend: Renders Route on Map (Folium/Leaflet)
 ```
-POST /
-  start: "Clifton Suspension Bridge"
-  end: "Bristol Temple Meads"
+
+```http
+POST /api/route
+{
+  "start_address": "Clifton Suspension Bridge",
+  "end_address": "Bristol Temple Meads"
+}
 ```
 
 ### 2. Geocoding
