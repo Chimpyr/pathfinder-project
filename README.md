@@ -4,7 +4,7 @@ A web application for discovering optimal walking routes using multi-criteria ro
 
 ## Features
 
-- **Multi-criteria Routing**: Score routes by greenness, water proximity, noise levels, social vitality, and built heritage
+- **Personalised Scenic Routing**: Generate paths that balance the shortest distance with customisable preferences for greenness, water proximity, quietness, social vibrancy and slope preference.
 - **Advanced Pathfinding**: Geometric loop solvers and A\* algorithm with budget constraints
 - **Street Lighting Integration**: Safety assessment with visibility and lighting context analysis
 - **Interactive Web Interface**: Real-time route visualisation with folium maps and user preference controls
