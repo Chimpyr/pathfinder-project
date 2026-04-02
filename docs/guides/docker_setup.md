@@ -22,14 +22,14 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y ... && rm -rf /var/lib/apt/lists/*
 ```
 
-**System dependencies** — Installs geospatial libraries (GEOS, PROJ, GDAL). Cleanup at end reduces image size.
+**System dependencies** — Installs geospatial libraries (GEOS, PROJ, GDAL) and `osmium-tool`. The `osmium-tool` is essential for pre-extracting bounding box regions to prevent out-of-memory errors on large PBF files. Cleanup at end reduces image size.
 
 ```dockerfile
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN echo 'setuptools<70' > /tmp/constraints.txt && ...
 ```
 
-**Layer caching** — Copy deps first so pip install is cached. Code changes don't trigger reinstall.
+**Layer caching & Workarounds** — Copies dependencies first so pip install is cached. The `setuptools<70` pip constraint is a workaround for `pyrosm`/`pyrobuf` compatibility issues during build isolation.
 
 ```dockerfile
 COPY . .
@@ -41,47 +41,66 @@ COPY . .
 EXPOSE 5000
 ```
 
-**Documentation only** — Says "this container listens on 5000". Does NOT publish the port — that's done in docker-compose.yml with `ports:`.
+**Documentation only** — Says "this container listens on 5000". Does NOT publish the port — that's done in `docker-compose.yml` with `ports:`.
 
 ```dockerfile
 CMD ["python", "run.py"]
 ```
 
-**Default command** — Runs Flask. Override in docker-compose for workers.
+**Default command** — Runs Flask. Override in `docker-compose.yml` for workers.
 
 ---
 
 ## docker-compose.yml Architecture
 
+ScenicPathFinder is broken into multiple microservices:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                             Host Machine                                    │
+│  ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌──────────┐                     │
+│  │  Redis  │◄─►│   API   │◄─►│ Worker  │   │  Flower  │ (Optional Profile)  │
+│  │  :6379  │   │  :5001  │   │         │   │  :5555   │                     │
+│  └────┬────┘   └────┬────┘   └────┬────┘   └──────────┘                     │
+│       │             │             │                                         │
+│       └─────────────┴──────┬──────┘                                         │
+│                            │                                                │
+│         ┌────────────┐     │        ┌────────────┐                          │
+│         │   Martin   │◄────┤        │  pgAdmin   │                          │
+│         │ Tileserver │     │        │   :5050    │                          │
+│         │   :3000    │     ▼        └──────┬─────┘                          │
+│         └──────┬─────┘  ┌─────────┐        │                                │
+│                └───────►│ PostGIS │◄───────┘                                │
+│                         │  :5432  │◄────┐                                   │
+│                         └─────────┘     │  ┌─────────┐                      │
+│                                         └──┤ Seeder  │ (Optional Profile)   │
+│                                            └─────────┘                      │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
-┌───────────────────────────────────────────────────────────┐
-│                    Host Machine                           │
-│  ┌─────────┐    ┌─────────┐    ┌─────────┐               │
-│  │  Redis  │◄──►│   API   │◄──►│ Worker  │               │
-│  │  :6379  │    │  :5000  │    │         │               │
-│  └────┬────┘    └────┬────┘    └────┬────┘               │
-│       │              │              │                     │
-│       └──────────────┴──────────────┘                     │
-│                      │                                    │
-│              ./app/data (shared cache)                    │
-└───────────────────────────────────────────────────────────┘
-```
+
+**Core Services**:
+
+- **api:** The main Flask backend. Bound to port `5001` on the host to avoid default `5000` conflicts (like AirPlay on macOS).
+- **worker:** Celery processes performing heavy graph building tasks async.
+- **redis:** Message queue handling API-Worker communication.
+- **db:** PostGIS instance storing geometry data for street lighting maps.
+- **tileserver (Martin):** Serves Vector Tiles directly from PostGIS over HTTP.
 
 ---
 
-## Port Mapping: `"5000:5000"`
+## Port Mapping: `"5001:5000"`
 
 Format: `HOST:CONTAINER`
 
-```
-Browser → localhost:5000 → Container's port 5000
+```text
+Browser → localhost:5001 → Container's internal port 5000
 ```
 
 They CAN differ:
 
 ```yaml
 ports:
-  - "8080:5000" # Browser uses 8080, Flask inside uses 5000
+  - "5001:5000" # Browser uses 5001, Flask inside uses 5000
 ```
 
 ---
@@ -137,16 +156,33 @@ The explicit cache mount ensures API and Worker share graphs even when dev mount
 
 ---
 
+## Profiles (Conditional Services)
+
+Some services in `docker-compose.yml` are not started by default:
+
+```yaml
+profiles:
+  - seed
+```
+
+You can start them manually with the `--profile` flag:
+
+- **`docker-compose --profile seed up seeder`**: Triggers the one-off job that pushes `.pbf` data into PostGIS.
+- **`docker-compose --profile monitoring up flower`**: Starts the Celery dashboard on `localhost:5555`.
+
+---
+
 ## Service Communication
 
 ```yaml
 environment:
   - CELERY_BROKER_URL=redis://redis:6379/0
+  - POSTGRES_DB_HOST=db
 ```
 
-`redis` in the URL is the **service name** — Docker's internal DNS resolves it to that container's IP.
+`redis` and `db` in these variables are the **service names** — Docker's internal DNS resolves them to that container's IP inside the Docker network.
 
-`/0` and `/1` are Redis database numbers (separate logical DBs).
+`/0` and `/1` in Redis URLs are database numbers (separate logical DBs).
 
 ---
 

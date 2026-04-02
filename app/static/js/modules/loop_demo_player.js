@@ -1111,6 +1111,7 @@ function drawBearingOptions(frame, state, startPoint, layerGroup) {
         color: "#e0f2fe",
         weight: 8,
         opacity: 0.95,
+        dashArray: "10 6",
       }).addTo(layerGroup);
     }
 
@@ -1118,7 +1119,7 @@ function drawBearingOptions(frame, state, startPoint, layerGroup) {
       color: isSelected ? "#1e3a8a" : "#0ea5e9",
       weight: isSelected ? 4.5 : 3,
       opacity: isSelected ? 1 : 0.78,
-      dashArray: isSelected ? "" : "8 6",
+      dashArray: isSelected ? "10 6" : "8 6",
     }).addTo(layerGroup);
 
     L.circleMarker(endpoint, {
@@ -1424,7 +1425,9 @@ function drawTauAdjustment(frame, state, startPoint, layerGroup) {
       pointRadius: 4,
     });
 
-    const ratio = tauAfter / tauBefore;
+    // Tau is inverse to geometric radius in the solver: higher tau shrinks,
+    // lower tau expands. Visual scaling mirrors that inverse relation.
+    const ratio = tauAfter !== 0 ? tauBefore / tauAfter : 1;
     const scaledPoints = scalePointsFromStart(basePoints, startPoint, ratio);
     drawSkeletonFromPoints(startPoint, scaledPoints, layerGroup, {
       color: "#7c3aed",
@@ -1651,6 +1654,32 @@ function drawAcceptedCandidate(state, layerGroup, isComplete = false) {
   }
 }
 
+function drawAcceptanceTransition(frame, state, layerGroup, stepIndex) {
+  const eventName =
+    frame.event === "fallback_accepted" ? "fallback_leg_routed" : "leg_routed";
+  const targetRetry = resolveRetryIndex(frame, state);
+
+  let legFrames = collectLegFramesForRetry(stepIndex, eventName, targetRetry);
+  if (!legFrames.length) {
+    const recent = collectLegFramesForRetry(stepIndex, eventName, null);
+    legFrames = recent.slice(-3);
+  }
+
+  legFrames.forEach((legFrame) => {
+    const legPath = normalisePoints(legFrame.path);
+    if (legPath.length < 2) return;
+
+    L.polyline(legPath, {
+      color: "#fda4af",
+      weight: 3,
+      opacity: 0.5,
+      dashArray: "8 6",
+      lineJoin: "round",
+      lineCap: "round",
+    }).addTo(layerGroup);
+  });
+}
+
 function applyLoopCandidateContextStyles(
   contextFailedAttempt,
   playbackActive = true,
@@ -1800,6 +1829,7 @@ function renderFrame(frame, state, startPoint, stageLayer, stepIndex = -1) {
     frame.event === "fallback_accepted" ||
     frame.event === "fallback_out_and_back_completed"
   ) {
+    drawAcceptanceTransition(frame, state, stageLayer, stepIndex);
     drawAcceptedCandidate(state, stageLayer);
     return;
   }
@@ -1858,16 +1888,16 @@ function describeFrame(frame, state, stepIndex, totalSteps, options = {}) {
       const sides = parseShapeSides(frame.shape_sides ?? frame.num_vertices);
       const shapeText = Number.isFinite(sides) ? `${sides}-point` : "polygon";
       message = bearingText
-        ? `${retryPrefix}Prepare ${shapeText} skeleton attempt toward ${bearingText}.`
-        : `${retryPrefix}Prepare ${shapeText} skeleton attempt.`;
+        ? `${retryPrefix}Prepare ${shapeText} skeleton attempt toward ${bearingText} (retry count resets for each new shape attempt).`
+        : `${retryPrefix}Prepare ${shapeText} skeleton attempt (retry count resets for each new shape attempt).`;
       break;
     }
     case "retry_started": {
       const tau = Number(frame.tau);
       if (Number.isFinite(tau)) {
-        message = `${retryLabel || "Retry"} begins with tau ${tau.toFixed(3)}.`;
+        message = `${retryLabel || "Retry"} begins with tau ${tau.toFixed(3)} for this shape attempt.`;
       } else {
-        message = `${retryLabel || "Retry"} begins with updated geometry.`;
+        message = `${retryLabel || "Retry"} begins with updated geometry for this shape attempt.`;
       }
       break;
     }
@@ -1934,14 +1964,14 @@ function describeFrame(frame, state, stepIndex, totalSteps, options = {}) {
       const direction =
         Number.isFinite(before) && Number.isFinite(after)
           ? after > before
-            ? "increase"
+            ? "decrease"
             : after < before
-              ? "decrease"
+              ? "increase"
               : "keep"
           : null;
       if (Number.isFinite(before) && Number.isFinite(after)) {
         message = direction
-          ? `${retryPrefix}Adjust shape scale (tau ${before.toFixed(3)} -> ${after.toFixed(3)}) to ${direction} route length on next retry.`
+          ? `${retryPrefix}Adjust shape scale (tau ${before.toFixed(3)} -> ${after.toFixed(3)}) to ${direction} route length on next retry (higher tau shrinks, lower tau grows).`
           : `${retryPrefix}Adjust shape scale (tau ${before.toFixed(3)} -> ${after.toFixed(3)}).`;
       } else {
         message = `${retryPrefix}Adjust shape scale and retry.`;
@@ -2010,7 +2040,7 @@ function describeFrameNote(frame, options = {}) {
     case "bearings_selected":
       return "Dashed cyan rays are candidate bearings. The darkest blue ray is the selected bearing for this candidate.";
     case "retry_started":
-      return "A new retry starts with the latest tau value. Subsequent skeleton and WSM legs belong to this retry cycle.";
+      return "A new retry starts with the latest tau value for this shape attempt. Retry numbering restarts when shape or bearing changes.";
     case "skeleton_projected":
       return withContextSuffix(
         "Orange dashed skeleton is theoretical geometry before graph snapping.",
@@ -2031,9 +2061,9 @@ function describeFrameNote(frame, options = {}) {
           : "Dashed blue circle is target distance; solid cyan circle is this retry's actual loop distance. Overshoot or undershoot triggers tau adjustment.",
       );
     case "tau_adjusted":
-      return "Orange shape is previous scale; purple shape is the tau-adjusted geometry used for the next retry where all legs are re-routed.";
+      return "Orange shape is previous scale; purple shape is the tau-adjusted geometry for the next retry. Tau is inverse to size: higher tau shrinks shape, lower tau enlarges shape.";
     case "candidate_accepted":
-      return "Solid blue route is the accepted candidate. Any diagonal-looking segment is routed path, not a bearing guide.";
+      return "Dashed rose traces show the pre-acceptance leg geometry; solid blue route is the accepted candidate after pruning/simplification. Any diagonal-looking segment is routed path, not a bearing guide.";
     case "solver_completed":
       return "Ranking complete for this candidate path. Use other loop cards to compare alternatives.";
     default:

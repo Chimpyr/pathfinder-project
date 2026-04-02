@@ -264,6 +264,10 @@ _Note:_ Supports all advanced optional parameters (mutually exclusive pairs such
 
 - [Loop Route Naming Scheme](../features/loop_route_naming.md) - Full logic for label assignment, subtitle/reason derivation, and id stability.
 
+### `GET /api/cached-tiles`
+
+Return currently loaded map tiles from cache logic.
+
 ---
 
 ## Task Endpoints
@@ -356,6 +360,178 @@ Cancel a running or pending task.
   "message": "Task cancellation requested"
 }
 ```
+
+---
+
+## Auth Endpoints
+
+Used for user registration and authentication.
+
+### `POST /auth/register`
+
+Register a new user account.
+
+**Request Body**:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword123"
+}
+```
+
+**Response** (201):
+
+```json
+{
+  "message": "Account created",
+  "user": {
+    "id": 1,
+    "email": "user@example.com"
+  }
+}
+```
+
+### `POST /auth/login`
+
+Authenticate and create a session.
+
+**Request Body**:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword123",
+  "remember": true
+}
+```
+
+**Response** (200):
+
+```json
+{
+  "message": "Logged in",
+  "user": {
+    "id": 1,
+    "email": "user@example.com"
+  }
+}
+```
+
+### `POST /auth/logout`
+
+Clear the current session (requires authentication).
+
+**Response** (200):
+
+```json
+{
+  "message": "Logged out"
+}
+```
+
+### `GET /auth/me`
+
+Return the currently authenticated user's profile.
+
+**Response** (200):
+
+```json
+{
+  "user": {
+    "id": 1,
+    "email": "user@example.com"
+  }
+}
+```
+
+---
+
+## User Data Endpoints
+
+Requires authentication. Manages user preferences and saved locations.
+
+### `GET /api/preferences/movement`
+
+Return movement preferences for the currently authenticated user.
+
+**Response** (200):
+
+```json
+{
+  "preferences": {
+    "walking_speed_kmh": 5.0,
+    "running_easy_speed_kmh": 10.0,
+    "running_race_speed_kmh": 15.0
+  }
+}
+```
+
+### `PATCH /api/preferences/movement`
+
+Update movement preferences. Supports optimistic timestamp reconciliation via optional `client_updated_at`.
+
+**Request Body**:
+
+```json
+{
+  "walking_speed_kmh": 5.5
+}
+```
+
+### `GET /api/pins`
+
+List all saved pins for the current user.
+
+**Response** (200):
+
+```json
+{
+  "pins": [
+    {
+      "id": 1,
+      "label": "Home",
+      "latitude": 51.4545,
+      "longitude": -2.5879,
+      "created_at": "2026-04-02T12:00:00Z"
+    }
+  ]
+}
+```
+
+### `POST /api/pins`
+
+Save a new map pin.
+
+**Request Body**:
+
+```json
+{
+  "label": "Work",
+  "latitude": 51.4545,
+  "longitude": -2.5879
+}
+```
+
+### `PATCH /api/pins/<pin_id>`
+
+Update a saved pin's label.
+
+### `DELETE /api/pins/<pin_id>`
+
+Delete a saved pin.
+
+### `GET /api/queries`
+
+List all saved queries (routes) for the current user.
+
+### `POST /api/queries`
+
+Save a routing query.
+
+### `DELETE /api/queries/<query_id>`
+
+Delete a saved query.
 
 ---
 
