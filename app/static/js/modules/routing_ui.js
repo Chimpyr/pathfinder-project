@@ -64,8 +64,11 @@ const preferDedicatedPavementsToggle = document.getElementById(
 const preferNatureTrailsToggle = document.getElementById(
   "prefer-nature-trails-toggle",
 );
-const preferPedestrianToggle = document.getElementById(
-  "prefer-pedestrian-toggle",
+const preferSegregatedPathsToggle = document.getElementById(
+  "prefer-segregated-paths-toggle",
+);
+const allowQuietServiceLanesToggle = document.getElementById(
+  "allow-quiet-service-lanes-toggle",
 );
 const preferPavedToggle = document.getElementById("prefer-paved-toggle");
 const preferLitToggle = document.getElementById("prefer-lit-toggle");
@@ -73,6 +76,9 @@ const heavilyAvoidUnlitToggle = document.getElementById(
   "heavily-avoid-unlit-toggle",
 );
 const avoidUnsafeToggle = document.getElementById("avoid-unsafe-toggle");
+const avoidUnclassifiedLanesToggle = document.getElementById(
+  "avoid-unclassified-lanes-toggle",
+);
 const groupNatureToggle = document.getElementById("group-nature-toggle");
 const finderNavBtn = document.querySelector(
   '.nav-rail-btn[data-view="finder-view"]',
@@ -337,6 +343,9 @@ function initAdvancedToggles() {
     const natureEnabled = Boolean(
       preferNatureTrailsToggle && preferNatureTrailsToggle.checked,
     );
+    const separatedEnabled = Boolean(
+      preferDedicatedPavementsToggle && preferDedicatedPavementsToggle.checked,
+    );
 
     if (natureEnabled && preferDedicatedPavementsToggle) {
       preferDedicatedPavementsToggle.checked = false;
@@ -344,12 +353,25 @@ function initAdvancedToggles() {
     if (natureEnabled && preferPavedToggle) {
       preferPavedToggle.checked = false;
     }
+    if ((natureEnabled || !separatedEnabled) && preferSegregatedPathsToggle) {
+      preferSegregatedPathsToggle.checked = false;
+    }
+    if ((natureEnabled || !separatedEnabled) && allowQuietServiceLanesToggle) {
+      allowQuietServiceLanesToggle.checked = false;
+    }
 
     if (preferDedicatedPavementsToggle) {
       preferDedicatedPavementsToggle.disabled = natureEnabled;
     }
     if (preferPavedToggle) {
       preferPavedToggle.disabled = natureEnabled;
+    }
+    if (preferSegregatedPathsToggle) {
+      preferSegregatedPathsToggle.disabled = natureEnabled || !separatedEnabled;
+    }
+    if (allowQuietServiceLanesToggle) {
+      allowQuietServiceLanesToggle.disabled =
+        natureEnabled || !separatedEnabled;
     }
   };
 
@@ -370,6 +392,26 @@ function initAdvancedToggles() {
     preferPavedToggle.addEventListener("change", () => {
       if (preferPavedToggle.checked) {
         preferNatureTrailsToggle.checked = false;
+      }
+      syncTrailConflicts();
+    });
+  }
+
+  if (preferSegregatedPathsToggle && preferDedicatedPavementsToggle) {
+    preferSegregatedPathsToggle.addEventListener("change", () => {
+      if (preferSegregatedPathsToggle.checked) {
+        preferDedicatedPavementsToggle.checked = true;
+        if (preferNatureTrailsToggle) preferNatureTrailsToggle.checked = false;
+      }
+      syncTrailConflicts();
+    });
+  }
+
+  if (allowQuietServiceLanesToggle && preferDedicatedPavementsToggle) {
+    allowQuietServiceLanesToggle.addEventListener("change", () => {
+      if (allowQuietServiceLanesToggle.checked) {
+        preferDedicatedPavementsToggle.checked = true;
+        if (preferNatureTrailsToggle) preferNatureTrailsToggle.checked = false;
       }
       syncTrailConflicts();
     });
@@ -452,21 +494,29 @@ async function handleStandardSubmit() {
   const preferNatureTrails = Boolean(
     preferNatureTrailsToggle && preferNatureTrailsToggle.checked,
   );
-  const legacyPreferPedestrian = Boolean(
-    preferPedestrianToggle && preferPedestrianToggle.checked,
+  const preferSegregatedPaths = Boolean(
+    preferSegregatedPathsToggle && preferSegregatedPathsToggle.checked,
+  );
+  const allowQuietServiceLanes = Boolean(
+    allowQuietServiceLanesToggle && allowQuietServiceLanesToggle.checked,
   );
 
   const advancedOptions = {
-    prefer_dedicated_pavements: preferDedicatedPavements,
+    prefer_separated_paths: preferDedicatedPavements,
     prefer_nature_trails: preferNatureTrails,
-    // Include legacy field for older backend versions and saved-query parity.
-    prefer_pedestrian: legacyPreferPedestrian || preferDedicatedPavements,
-    prefer_paved: Boolean(preferPavedToggle && preferPavedToggle.checked),
-    prefer_lit: Boolean(preferLitToggle && preferLitToggle.checked),
-    heavily_avoid_unlit: Boolean(
+    prefer_paved_surfaces: Boolean(
+      preferPavedToggle && preferPavedToggle.checked,
+    ),
+    prefer_lit_streets: Boolean(preferLitToggle && preferLitToggle.checked),
+    avoid_unlit_streets: Boolean(
       heavilyAvoidUnlitToggle && heavilyAvoidUnlitToggle.checked,
     ),
     avoid_unsafe_roads: Boolean(avoidUnsafeToggle && avoidUnsafeToggle.checked),
+    avoid_unclassified_lanes: Boolean(
+      avoidUnclassifiedLanesToggle && avoidUnclassifiedLanesToggle.checked,
+    ),
+    prefer_segregated_paths: preferSegregatedPaths,
+    allow_quiet_service_lanes: allowQuietServiceLanes,
   };
 
   Object.entries(advancedOptions).forEach(([key, enabled]) => {
@@ -571,6 +621,12 @@ async function handleLoopSubmit(options = {}) {
   const preferNatureTrails = Boolean(
     preferNatureTrailsToggle && preferNatureTrailsToggle.checked,
   );
+  const preferSegregatedPaths = Boolean(
+    preferSegregatedPathsToggle && preferSegregatedPathsToggle.checked,
+  );
+  const allowQuietServiceLanes = Boolean(
+    allowQuietServiceLanesToggle && allowQuietServiceLanesToggle.checked,
+  );
   const payload = {
     start_lat: startState.lat,
     start_lon: startState.lon,
@@ -580,17 +636,21 @@ async function handleLoopSubmit(options = {}) {
       travelProfileSelect?.value || getSelectedTravelProfile(),
     ),
     variety_level: varietyLevelSlider ? parseInt(varietyLevelSlider.value) : 0,
-    prefer_dedicated_pavements: preferDedicatedPavements,
+    prefer_separated_paths: preferDedicatedPavements,
     prefer_nature_trails: preferNatureTrails,
-    prefer_pedestrian: preferPedestrianToggle
-      ? preferPedestrianToggle.checked || preferDedicatedPavements
-      : preferDedicatedPavements,
-    prefer_paved: preferPavedToggle ? preferPavedToggle.checked : false,
-    prefer_lit: preferLitToggle ? preferLitToggle.checked : false,
-    heavily_avoid_unlit: heavilyAvoidUnlitToggle
+    prefer_paved_surfaces: preferPavedToggle
+      ? preferPavedToggle.checked
+      : false,
+    prefer_lit_streets: preferLitToggle ? preferLitToggle.checked : false,
+    avoid_unlit_streets: heavilyAvoidUnlitToggle
       ? heavilyAvoidUnlitToggle.checked
       : false,
     avoid_unsafe_roads: avoidUnsafeToggle ? avoidUnsafeToggle.checked : false,
+    avoid_unclassified_lanes: avoidUnclassifiedLanesToggle
+      ? avoidUnclassifiedLanesToggle.checked
+      : false,
+    prefer_segregated_paths: preferSegregatedPaths,
+    allow_quiet_service_lanes: allowQuietServiceLanes,
     demo_visualisation: demoVisualisation,
   };
 

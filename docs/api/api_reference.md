@@ -88,23 +88,27 @@ Calculate a scenic route between two points.
 
 **Optional Parameters**:
 
-| Parameter                    | Type   | Default         | Description                                                                                |
-| ---------------------------- | ------ | --------------- | ------------------------------------------------------------------------------------------ |
-| `use_wsm`                    | bool   | `false`         | Enable WSM routing instead of pure shortest path                                           |
-| `weights`                    | object | config default  | UI-style scenic weights (`distance`, `greenness`, `water`, `quietness`, `social`, `slope`) |
-| `combine_nature`             | bool   | `false`         | Combine water + greenness in nature mode                                                   |
-| `scenic_preferences_enabled` | bool   | `false`         | Frontend hint indicating scenic sliders are active                                         |
-| `advanced_compare_mode`      | bool   | `false`         | Frontend hint for baseline-vs-advanced compare flow                                        |
-| `prefer_dedicated_pavements` | bool   | `false`         | Prefer designated hard-surface active-travel corridors                                     |
-| `prefer_nature_trails`       | bool   | `false`         | Prefer trail-like highways and natural surfaces                                            |
-| `prefer_pedestrian`          | bool   | `false`         | Legacy alias accepted for backward compatibility (mapped to dedicated pavements)           |
-| `prefer_paved`               | bool   | `false`         | Legacy alias accepted for backward compatibility.                                          |
-| `prefer_lit_streets`         | bool   | `false`         | Prefer explicitly lit streets or mapped streetlights                                       |
-| `heavily_avoid_unlit`        | bool   | `false`         | Strongly avoid unlit/unknown-lit streets ($5 \times$ cost penalty)                         |
-| `avoid_unsafe_roads`         | bool   | `false`         | Penalize major roads lacking foot safety indicators                                        |
-| `travel_profile`             | string | profile default | Movement profile (`walking`, `running_easy`, `running_race`)                               |
-| `speed_kmh`                  | float  | profile default | Optional speed override                                                                    |
-| `activity`                   | string | derived         | Optional activity override (`walking`/`running`)                                           |
+| Parameter                    | Type   | Default         | Description                                                                                 |
+| ---------------------------- | ------ | --------------- | ------------------------------------------------------------------------------------------- |
+| `use_wsm`                    | bool   | `false`         | Enable WSM routing instead of pure shortest path                                            |
+| `weights`                    | object | config default  | UI-style scenic weights (`distance`, `greenness`, `water`, `quietness`, `social`, `slope`)  |
+| `combine_nature`             | bool   | `false`         | Combine water + greenness in nature mode                                                    |
+| `scenic_preferences_enabled` | bool   | `false`         | Frontend hint indicating scenic sliders are active                                          |
+| `advanced_compare_mode`      | bool   | `false`         | Frontend hint for baseline-vs-advanced compare flow                                         |
+| `prefer_separated_paths`     | bool   | `false`         | Prefer runner-oriented separated paths (tier ladder + road-avoidance penalties)             |
+| `prefer_nature_trails`       | bool   | `false`         | Prefer trail-like highways and natural surfaces                                             |
+| `prefer_paved_surfaces`      | bool   | `false`         | Penalize unpaved/soft surfaces by `surface=*` material class                                |
+| `prefer_lit_streets`         | bool   | `false`         | Prefer explicitly lit streets or mapped streetlights                                        |
+| `avoid_unlit_streets`        | bool   | `false`         | Strongly avoid unlit/unknown-lit streets ($5 \times$ cost penalty)                          |
+| `avoid_unsafe_roads`         | bool   | `false`         | Penalize major roads lacking foot safety indicators                                         |
+| `avoid_unclassified_lanes`   | bool   | `false`         | Strongly penalize unclassified lanes lacking foot/cycle safety cues (soft-ban, last resort) |
+| `prefer_segregated_paths`    | bool   | `false`         | Bonus-only preference for `segregated=yes` edges                                            |
+| `allow_quiet_service_lanes`  | bool   | `false`         | Allow low-speed service-lane fallback tier in separated mode                                |
+| `travel_profile`             | string | profile default | Movement profile (`walking`, `running_easy`, `running_race`)                                |
+| `speed_kmh`                  | float  | profile default | Optional speed override                                                                     |
+| `activity`                   | string | derived         | Optional activity override (`walking`/`running`)                                            |
+
+Legacy aliases accepted for backward compatibility: `prefer_dedicated_pavements`, `prefer_pedestrian`, `prefer_paved`, `prefer_lit`, `heavily_avoid_unlit`, `avoid_unclassified`.
 
 **Success Response** (200, single route):
 
@@ -226,7 +230,7 @@ point.
 }
 ```
 
-_Note:_ Supports all advanced optional parameters (mutually exclusive pairs such as `prefer_dedicated_pavements`/`prefer_nature_trails` and `prefer_lit_streets`/`heavily_avoid_unlit`, as well as `avoid_unsafe_roads`) identical to `/api/route`.
+_Note:_ Supports all advanced optional parameters identical to `/api/route` (for example `prefer_separated_paths`/`prefer_nature_trails` and `prefer_lit_streets`/`avoid_unlit_streets`).
 
 **Key Response Fields** (200):
 

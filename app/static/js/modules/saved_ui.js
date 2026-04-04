@@ -597,13 +597,21 @@ export function initSavedUI() {
 
       // Restore advanced option toggles
       const advToggles = [
+        ["prefer_separated_paths", "prefer-dedicated-pavements-toggle"],
         ["prefer_dedicated_pavements", "prefer-dedicated-pavements-toggle"],
         ["prefer_nature_trails", "prefer-nature-trails-toggle"],
+        ["prefer_paved_surfaces", "prefer-paved-toggle"],
         ["prefer_paved", "prefer-paved-toggle"],
+        ["prefer_lit_streets", "prefer-lit-toggle"],
         ["prefer_lit", "prefer-lit-toggle"],
+        ["avoid_unlit_streets", "heavily-avoid-unlit-toggle"],
         ["heavily_avoid_unlit", "heavily-avoid-unlit-toggle"],
         ["avoid_unsafe_roads", "avoid-unsafe-toggle"],
+        ["avoid_unclassified_lanes", "avoid-unclassified-lanes-toggle"],
+        ["avoid_unclassified", "avoid-unclassified-lanes-toggle"],
         ["avoid_unsafe", "avoid-unsafe-toggle"],
+        ["prefer_segregated_paths", "prefer-segregated-paths-toggle"],
+        ["allow_quiet_service_lanes", "allow-quiet-service-lanes-toggle"],
       ];
       for (const [key, elId] of advToggles) {
         if (w[key] !== undefined) {
@@ -615,6 +623,7 @@ export function initSavedUI() {
       // Legacy fallback: older queries used prefer_pedestrian only.
       if (
         w.prefer_pedestrian === true &&
+        w.prefer_separated_paths === undefined &&
         w.prefer_dedicated_pavements === undefined &&
         w.prefer_nature_trails === undefined
       ) {
@@ -633,6 +642,9 @@ export function initSavedUI() {
         "prefer-paved-toggle",
         "prefer-lit-toggle",
         "heavily-avoid-unlit-toggle",
+        "avoid-unclassified-lanes-toggle",
+        "prefer-segregated-paths-toggle",
+        "allow-quiet-service-lanes-toggle",
       ].forEach((id) => {
         const el = document.getElementById(id);
         if (el) {
@@ -667,9 +679,15 @@ export function initSavedUI() {
         type: "toggle",
       },
       {
+        key: "prefer_separated_paths",
+        icon: "👟",
+        name: "Separated paths",
+        type: "toggle",
+      },
+      {
         key: "prefer_dedicated_pavements",
         icon: "👟",
-        name: "Dedicated pavements",
+        name: "Dedicated pavements (legacy)",
         type: "toggle",
       },
       {
@@ -684,18 +702,70 @@ export function initSavedUI() {
         name: "Paths/Trails (legacy)",
         type: "toggle",
       },
-      { key: "prefer_paved", icon: "🛤️", name: "Paved", type: "toggle" },
-      { key: "prefer_lit", icon: "💡", name: "Lit streets", type: "toggle" },
+      {
+        key: "prefer_paved_surfaces",
+        icon: "🛤️",
+        name: "Paved surfaces",
+        type: "toggle",
+      },
+      {
+        key: "prefer_paved",
+        icon: "🛤️",
+        name: "Paved (legacy)",
+        type: "toggle",
+      },
+      {
+        key: "prefer_lit_streets",
+        icon: "💡",
+        name: "Lit streets",
+        type: "toggle",
+      },
+      {
+        key: "prefer_lit",
+        icon: "💡",
+        name: "Lit streets (legacy)",
+        type: "toggle",
+      },
+      {
+        key: "avoid_unlit_streets",
+        icon: "🌑",
+        name: "Avoid unlit",
+        type: "toggle",
+      },
       {
         key: "heavily_avoid_unlit",
         icon: "🌑",
-        name: "Avoid unlit",
+        name: "Avoid unlit (legacy)",
         type: "toggle",
       },
       {
         key: "avoid_unsafe_roads",
         icon: "⚠️",
         name: "Avoid unsafe",
+        type: "toggle",
+      },
+      {
+        key: "avoid_unclassified_lanes",
+        icon: "🛑",
+        name: "Avoid unclassified lanes",
+        type: "toggle",
+      },
+      {
+        key: "avoid_unclassified",
+        icon: "🛑",
+        name: "Avoid unclassified lanes (legacy)",
+        type: "toggle",
+      },
+      {
+        key: "prefer_segregated_paths",
+        icon: "🚸",
+        name: "Segregated paths",
+        type: "toggle",
+      },
+      {
+        key: "allow_quiet_service_lanes",
+        icon: "🛣️",
+        name: "Quiet service lanes",
         type: "toggle",
       },
       { key: "avoid_unsafe", icon: "⚠️", name: "Avoid unsafe", type: "toggle" },

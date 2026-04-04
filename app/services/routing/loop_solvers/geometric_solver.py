@@ -652,7 +652,10 @@ def _route_leg(graph, source: int, target: int,
                prefer_paved: bool = False,
                prefer_lit: bool = False,
                avoid_unsafe_roads: bool = False,
+               avoid_unclassified_lanes: bool = False,
                heavily_avoid_unlit: bool = False,
+               prefer_segregated_paths: bool = False,
+               allow_quiet_service_lanes: bool = False,
                activity: str = 'walking',
                lighting_context: str = 'night',
                ) -> Optional[Tuple[List[int], float, float]]:
@@ -675,7 +678,11 @@ def _route_leg(graph, source: int, target: int,
             prefer_paved=prefer_paved,
             prefer_lit=prefer_lit,
             avoid_unsafe_roads=avoid_unsafe_roads,
+            avoid_unclassified_lanes=avoid_unclassified_lanes,
             heavily_avoid_unlit=heavily_avoid_unlit,
+            prefer_pedestrian=prefer_segregated_paths,
+            prefer_segregated_paths=prefer_segregated_paths,
+            allow_quiet_service_lanes=allow_quiet_service_lanes,
             activity=activity,
             lighting_context=lighting_context,
         )
@@ -751,7 +758,10 @@ def _try_polygon(
     prefer_paved: bool = False,
     prefer_lit: bool = False,
     avoid_unsafe_roads: bool = False,
+    avoid_unclassified_lanes: bool = False,
     heavily_avoid_unlit: bool = False,
+    prefer_segregated_paths: bool = False,
+    allow_quiet_service_lanes: bool = False,
     activity: str = 'walking',
     lighting_context: str = 'night',
     loop_demo_context=None,
@@ -947,6 +957,9 @@ def _try_polygon(
                              prefer_paved=prefer_paved,
                              prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
                              avoid_unsafe_roads=avoid_unsafe_roads,
+                             avoid_unclassified_lanes=avoid_unclassified_lanes,
+                             prefer_segregated_paths=prefer_segregated_paths,
+                             allow_quiet_service_lanes=allow_quiet_service_lanes,
                              activity=activity,
                              lighting_context=lighting_context)
         if leg_res is None:
@@ -1023,7 +1036,10 @@ def _try_out_and_back(
     prefer_paved: bool = False,
     prefer_lit: bool = False,
     avoid_unsafe_roads: bool = False,
+    avoid_unclassified_lanes: bool = False,
     heavily_avoid_unlit: bool = False,
+    prefer_segregated_paths: bool = False,
+    allow_quiet_service_lanes: bool = False,
     activity: str = 'walking',
     lighting_context: str = 'night',
     loop_demo_context=None,
@@ -1080,6 +1096,9 @@ def _try_out_and_back(
                          prefer_paved=prefer_paved,
                          prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
                          avoid_unsafe_roads=avoid_unsafe_roads,
+                         avoid_unclassified_lanes=avoid_unclassified_lanes,
+                         prefer_segregated_paths=prefer_segregated_paths,
+                         allow_quiet_service_lanes=allow_quiet_service_lanes,
                          activity=activity,
                          lighting_context=lighting_context)
     if leg_out is None:
@@ -1095,6 +1114,9 @@ def _try_out_and_back(
                           prefer_paved=prefer_paved,
                           prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
                           avoid_unsafe_roads=avoid_unsafe_roads,
+                          avoid_unclassified_lanes=avoid_unclassified_lanes,
+                          prefer_segregated_paths=prefer_segregated_paths,
+                          allow_quiet_service_lanes=allow_quiet_service_lanes,
                           activity=activity,
                           lighting_context=lighting_context)
     if leg_back is None:
@@ -1219,12 +1241,19 @@ class GeometricLoopSolver(LoopSolverBase):
         variety_level: int = 0,
         prefer_pedestrian: bool = False,
         prefer_dedicated_pavements: bool = False,
+        prefer_separated_paths: bool = False,
         prefer_nature_trails: bool = False,
         prefer_paved: bool = False,
+        prefer_paved_surfaces: bool = False,
         prefer_lit: bool = False,
+        prefer_lit_streets: bool = False,
         avoid_unsafe_roads: bool = False,
+        avoid_unclassified_lanes: bool = False,
         use_smart_bearing: bool = False,
         heavily_avoid_unlit: bool = False,
+        avoid_unlit_streets: bool = False,
+        prefer_segregated_paths: bool = False,
+        allow_quiet_service_lanes: bool = False,
         activity: str = 'walking',
         lighting_context: str = 'night',
         loop_demo_context=None,
@@ -1240,6 +1269,17 @@ class GeometricLoopSolver(LoopSolverBase):
         t0 = time.time()
         weights = validate_weights(weights)
         length_range = find_length_range(graph)
+
+        # Canonical aliases for evolving API payloads.
+        if prefer_separated_paths:
+            prefer_dedicated_pavements = prefer_separated_paths
+        if prefer_paved_surfaces:
+            prefer_paved = prefer_paved_surfaces
+        if prefer_lit_streets:
+            prefer_lit = prefer_lit_streets
+        if avoid_unlit_streets:
+            heavily_avoid_unlit = avoid_unlit_streets
+        prefer_segregated_paths = bool(prefer_segregated_paths or prefer_pedestrian)
 
         if loop_demo_context is not None:
             loop_demo_context.setdefault('schema_version', _LOOP_DEMO_SCHEMA_VERSION)
@@ -1450,7 +1490,10 @@ class GeometricLoopSolver(LoopSolverBase):
                         prefer_paved=prefer_paved,
                         prefer_lit=prefer_lit,
                         avoid_unsafe_roads=avoid_unsafe_roads,
+                        avoid_unclassified_lanes=avoid_unclassified_lanes,
                         heavily_avoid_unlit=heavily_avoid_unlit,
+                        prefer_segregated_paths=prefer_segregated_paths,
+                        allow_quiet_service_lanes=allow_quiet_service_lanes,
                         activity=activity,
                         lighting_context=lighting_context,
                         loop_demo_context=loop_demo_context,
@@ -1571,7 +1614,10 @@ class GeometricLoopSolver(LoopSolverBase):
                     prefer_paved=prefer_paved,
                     prefer_lit=prefer_lit,
                     avoid_unsafe_roads=avoid_unsafe_roads,
+                    avoid_unclassified_lanes=avoid_unclassified_lanes,
                     heavily_avoid_unlit=heavily_avoid_unlit,
+                    prefer_segregated_paths=prefer_segregated_paths,
+                    allow_quiet_service_lanes=allow_quiet_service_lanes,
                     activity=activity,
                     lighting_context=lighting_context,
                     loop_demo_context=loop_demo_context,

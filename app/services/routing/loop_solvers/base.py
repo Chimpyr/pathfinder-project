@@ -488,11 +488,18 @@ class LoopSolverBase(ABC):
         variety_level: int = 0,
         prefer_pedestrian: bool = False,
         prefer_dedicated_pavements: bool = False,
+        prefer_separated_paths: bool = False,
         prefer_nature_trails: bool = False,
         prefer_paved: bool = False,
+        prefer_paved_surfaces: bool = False,
         prefer_lit: bool = False,
+        prefer_lit_streets: bool = False,
         avoid_unsafe_roads: bool = False,
+        avoid_unclassified_lanes: bool = False,
         heavily_avoid_unlit: bool = False,
+        avoid_unlit_streets: bool = False,
+        prefer_segregated_paths: bool = False,
+        allow_quiet_service_lanes: bool = False,
     ) -> List[LoopCandidate]:
         """
         Find multiple loop route candidates.
@@ -510,11 +517,18 @@ class LoopSolverBase(ABC):
             variety_level: Route variety 0-3 (0 = deterministic, 3 = most varied).
             prefer_pedestrian: If True, strongly favour footpaths/cycleways.
             prefer_dedicated_pavements: If True, favour dedicated hard-surface active corridors.
+            prefer_separated_paths: Canonical alias of prefer_dedicated_pavements.
             prefer_nature_trails: If True, favour trail-like roads/surfaces.
             prefer_paved: If True, penalise unpaved/soft surfaces.
+            prefer_paved_surfaces: Canonical alias of prefer_paved.
             prefer_lit: If True, penalise unlit streets and bonus lit ones.
+            prefer_lit_streets: Canonical alias of prefer_lit.
             avoid_unsafe_roads: If True, heavily penalise main roads without sidewalks.
+            avoid_unclassified_lanes: If True, strongly penalise unclassified lanes lacking safety cues.
             heavily_avoid_unlit: If True, apply very strong unlit-avoidance penalties.
+            avoid_unlit_streets: Canonical alias of heavily_avoid_unlit.
+            prefer_segregated_paths: Bonus for segregated=yes where mapped.
+            allow_quiet_service_lanes: Enable service-lane fallback tier.
 
         Returns:
             List of LoopCandidate objects sorted by quality score.

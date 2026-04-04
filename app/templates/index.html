@@ -316,7 +316,7 @@
                                         <div class="flex items-center justify-between">
                                             <label for="prefer-dedicated-pavements-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
                                                 <i class="fas fa-shoe-prints text-green-500 mr-2 w-5 text-center"></i>
-                                                Prefer dedicated pavements
+                                                Prefer separated paths
                                             </label>
                                             <label class="relative inline-flex items-center cursor-pointer">
                                                 <input type="checkbox" id="prefer-dedicated-pavements-toggle" class="sr-only peer">
@@ -345,7 +345,29 @@
                                                 <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-gray-500"></div>
                                             </label>
                                         </div>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">Nature trails mode disables contradictory paved-focused toggles automatically.</p>
+
+                                        <div class="flex items-center justify-between">
+                                            <label for="prefer-segregated-paths-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                                <i class="fas fa-person-walking-arrow-right text-teal-500 mr-2 w-5 text-center"></i>
+                                                Prefer segregated paths
+                                            </label>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="prefer-segregated-paths-toggle" class="sr-only peer">
+                                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-teal-500"></div>
+                                            </label>
+                                        </div>
+
+                                        <div class="flex items-center justify-between">
+                                            <label for="allow-quiet-service-lanes-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                                <i class="fas fa-road-bridge text-orange-500 mr-2 w-5 text-center"></i>
+                                                Allow quiet service lanes
+                                            </label>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="allow-quiet-service-lanes-toggle" class="sr-only peer">
+                                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-orange-500"></div>
+                                            </label>
+                                        </div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Nature trails disables separated/paved modes. Segregated and quiet-service toggles require separated paths.</p>
                                     </div>
 
                                     <div class="rounded-lg border border-gray-200 dark:border-gray-600 p-3 space-y-3">
@@ -387,6 +409,18 @@
                                                 <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-red-500"></div>
                                             </label>
                                         </div>
+
+                                        <div class="flex items-center justify-between">
+                                            <label for="avoid-unclassified-lanes-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                                <i class="fas fa-road-barrier text-rose-500 mr-2 w-5 text-center"></i>
+                                                Avoid unclassified country lanes (last resort)
+                                            </label>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="avoid-unclassified-lanes-toggle" class="sr-only peer">
+                                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-rose-500"></div>
+                                            </label>
+                                        </div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Strongly penalises unclassified lanes without foot/cycle safety cues. Still finite so routes can fall back there if no alternative exists.</p>
                                     </div>
                                 </div>
                             </details>
@@ -1354,27 +1388,71 @@
                     <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                         <div class="flex items-center font-semibold text-gray-800 dark:text-white mb-1">
                             <i class="fas fa-shoe-prints text-green-500 w-6 text-center mr-2"></i>
-                            Prefer Dedicated Pavements
+                            Prefer Separated Paths
                         </div>
-                        <p>Prefers designated, hard-surface walking and cycling corridors suitable for road running or steady pavement pace.</p>
+                        <p>Runner-focused separated-corridor mode. Prioritises traffic-separated links first, then paved footways, and can optionally fall back to quiet service lanes.</p>
                         <details class="mt-3 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30">
                             <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300 cursor-pointer select-none">
                                 Show advanced (OSM tags and multipliers)
                             </summary>
                             <div class="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-2">
-                                <p class="font-semibold text-gray-700 dark:text-gray-200">Primary checks</p>
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Tier ladder used by this toggle</p>
                                 <ul class="list-disc pl-5 space-y-1">
-                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link</code> -&gt; <strong>2.8&times;</strong> penalty</li>
-                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=cycleway|path|footway|pedestrian|track|bridleway|steps|living_street</code> -&gt; <strong>0.78&times;</strong> reward</li>
-                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=paved|asphalt|concrete|concrete:plates|concrete:lanes|paving_stones</code> -&gt; <strong>0.90&times;</strong> reward</li>
-                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=dirt|earth|ground|mud|sand|grass|grass_paver|woodchips|gravel|fine_gravel|compacted</code> -&gt; <strong>1.35&times;</strong> penalty</li>
+                                    <li>Tier 1: <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=cycleway|path|pedestrian</code> with <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">foot=yes|designated|permissive</code> -&gt; <strong>0.70x</strong></li>
+                                    <li>Tier 2: <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=footway</code> + <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">footway=sidewalk</code> + paved surface + <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">foot=yes|designated|permissive</code> -&gt; <strong>0.82x</strong></li>
+                                    <li>Tier 3: <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=footway</code> on paved surface -&gt; <strong>0.92x</strong></li>
+                                    <li>Tier 4 (optional): quiet service-lane fallback when enabled -&gt; <strong>0.97x</strong></li>
                                 </ul>
-                                <p class="font-semibold text-gray-700 dark:text-gray-200">Quality tiers on dedicated hard-surface paths</p>
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Additional effects</p>
                                 <ul class="list-disc pl-5 space-y-1">
-                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">foot=designated</code> and <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">bicycle=designated</code> -&gt; tier_a (<strong>0.85&times;</strong>)</li>
-                                    <li>One designated marker -&gt; tier_b (<strong>0.92&times;</strong>)</li>
-                                    <li>Also receives shared active-travel quality bonus when this toggle is on: tier_a <strong>0.82&times;</strong>, tier_b <strong>0.90&times;</strong>, tier_c <strong>0.96&times;</strong></li>
+                                    <li>Major vehicle corridors <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link</code> -&gt; <strong>2.8x</strong></li>
+                                    <li>Paved surface families on Tier 1-3 links -&gt; extra <strong>0.90x</strong></li>
+                                    <li>Soft trail surfaces on Tier 1-3 links -&gt; extra <strong>1.25x</strong></li>
+                                    <li>Public-right-of-way style hints in <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">designation/public_footpath/prow</code> on Tier 1 links -&gt; extra <strong>0.93x</strong></li>
                                 </ul>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <div class="flex items-center font-semibold text-gray-800 dark:text-white mb-1">
+                            <i class="fas fa-person-walking-arrow-right text-teal-500 w-6 text-center mr-2"></i>
+                            Prefer Segregated Paths
+                        </div>
+                        <p>Adds a bonus-only preference for edges explicitly tagged as segregated. Missing segregated tags stay neutral.</p>
+                        <details class="mt-3 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300 cursor-pointer select-none">
+                                Show advanced (OSM tags and multipliers)
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">segregated=yes</code> -&gt; <strong>0.90x</strong> bonus</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">segregated=no</code> or missing -&gt; <strong>1.00x</strong> (neutral)</li>
+                                </ul>
+                                <p class="text-gray-500 dark:text-gray-400">This toggle is enabled only when Prefer Separated Paths is active.</p>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <div class="flex items-center font-semibold text-gray-800 dark:text-white mb-1">
+                            <i class="fas fa-road-bridge text-orange-500 w-6 text-center mr-2"></i>
+                            Allow Quiet Service Lanes
+                        </div>
+                        <p>Allows a controlled fallback tier to selected service roads when stronger separated options are absent nearby.</p>
+                        <details class="mt-3 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300 cursor-pointer select-none">
+                                Show advanced (OSM tags and multipliers)
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Quiet service eligibility</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=service</code></li>
+                                    <li>Parsed <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">maxspeed</code> exists and is <strong>&lt;= 30 km/h</strong> (supports numeric and <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">mph</code> values)</li>
+                                    <li>Foot-friendly signal present: <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">sidewalk=both|left|right|yes|separate</code> or <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">foot=yes|designated</code> or <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">bicycle=yes|designated</code></li>
+                                    <li>Soft trail surfaces are excluded from this fallback tier</li>
+                                </ul>
+                                <p>Eligible lanes use Tier 4 multiplier <strong>0.97x</strong>.</p>
                             </div>
                         </details>
                     </div>
@@ -1399,7 +1477,7 @@
                                     <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=paved|asphalt|concrete|concrete:plates|concrete:lanes|paving_stones</code> -&gt; <strong>1.35&times;</strong> penalty</li>
                                     <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=path|track|bridleway|footway|steps</code> with unknown surface -&gt; extra <strong>0.90&times;</strong> reward</li>
                                 </ul>
-                                <p class="text-gray-500 dark:text-gray-400">When this is enabled, the solver disables Prefer Dedicated Pavements and Prefer Paved Surfaces to avoid conflicting goals.</p>
+                                <p class="text-gray-500 dark:text-gray-400">When this is enabled, the solver disables Prefer Separated Paths and Prefer Paved Surfaces to avoid conflicting goals.</p>
                             </div>
                         </details>
                     </div>
@@ -1500,6 +1578,28 @@
                                 </ul>
                                 <p class="font-semibold text-gray-700 dark:text-gray-200">Shared active-travel quality bonus while enabled</p>
                                 <p>When a dedicated hard-surface path has strong pedestrian/cycle designation, an extra bonus can apply: tier_a <strong>0.82&times;</strong>, tier_b <strong>0.90&times;</strong>, tier_c <strong>0.96&times;</strong>.</p>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <div class="flex items-center font-semibold text-gray-800 dark:text-white mb-1">
+                            <i class="fas fa-road-barrier text-rose-500 w-6 text-center mr-2"></i>
+                            Avoid Unclassified Country Lanes (Last Resort)
+                        </div>
+                        <p>Strongly penalises unclassified roads that lack pedestrian/cycle safety cues. This behaves like a soft ban: avoided whenever alternatives exist, but still available as a fallback when necessary.</p>
+                        <details class="mt-3 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300 cursor-pointer select-none">
+                                Show advanced (OSM tags and multipliers)
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">When the penalty applies</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=unclassified</code></li>
+                                    <li>No safe foot markers: <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">sidewalk=both|left|right|yes|separate</code> or <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">foot=yes|designated</code></li>
+                                    <li>No safe cycleway markers: <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">cycleway</code> or <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">cycleway:both</code> in <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">lane|track|separate|yes|shared_lane|share_busway|opposite_lane|opposite_track</code></li>
+                                    <li>Applied multiplier: <strong>8.0&times;</strong></li>
+                                </ul>
                             </div>
                         </details>
                     </div>

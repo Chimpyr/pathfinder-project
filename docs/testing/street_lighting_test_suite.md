@@ -3,7 +3,7 @@
 This test suite validates street lighting across both runtime consumers:
 
 - Overlay path: PostGIS/Martin vector tiles
-- Routing path: in-memory graph edge costs (`prefer_lit`, `heavily_avoid_unlit`)
+- Routing path: in-memory graph edge costs (`prefer_lit_streets`, `avoid_unlit_streets`)
 
 ---
 
@@ -70,15 +70,15 @@ These confirm broader A\* and loop behavior remains stable while lighting tests 
 
 ## Manual/API Test Matrix
 
-| ID      | Scenario                             | Steps                                                                       | Expected Result                                                                        |
-| ------- | ------------------------------------ | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| SL-R-01 | Prefer lit uses council augmentation | Enable `prefer_lit`, request route crossing known council-lit corridor      | Route shifts toward lit segments when feasible                                         |
-| SL-R-02 | Heavy avoid unlit strongest behavior | Enable `heavily_avoid_unlit`                                                | Route strongly avoids unlit/unknown segments unless no alternative                     |
-| SL-R-03 | Mutual exclusivity                   | Toggle one lighting option then the other in UI                             | Only one remains checked                                                               |
-| SL-R-04 | Distinct paths baseline purity       | Multi-route enabled with lighting toggles on                                | Baseline route remains shortest-path style; lit toggle affects extremist/balanced runs |
-| SL-O-01 | Overlay source filtering             | Overlay ON, switch source filter among `all/council/osm/bristol/south_glos` | Tiles update and match selected source semantics                                       |
-| SL-O-02 | Regime filtering                     | Switch regime filters                                                       | Visible segments update according to regime values                                     |
-| SL-O-03 | Hover evidence split                 | Hover edge with both council and OSM evidence                               | Card shows separate council and OSM evidence sections                                  |
+| ID      | Scenario                             | Steps                                                                          | Expected Result                                                                        |
+| ------- | ------------------------------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| SL-R-01 | Prefer lit uses council augmentation | Enable `prefer_lit_streets`, request route crossing known council-lit corridor | Route shifts toward lit segments when feasible                                         |
+| SL-R-02 | Heavy avoid unlit strongest behavior | Enable `avoid_unlit_streets`                                                   | Route strongly avoids unlit/unknown segments unless no alternative                     |
+| SL-R-03 | Mutual exclusivity                   | Toggle one lighting option then the other in UI                                | Only one remains checked                                                               |
+| SL-R-04 | Distinct paths baseline purity       | Multi-route enabled with lighting toggles on                                   | Baseline route remains shortest-path style; lit toggle affects extremist/balanced runs |
+| SL-O-01 | Overlay source filtering             | Overlay ON, switch source filter among `all/council/osm/bristol/south_glos`    | Tiles update and match selected source semantics                                       |
+| SL-O-02 | Regime filtering                     | Switch regime filters                                                          | Visible segments update according to regime values                                     |
+| SL-O-03 | Hover evidence split                 | Hover edge with both council and OSM evidence                                  | Card shows separate council and OSM evidence sections                                  |
 
 ---
 

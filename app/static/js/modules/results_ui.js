@@ -184,24 +184,39 @@ function collectWeights() {
 
   // Advanced options
   const advToggles = [
-    ["prefer_dedicated_pavements", "prefer-dedicated-pavements-toggle"],
+    ["prefer_separated_paths", "prefer-dedicated-pavements-toggle"],
     ["prefer_nature_trails", "prefer-nature-trails-toggle"],
-    ["prefer_paved", "prefer-paved-toggle"],
-    ["prefer_lit", "prefer-lit-toggle"],
-    ["heavily_avoid_unlit", "heavily-avoid-unlit-toggle"],
+    ["prefer_paved_surfaces", "prefer-paved-toggle"],
+    ["prefer_lit_streets", "prefer-lit-toggle"],
+    ["avoid_unlit_streets", "heavily-avoid-unlit-toggle"],
     ["avoid_unsafe_roads", "avoid-unsafe-toggle"],
+    ["avoid_unclassified_lanes", "avoid-unclassified-lanes-toggle"],
+    ["prefer_segregated_paths", "prefer-segregated-paths-toggle"],
+    ["allow_quiet_service_lanes", "allow-quiet-service-lanes-toggle"],
   ];
   for (const [key, id] of advToggles) {
     const el = document.getElementById(id);
     if (el) w[key] = el.checked;
   }
 
-  // Legacy compatibility with previously stored query snapshots.
-  if (w.prefer_dedicated_pavements === true) {
-    w.prefer_pedestrian = true;
+  // Legacy compatibility with previously stored query snapshots/backends.
+  if (w.prefer_separated_paths === true) {
+    w.prefer_dedicated_pavements = true;
+  }
+  if (w.prefer_paved_surfaces === true) {
+    w.prefer_paved = true;
+  }
+  if (w.prefer_lit_streets === true) {
+    w.prefer_lit = true;
+  }
+  if (w.avoid_unlit_streets === true) {
+    w.heavily_avoid_unlit = true;
   }
   if (w.avoid_unsafe_roads === true) {
     w.avoid_unsafe = true;
+  }
+  if (w.avoid_unclassified_lanes === true) {
+    w.avoid_unclassified = true;
   }
 
   return w;

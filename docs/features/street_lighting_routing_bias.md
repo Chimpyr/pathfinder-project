@@ -87,7 +87,7 @@ as neutral to avoid over-penalising unmapped but commonly used paths.
 
 ```
 POST /api/route
-  -> app/routes.py parses prefer_lit and heavily_avoid_unlit
+  -> app/routes.py parses prefer_lit_streets and avoid_unlit_streets
   -> RouteFinder.find_route(...)
   -> WSMNetworkXAStar(..., prefer_lit=..., heavily_avoid_unlit=...)
   -> distance_between() applies _compute_lit_multiplier per edge
@@ -110,7 +110,7 @@ In advanced compare mode (scenic sliders off + advanced options on):
 
 ```
 POST /api/loop
-  -> app/routes.py parses prefer_lit and heavily_avoid_unlit
+  -> app/routes.py parses prefer_lit_streets and avoid_unlit_streets
   -> RouteFinder.find_loop_route(...)
   -> LoopSolverFactory.create() (default algorithm: GEOMETRIC)
   -> Geometric solver routes each leg via WSMNetworkXAStar(...)
@@ -152,15 +152,15 @@ Full testing plan and manual QA scenarios are documented in:
 
 ## Implementation Files
 
-| File                                                    | Role                                                                          |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `app/services/core/data_loader.py`                      | Loads `lit` from OSM and extracts council point dataset                       |
-| `app/services/processors/orchestrator.py`               | Enables streetlight processing stage (`STREETLIGHT_MODE`)                     |
-| `app/services/processors/streetlights.py`               | Snaps council points and promotes matched edges to `lit='yes'`                |
-| `app/services/routing/astar/wsm_astar.py`               | Multiplier tables and `_compute_lit_multiplier` application                   |
-| `app/services/routing/route_finder.py`                  | Forwards toggles to A\* and loop solvers                                      |
-| `app/services/routing/distinct_paths_runner.py`         | Applies toggle forwarding rules across 3-route strategy                       |
-| `app/services/routing/loop_solvers/geometric_solver.py` | Propagates toggle state through loop leg routing                              |
-| `app/routes.py`                                         | Parses `prefer_lit` / `heavily_avoid_unlit` from `/api/route` and `/api/loop` |
-| `app/static/js/modules/routing_ui.js`                   | Toggle wiring, payload construction, mutual exclusivity in UI                 |
-| `app/templates/index.html`                              | Advanced Options toggle controls                                              |
+| File                                                    | Role                                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `app/services/core/data_loader.py`                      | Loads `lit` from OSM and extracts council point dataset                               |
+| `app/services/processors/orchestrator.py`               | Enables streetlight processing stage (`STREETLIGHT_MODE`)                             |
+| `app/services/processors/streetlights.py`               | Snaps council points and promotes matched edges to `lit='yes'`                        |
+| `app/services/routing/astar/wsm_astar.py`               | Multiplier tables and `_compute_lit_multiplier` application                           |
+| `app/services/routing/route_finder.py`                  | Forwards toggles to A\* and loop solvers                                              |
+| `app/services/routing/distinct_paths_runner.py`         | Applies toggle forwarding rules across 3-route strategy                               |
+| `app/services/routing/loop_solvers/geometric_solver.py` | Propagates toggle state through loop leg routing                                      |
+| `app/routes.py`                                         | Parses `prefer_lit_streets` / `avoid_unlit_streets` from `/api/route` and `/api/loop` |
+| `app/static/js/modules/routing_ui.js`                   | Toggle wiring, payload construction, mutual exclusivity in UI                         |
+| `app/templates/index.html`                              | Advanced Options toggle controls                                                      |

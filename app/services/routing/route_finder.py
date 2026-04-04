@@ -35,10 +35,17 @@ class RouteFinder:
         variety_level=0,
         prefer_pedestrian=False,
         prefer_dedicated_pavements=False,
+        prefer_separated_paths=None,
         prefer_nature_trails=False,
         prefer_paved=False,
+        prefer_paved_surfaces=None,
         prefer_lit=False,
+        prefer_lit_streets=None,
+        avoid_unlit_streets=None,
         avoid_unsafe_roads=False,
+        avoid_unclassified_lanes=False,
+        prefer_segregated_paths=False,
+        allow_quiet_service_lanes=False,
         use_smart_bearing=True,
         heavily_avoid_unlit=False,
         travel_profile='walking',
@@ -67,10 +74,17 @@ class RouteFinder:
             variety_level (int): Route variety 0-3 (0 = deterministic).
             prefer_pedestrian (bool): If True, strongly favour footpaths/cycleways.
             prefer_dedicated_pavements (bool): If True, favour dedicated hard-surface active corridors.
+            prefer_separated_paths (bool|None): Canonical alias of prefer_dedicated_pavements.
             prefer_nature_trails (bool): If True, favour trail-like roads/surfaces.
             prefer_paved (bool): If True, penalise unpaved/soft surfaces.
+            prefer_paved_surfaces (bool|None): Canonical alias of prefer_paved.
             prefer_lit (bool): If True, penalise unlit streets, bonus lit ones.
+            prefer_lit_streets (bool|None): Canonical alias of prefer_lit.
+            avoid_unlit_streets (bool|None): Canonical alias of heavily_avoid_unlit.
             avoid_unsafe_roads (bool): If True, heavily penalise main roads without sidewalks.
+            avoid_unclassified_lanes (bool): If True, strongly penalise unclassified lanes lacking safety cues.
+            prefer_segregated_paths (bool): Bonus for segregated=yes when supported.
+            allow_quiet_service_lanes (bool): Enable quiet service-lane fallback tier.
             lighting_context (str): Request lighting relevance (`daylight|twilight|night`).
             loop_demo_context (dict|None): Optional mutable dict for loop
                 demo frame capture in debug mode.
@@ -83,6 +97,18 @@ class RouteFinder:
             if current_app.config.get('VERBOSE_LOGGING'):
                 print(f"[VERBOSE] Finding loop route: start={start_point}, "
                       f"target={target_distance_m/1000:.1f}km, bias={directional_bias}")
+
+            if prefer_separated_paths is None:
+                prefer_separated_paths = prefer_dedicated_pavements
+            if prefer_paved_surfaces is None:
+                prefer_paved_surfaces = prefer_paved
+            if prefer_lit_streets is None:
+                prefer_lit_streets = prefer_lit
+            if avoid_unlit_streets is None:
+                avoid_unlit_streets = heavily_avoid_unlit
+
+            # Legacy pedal toggle now maps to segregated-path preference.
+            prefer_segregated_paths = bool(prefer_segregated_paths or prefer_pedestrian)
 
             # Find the nearest node in the graph to the start point
             start_node = ox.distance.nearest_nodes(self.graph, start_point[1], start_point[0])
@@ -144,14 +170,21 @@ class RouteFinder:
                 'distance_tolerance': distance_tolerance,
                 'max_search_time': max_search_time,
                 'variety_level': variety_level,
-                'prefer_pedestrian': prefer_pedestrian,
-                'prefer_dedicated_pavements': prefer_dedicated_pavements,
+                'prefer_pedestrian': prefer_segregated_paths,
+                'prefer_dedicated_pavements': prefer_separated_paths,
+                'prefer_separated_paths': prefer_separated_paths,
                 'prefer_nature_trails': prefer_nature_trails,
-                'prefer_paved': prefer_paved,
-                'prefer_lit': prefer_lit,
+                'prefer_paved': prefer_paved_surfaces,
+                'prefer_paved_surfaces': prefer_paved_surfaces,
+                'prefer_lit': prefer_lit_streets,
+                'prefer_lit_streets': prefer_lit_streets,
                 'avoid_unsafe_roads': avoid_unsafe_roads,
+                'avoid_unclassified_lanes': avoid_unclassified_lanes,
                 'use_smart_bearing': use_smart_bearing,
-                'heavily_avoid_unlit': heavily_avoid_unlit,
+                'heavily_avoid_unlit': avoid_unlit_streets,
+                'avoid_unlit_streets': avoid_unlit_streets,
+                'prefer_segregated_paths': prefer_segregated_paths,
+                'allow_quiet_service_lanes': allow_quiet_service_lanes,
                 'activity': resolved_activity,
                 'lighting_context': lighting_context,
                 'loop_demo_context': loop_demo_context,
@@ -198,12 +231,19 @@ class RouteFinder:
         weights=None,
         combine_nature=False,
         prefer_lit=False,
+        prefer_lit_streets=None,
         heavily_avoid_unlit=False,
+        avoid_unlit_streets=None,
         prefer_pedestrian=False,
         prefer_dedicated_pavements=False,
+        prefer_separated_paths=None,
         prefer_nature_trails=False,
         prefer_paved=False,
+        prefer_paved_surfaces=None,
         avoid_unsafe_roads=False,
+        avoid_unclassified_lanes=False,
+        prefer_segregated_paths=False,
+        allow_quiet_service_lanes=False,
         travel_profile='walking',
         speed_kmh=None,
         activity=None,
@@ -223,12 +263,19 @@ class RouteFinder:
             weights (dict): Feature weights for WSM mode. Uses defaults if None.
             combine_nature (bool): If True, combine greenness and water into single "nature" score.
             prefer_lit (bool): If True, apply mild multiplicative lit-preference penalty.
+            prefer_lit_streets (bool|None): Canonical alias of prefer_lit.
             heavily_avoid_unlit (bool): If True, apply strong multiplicative unlit-avoidance penalty.
+            avoid_unlit_streets (bool|None): Canonical alias of heavily_avoid_unlit.
             prefer_pedestrian (bool): If True, apply penalty to primary/secondary roads and bonus to paths.
             prefer_dedicated_pavements (bool): If True, favour designated hard-surface active routes.
+            prefer_separated_paths (bool|None): Canonical alias of prefer_dedicated_pavements.
             prefer_nature_trails (bool): If True, favour trail-like roads/surfaces.
             prefer_paved (bool): If True, penalise unpaved/soft surfaces.
+            prefer_paved_surfaces (bool|None): Canonical alias of prefer_paved.
             avoid_unsafe_roads (bool): If True, heavily penalise unsafe major roads.
+            avoid_unclassified_lanes (bool): If True, strongly penalise unclassified lanes lacking safety cues.
+            prefer_segregated_paths (bool): Bonus for segregated=yes when supported.
+            allow_quiet_service_lanes (bool): Enable quiet service-lane fallback tier.
             lighting_context (str): Request lighting relevance (`daylight|twilight|night`).
 
         Returns:
@@ -241,6 +288,17 @@ class RouteFinder:
             if current_app.config.get('VERBOSE_LOGGING'):
                 mode = 'WSM' if use_wsm else 'Standard'
                 print(f"[VERBOSE] Finding route ({mode}): {start_point} -> {end_point}")
+
+            if prefer_separated_paths is None:
+                prefer_separated_paths = prefer_dedicated_pavements
+            if prefer_paved_surfaces is None:
+                prefer_paved_surfaces = prefer_paved
+            if prefer_lit_streets is None:
+                prefer_lit_streets = prefer_lit
+            if avoid_unlit_streets is None:
+                avoid_unlit_streets = heavily_avoid_unlit
+
+            prefer_segregated_paths = bool(prefer_segregated_paths or prefer_pedestrian)
 
             # Find the nearest nodes in the graph to these points
             start_node = ox.distance.nearest_nodes(self.graph, start_point[1], start_point[0])
@@ -266,12 +324,16 @@ class RouteFinder:
                 
                 astar_solver = WSMNetworkXAStar(
                     self.graph, weights, combine_nature=combine_nature,
-                    prefer_lit=prefer_lit, heavily_avoid_unlit=heavily_avoid_unlit,
-                    prefer_pedestrian=prefer_pedestrian,
-                    prefer_dedicated_pavements=prefer_dedicated_pavements,
+                    prefer_lit=prefer_lit_streets,
+                    heavily_avoid_unlit=avoid_unlit_streets,
+                    prefer_pedestrian=prefer_segregated_paths,
+                    prefer_dedicated_pavements=prefer_separated_paths,
+                    prefer_segregated_paths=prefer_segregated_paths,
                     prefer_nature_trails=prefer_nature_trails,
-                    prefer_paved=prefer_paved,
+                    prefer_paved=prefer_paved_surfaces,
                     avoid_unsafe_roads=avoid_unsafe_roads,
+                    avoid_unclassified_lanes=avoid_unclassified_lanes,
+                    allow_quiet_service_lanes=allow_quiet_service_lanes,
                     activity=resolved_activity,
                     lighting_context=lighting_context,
                 )

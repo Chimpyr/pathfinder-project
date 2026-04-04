@@ -2,7 +2,7 @@
 
 Adds a live vector tile overlay to the map visualising street lighting provenance and regimes, powered by PostGIS and Martin. OSM remains the base network and council evidence is merged with council-first precedence where available.
 
-This document is overlay-first. Routing toggle behaviour (`prefer_lit`, `heavily_avoid_unlit`) is covered in detail in `docs/features/street_lighting_routing_bias.md`.
+This document is overlay-first. Routing toggle behaviour (`prefer_lit_streets`, `avoid_unlit_streets`) is covered in detail in `docs/features/street_lighting_routing_bias.md`.
 
 ---
 
@@ -79,7 +79,7 @@ OSMDataLoader (pyrosm with lit tag)
   -> process_scenic_attributes(...)
   -> process_graph_streetlights(...) council snapping
   -> edge.lit updated to 'yes' for matched edges
-  -> WSM A* applies prefer_lit / heavily_avoid_unlit multipliers
+  -> WSM A* applies prefer_lit_streets / avoid_unlit_streets multipliers
 ```
 
 See `docs/features/street_lighting_routing_bias.md` for multiplier tables and call chains.
@@ -102,7 +102,7 @@ This table shows where each part of the street-lighting stack lives.
 | `app/services/processors/streetlights.py`      | Point-to-edge snapping and edge `lit` promotion                | Council points + graph geometry                     | Edge `lit`, `lit_source`, `lit_source_detail`                              |
 | `app/services/routing/astar/wsm_astar.py`      | Applies lit multipliers during edge cost evaluation            | Graph edge `lit` attributes                         | Routing cost modulation                                                    |
 | `app/routes.py`                                | Parses routing lighting toggles from API payloads              | `/api/route` and `/api/loop` JSON bodies            | Toggle params forwarded to RouteFinder                                     |
-| `app/static/js/modules/routing_ui.js`          | Advanced Options toggle state and payload construction         | UI toggle state                                     | `prefer_lit` and `heavily_avoid_unlit` request fields                      |
+| `app/static/js/modules/routing_ui.js`          | Advanced Options toggle state and payload construction         | UI toggle state                                     | `prefer_lit_streets` and `avoid_unlit_streets` request fields              |
 
 ---
 

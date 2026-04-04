@@ -16,6 +16,7 @@ from app.services.routing.cost_calculator import (
 )
 from app.services.processors.elevation import calculate_tobler_cost
 from math import radians, cos, sin, asin, sqrt
+import re
 from typing import Dict, Optional
 
 
@@ -84,7 +85,15 @@ _UNSAFE_HIGHWAY_TAGS = frozenset({
 })
 _SAFE_SIDEWALK_VALUES = frozenset({'both', 'left', 'right', 'yes', 'separate'})
 _SAFE_FOOT_VALUES = frozenset({'yes', 'designated'})
+_SAFE_CYCLEWAY_VALUES = frozenset({
+    'lane', 'track', 'separate', 'yes',
+    'shared_lane', 'share_busway',
+    'opposite_lane', 'opposite_track',
+})
 _UNSAFE_ROAD_PENALTY: float = 3.5
+_HIGH_SPEED_UNCLASSIFIED_THRESHOLD_KMH: float = 50.0
+_HIGH_SPEED_UNCLASSIFIED_SEPARATED_PENALTY: float = 2.2
+_UNCLASSIFIED_LAST_RESORT_PENALTY: float = 8.0
 
 # Highway/surface groupings used by newer intent-led routing toggles.
 _VEHICLE_FOCUSED_HIGHWAY_TAGS = frozenset({
@@ -99,6 +108,34 @@ _NATURE_TRAIL_SURFACE_TAGS = frozenset({
     'dirt', 'earth', 'ground', 'mud', 'sand', 'grass',
     'grass_paver', 'woodchips', 'gravel', 'fine_gravel', 'compacted',
 })
+
+# Runner-oriented separated-path tiers (lower multiplier = stronger preference).
+_RUNNER_PATH_TIER_MULTIPLIER: Dict[str, float] = {
+    'tier_1': 0.70,
+    'tier_2': 0.82,
+    'tier_3': 0.92,
+    'tier_4': 0.97,
+    'none': 1.0,
+}
+_RUNNER_PATH_PROW_BONUS: float = 0.93
+_SEGREGATED_PATH_BONUS: float = 0.90
+
+_SIDEWALK_FOOTWAY_VALUES = frozenset({'sidewalk'})
+_SERVICE_HIGHWAY_TAGS = frozenset({'service'})
+_SERVICE_BICYCLE_VALUES = frozenset({'yes', 'designated'})
+_QUIET_SERVICE_LANE_MAX_SPEED_KMH: float = 30.0
+
+_PUBLIC_RIGHT_OF_WAY_HINTS = (
+    'designation',
+    'public_footpath',
+    'public footpath',
+    'public_bridleway',
+    'public bridleway',
+    'public right of way',
+    'prow',
+)
+
+_MAXSPEED_VALUE_PATTERN = re.compile(r'(\d+(?:\.\d+)?)')
 
 
 def _primary_tag_value(value):
@@ -228,46 +265,236 @@ def _compute_surface_multiplier(edge_data: dict) -> float:
 
 
 def _compute_unsafe_road_multiplier(edge_data: dict) -> float:
-    """Heavy multiplier for major roads without pedestrian safety indicators."""
+    """Heavy multiplier for unsafe major roads and high-speed unclassified links."""
     highway = _primary_tag_value(edge_data.get('highway'))
-    if highway not in _UNSAFE_HIGHWAY_TAGS:
+    if _has_pedestrian_safety_signal(edge_data):
         return 1.0
 
+    if highway in _UNSAFE_HIGHWAY_TAGS:
+        return _UNSAFE_ROAD_PENALTY
+
+    # Many UK unclassified roads are effectively high-speed connectors.
+    # When they lack foot/cycle safety signals, treat them as unsafe too.
+    if _is_high_speed_unclassified_without_safety(edge_data):
+        return _UNSAFE_ROAD_PENALTY
+
+    return 1.0
+
+
+def _compute_unclassified_lane_multiplier(
+    edge_data: dict,
+    avoid_unclassified_lanes: bool,
+) -> float:
+    """Strongly penalize unclassified lanes lacking safety cues (last-resort mode)."""
+    if not avoid_unclassified_lanes:
+        return 1.0
+
+    if _is_unclassified_without_safety(edge_data):
+        return _UNCLASSIFIED_LAST_RESORT_PENALTY
+
+    return 1.0
+
+
+def _has_pedestrian_safety_signal(edge_data: dict) -> bool:
+    """True if edge has explicit sidewalk/foot access safety markers."""
     sidewalk = _primary_tag_value(edge_data.get('sidewalk'))
     if sidewalk in _SAFE_SIDEWALK_VALUES:
-        return 1.0
+        return True
 
     foot = _primary_tag_value(edge_data.get('foot'))
     if foot in _SAFE_FOOT_VALUES:
-        return 1.0
+        return True
 
-    return _UNSAFE_ROAD_PENALTY
+    return False
 
 
-def _compute_dedicated_pavements_multiplier(edge_data: dict) -> float:
-    """Bias towards designated hard-surface active-travel corridors."""
+def _has_cycleway_safety_signal(edge_data: dict) -> bool:
+    """True if edge has explicit cycleway infrastructure markers."""
+    cycleway = _primary_tag_value(edge_data.get('cycleway'))
+    cycleway_both = _primary_tag_value(edge_data.get('cycleway:both'))
+    return (
+        cycleway in _SAFE_CYCLEWAY_VALUES
+        or cycleway_both in _SAFE_CYCLEWAY_VALUES
+    )
+
+
+def _is_high_speed_unclassified_without_safety(edge_data: dict) -> bool:
+    """Identify high-speed unclassified roads without foot/cycle safety cues."""
+    if not _is_unclassified_without_safety(edge_data):
+        return False
+
+    maxspeed_kmh = _parse_maxspeed_kmh(edge_data.get('maxspeed'))
+    if maxspeed_kmh is None:
+        return False
+
+    return maxspeed_kmh >= _HIGH_SPEED_UNCLASSIFIED_THRESHOLD_KMH
+
+
+def _is_unclassified_without_safety(edge_data: dict) -> bool:
+    """Identify unclassified roads without pedestrian/cycle safety cues."""
+    highway = _primary_tag_value(edge_data.get('highway'))
+    if highway != 'unclassified':
+        return False
+
+    if _has_pedestrian_safety_signal(edge_data) or _has_cycleway_safety_signal(edge_data):
+        return False
+
+    return True
+
+
+def _parse_maxspeed_kmh(value) -> Optional[float]:
+    """Parse OSM maxspeed values into km/h, or return None if unknown."""
+    raw = _primary_tag_value(value)
+    if raw is None:
+        return None
+
+    if raw in {'none', 'signals', 'walk', 'implicit', 'national', 'variable'}:
+        return None
+
+    match = _MAXSPEED_VALUE_PATTERN.search(raw)
+    if not match:
+        return None
+
+    try:
+        speed = float(match.group(1))
+    except (TypeError, ValueError):
+        return None
+
+    if 'mph' in raw:
+        speed *= 1.60934
+
+    if speed <= 0:
+        return None
+    return speed
+
+
+def _has_public_right_of_way_hint(edge_data: dict) -> bool:
+    """True when designation-like tags hint at public-right-of-way access."""
+    for field_name in ('designation', 'public_footpath', 'prow'):
+        raw = _primary_tag_value(edge_data.get(field_name))
+        if not raw:
+            continue
+        if any(hint in raw for hint in _PUBLIC_RIGHT_OF_WAY_HINTS):
+            return True
+    return False
+
+
+def _is_quiet_service_lane(edge_data: dict) -> bool:
+    """Identify low-speed service lanes with explicit pedestrian-friendly access."""
+    highway = _primary_tag_value(edge_data.get('highway'))
+    if highway not in _SERVICE_HIGHWAY_TAGS:
+        return False
+
+    maxspeed_kmh = _parse_maxspeed_kmh(edge_data.get('maxspeed'))
+    if maxspeed_kmh is None or maxspeed_kmh > _QUIET_SERVICE_LANE_MAX_SPEED_KMH:
+        return False
+
+    surface = _primary_tag_value(edge_data.get('surface'))
+    if surface in _NATURE_TRAIL_SURFACE_TAGS:
+        return False
+
+    sidewalk = _primary_tag_value(edge_data.get('sidewalk'))
+    foot = _primary_tag_value(edge_data.get('foot'))
+    bicycle = _primary_tag_value(edge_data.get('bicycle'))
+
+    has_access_signal = (
+        sidewalk in _SAFE_SIDEWALK_VALUES
+        or foot in _SAFE_FOOT_VALUES
+        or bicycle in _SERVICE_BICYCLE_VALUES
+    )
+    return has_access_signal
+
+
+def classify_runner_path_tier(
+    edge_data: dict,
+    allow_quiet_service_lanes: bool = False,
+) -> str:
+    """Classify runner-priority tiers for separated-road-running preference."""
     highway = _primary_tag_value(edge_data.get('highway'))
     surface = _primary_tag_value(edge_data.get('surface'))
+    foot = _primary_tag_value(edge_data.get('foot'))
+    footway = _primary_tag_value(edge_data.get('footway'))
+
+    foot_allowed = foot in _SAFE_FOOT_VALUES or foot in {'permissive'}
+
+    # Tier 1: traffic-separated designated corridors.
+    if highway in {'cycleway', 'path', 'pedestrian'} and foot_allowed:
+        return 'tier_1'
+
+    if highway == 'footway':
+        # Tier 2: paved sidewalk footways with explicit pedestrian allowance.
+        if (
+            footway in _SIDEWALK_FOOTWAY_VALUES
+            and surface in _ACTIVE_TRAVEL_HARD_SURFACE_TAGS
+            and foot_allowed
+        ):
+            return 'tier_2'
+
+        # Tier 3: paved footway without the stronger sidewalk+designation signal.
+        if surface in _ACTIVE_TRAVEL_HARD_SURFACE_TAGS:
+            return 'tier_3'
+
+        if foot_allowed:
+            return 'tier_1'
+
+    # Tier 4: quiet service-lane fallback, gated by explicit toggle.
+    if allow_quiet_service_lanes and _is_quiet_service_lane(edge_data):
+        return 'tier_4'
+
+    return 'none'
+
+
+def _compute_dedicated_pavements_multiplier(
+    edge_data: dict,
+    allow_quiet_service_lanes: bool = False,
+) -> float:
+    """Bias towards separated runner-friendly corridors using explicit tiers."""
+    highway = _primary_tag_value(edge_data.get('highway'))
+    surface = _primary_tag_value(edge_data.get('surface'))
+    tier = classify_runner_path_tier(
+        edge_data,
+        allow_quiet_service_lanes=allow_quiet_service_lanes,
+    )
 
     multiplier = 1.0
 
     if highway in _VEHICLE_FOCUSED_HIGHWAY_TAGS:
         multiplier *= 2.8
-    elif highway in _DEDICATED_PATH_HIGHWAY_TAGS or highway == 'living_street':
-        multiplier *= 0.78
+    elif _is_high_speed_unclassified_without_safety(edge_data):
+        multiplier *= _HIGH_SPEED_UNCLASSIFIED_SEPARATED_PENALTY
 
-    if surface in _ACTIVE_TRAVEL_HARD_SURFACE_TAGS:
-        multiplier *= 0.90
-    elif surface in _NATURE_TRAIL_SURFACE_TAGS:
-        multiplier *= 1.35
+    multiplier *= _RUNNER_PATH_TIER_MULTIPLIER.get(tier, 1.0)
 
-    tier = classify_active_travel_quality_tier(edge_data)
-    if tier == 'tier_a':
-        multiplier *= 0.85
-    elif tier == 'tier_b':
-        multiplier *= 0.92
+    # Keep the separated mode road-running oriented by rewarding paved and
+    # discouraging soft trail-like surfaces on relevant tiers.
+    if tier in {'tier_1', 'tier_2', 'tier_3'}:
+        if surface in _ACTIVE_TRAVEL_HARD_SURFACE_TAGS:
+            multiplier *= 0.90
+        elif surface in _NATURE_TRAIL_SURFACE_TAGS:
+            multiplier *= 1.25
+
+    if tier == 'tier_1' and _has_public_right_of_way_hint(edge_data):
+        multiplier *= _RUNNER_PATH_PROW_BONUS
 
     return multiplier
+
+
+def _compute_segregated_bonus_multiplier(
+    edge_data: dict,
+    prefer_segregated_paths: bool,
+) -> float:
+    """Apply bonus-only segregated-path preference.
+
+    Missing or non-"yes" segregated tags remain neutral.
+    """
+    if not prefer_segregated_paths:
+        return 1.0
+
+    segregated = _primary_tag_value(edge_data.get('segregated'))
+    if segregated == 'yes':
+        return _SEGREGATED_PATH_BONUS
+
+    return 1.0
 
 
 def _compute_nature_trails_multiplier(edge_data: dict) -> float:
@@ -325,14 +552,14 @@ def classify_active_travel_quality_tier(edge_data: dict) -> str:
 
 def _compute_active_travel_quality_multiplier(
     edge_data: dict,
-    prefer_pedestrian: bool,
+    prefer_segregated_paths: bool,
     prefer_dedicated_pavements: bool,
     prefer_paved: bool,
     avoid_unsafe_roads: bool,
 ) -> float:
     """Bonus multiplier for high-quality designated active-travel corridors."""
     if not (
-        prefer_pedestrian
+        prefer_segregated_paths
         or prefer_dedicated_pavements
         or prefer_paved
         or avoid_unsafe_roads
@@ -346,14 +573,20 @@ def _compute_active_travel_quality_multiplier(
 def describe_edge_modifier_context(
     edge_data: dict,
     lighting_context: str = 'night',
-    prefer_pedestrian: bool = False,
+    prefer_segregated_paths: bool = False,
     prefer_dedicated_pavements: bool = False,
     prefer_paved: bool = False,
     avoid_unsafe_roads: bool = False,
+    allow_quiet_service_lanes: bool = False,
+    avoid_unclassified_lanes: bool = False,
 ) -> Dict[str, object]:
     """Return derived modifier metadata for debugging/explainability."""
     resolved_context = _normalise_lighting_context(lighting_context)
     tier = classify_active_travel_quality_tier(edge_data)
+    runner_tier = classify_runner_path_tier(
+        edge_data,
+        allow_quiet_service_lanes=allow_quiet_service_lanes,
+    )
 
     return {
         'lighting_context': resolved_context,
@@ -364,10 +597,23 @@ def describe_edge_modifier_context(
         'active_travel_quality_tier': tier,
         'active_travel_quality_multiplier': _compute_active_travel_quality_multiplier(
             edge_data,
-            prefer_pedestrian=prefer_pedestrian,
+            prefer_segregated_paths=prefer_segregated_paths,
             prefer_dedicated_pavements=prefer_dedicated_pavements,
             prefer_paved=prefer_paved,
             avoid_unsafe_roads=avoid_unsafe_roads,
+        ),
+        'runner_path_tier': runner_tier,
+        'runner_path_multiplier': _compute_dedicated_pavements_multiplier(
+            edge_data,
+            allow_quiet_service_lanes=allow_quiet_service_lanes,
+        ),
+        'segregated_bonus_multiplier': _compute_segregated_bonus_multiplier(
+            edge_data,
+            prefer_segregated_paths=prefer_segregated_paths,
+        ),
+        'unclassified_lane_multiplier': _compute_unclassified_lane_multiplier(
+            edge_data,
+            avoid_unclassified_lanes=avoid_unclassified_lanes,
         ),
     }
 
@@ -404,8 +650,11 @@ class WSMNetworkXAStar(AStar):
         prefer_dedicated_pavements: bool = False,
         prefer_nature_trails: bool = False,
         prefer_pedestrian: bool = False,
+        prefer_segregated_paths: bool = False,
+        allow_quiet_service_lanes: bool = False,
         prefer_paved: bool = False,
         avoid_unsafe_roads: bool = False,
+        avoid_unclassified_lanes: bool = False,
         activity: str = 'walking',
         lighting_context: str = 'night',
     ):
@@ -429,9 +678,13 @@ class WSMNetworkXAStar(AStar):
         self.heavily_avoid_unlit = heavily_avoid_unlit
         self.prefer_dedicated_pavements = prefer_dedicated_pavements
         self.prefer_nature_trails = prefer_nature_trails
-        self.prefer_pedestrian = prefer_pedestrian
+        self.prefer_segregated_paths = bool(prefer_segregated_paths or prefer_pedestrian)
+        # Backward-compatible alias used by older call paths/tests.
+        self.prefer_pedestrian = self.prefer_segregated_paths
+        self.allow_quiet_service_lanes = allow_quiet_service_lanes
         self.prefer_paved = prefer_paved
         self.avoid_unsafe_roads = avoid_unsafe_roads
+        self.avoid_unclassified_lanes = avoid_unclassified_lanes
         self.lighting_context = _normalise_lighting_context(lighting_context)
         activity_norm = str(activity or 'walking').strip().lower()
         self.activity = 'running' if activity_norm.startswith('running') else 'walking'
@@ -443,6 +696,11 @@ class WSMNetworkXAStar(AStar):
         if self.prefer_nature_trails:
             self.prefer_dedicated_pavements = False
             self.prefer_paved = False
+            self.prefer_segregated_paths = False
+            self.prefer_pedestrian = False
+            self.allow_quiet_service_lanes = False
+        if not self.prefer_dedicated_pavements:
+            self.allow_quiet_service_lanes = False
         
         # Validate and set weights
         if weights is None:
@@ -464,9 +722,11 @@ class WSMNetworkXAStar(AStar):
             f"lit_mode: {lit_mode}, "
             f"dedicated_mode: {'on' if self.prefer_dedicated_pavements else 'off'}, "
             f"trail_mode: {'on' if self.prefer_nature_trails else 'off'}, "
-            f"pedestrian_mode: {'on' if self.prefer_pedestrian else 'off'}, "
+            f"segregated_mode: {'on' if self.prefer_segregated_paths else 'off'}, "
+            f"quiet_service_mode: {'on' if self.allow_quiet_service_lanes else 'off'}, "
             f"paved_mode: {'on' if self.prefer_paved else 'off'}, "
             f"unsafe_mode: {'on' if self.avoid_unsafe_roads else 'off'}, "
+            f"unclassified_last_resort_mode: {'on' if self.avoid_unclassified_lanes else 'off'}, "
             f"activity: {self.activity}, "
             f"lighting_context: {self.lighting_context}"
         )
@@ -597,20 +857,12 @@ class WSMNetworkXAStar(AStar):
                     lighting_context=self.lighting_context,
                 )
             
-            # Apply pedestrian-preference multiplier (if enabled)
-            if self.prefer_pedestrian:
-                highway = data.get('highway', '')
-                if isinstance(highway, list):
-                    highway = highway[0] if highway else ''
-                # Heavily penalise vehicle-focused roads, reward paths
-                if highway in ['trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link']:
-                    cost *= 5.0
-                elif highway in ['pedestrian', 'path', 'footway', 'cycleway', 'track', 'living_street']:
-                    cost *= 0.2
-
             # Prefer dedicated paved active-travel corridors (road running).
             if self.prefer_dedicated_pavements:
-                cost *= _compute_dedicated_pavements_multiplier(data)
+                cost *= _compute_dedicated_pavements_multiplier(
+                    data,
+                    allow_quiet_service_lanes=self.allow_quiet_service_lanes,
+                )
 
             # Prefer trail-like paths and natural surfaces (trail running).
             if self.prefer_nature_trails:
@@ -624,14 +876,26 @@ class WSMNetworkXAStar(AStar):
             if self.avoid_unsafe_roads:
                 cost *= _compute_unsafe_road_multiplier(data)
 
+            # Last-resort mode for narrow country lanes mapped as unclassified.
+            cost *= _compute_unclassified_lane_multiplier(
+                data,
+                avoid_unclassified_lanes=self.avoid_unclassified_lanes,
+            )
+
             # Apply designated active-travel quality bonus when safety/accessibility
             # toggles are active.
             cost *= _compute_active_travel_quality_multiplier(
                 data,
-                prefer_pedestrian=self.prefer_pedestrian,
+                prefer_segregated_paths=self.prefer_segregated_paths,
                 prefer_dedicated_pavements=self.prefer_dedicated_pavements,
                 prefer_paved=self.prefer_paved,
                 avoid_unsafe_roads=self.avoid_unsafe_roads,
+            )
+
+            # Segregated preference is bonus-only; missing tags remain neutral.
+            cost *= _compute_segregated_bonus_multiplier(
+                data,
+                prefer_segregated_paths=self.prefer_segregated_paths,
             )
             
             # Debug logging for first few edges (to see greenness variance)

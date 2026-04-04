@@ -149,12 +149,19 @@ def find_distinct_paths(
     verbose: Optional[bool] = None,
     combine_nature: bool = False,
     prefer_lit: bool = False,
+    prefer_lit_streets: Optional[bool] = None,
     heavily_avoid_unlit: bool = False,
+    avoid_unlit_streets: Optional[bool] = None,
     prefer_pedestrian: bool = False,
     prefer_dedicated_pavements: bool = False,
+    prefer_separated_paths: Optional[bool] = None,
     prefer_nature_trails: bool = False,
     prefer_paved: bool = False,
+    prefer_paved_surfaces: Optional[bool] = None,
     avoid_unsafe_roads: bool = False,
+    avoid_unclassified_lanes: bool = False,
+    prefer_segregated_paths: bool = False,
+    allow_quiet_service_lanes: bool = False,
     travel_profile: str = 'walking',
     speed_kmh: Optional[float] = None,
     activity: Optional[str] = None,
@@ -189,6 +196,16 @@ def find_distinct_paths(
     if verbose:
         print("[Distinct Paths] Starting multi-route calculation")
 
+    if prefer_lit_streets is None:
+        prefer_lit_streets = prefer_lit
+    if avoid_unlit_streets is None:
+        avoid_unlit_streets = heavily_avoid_unlit
+    if prefer_separated_paths is None:
+        prefer_separated_paths = prefer_dedicated_pavements
+    if prefer_paved_surfaces is None:
+        prefer_paved_surfaces = prefer_paved
+    prefer_segregated_paths = bool(prefer_segregated_paths or prefer_pedestrian)
+
     def _run_route(
         weights,
         use_wsm,
@@ -207,12 +224,19 @@ def find_distinct_paths(
             'weights': weights,
             'combine_nature': combine_for_run,
             'prefer_lit': lit,
+            'prefer_lit_streets': lit,
             'heavily_avoid_unlit': avoid_unlit,
+            'avoid_unlit_streets': avoid_unlit,
             'prefer_pedestrian': pedestrian,
+            'prefer_segregated_paths': pedestrian,
             'prefer_dedicated_pavements': dedicated_pavements,
+            'prefer_separated_paths': dedicated_pavements,
             'prefer_nature_trails': nature_trails,
             'prefer_paved': paved,
+            'prefer_paved_surfaces': paved,
             'avoid_unsafe_roads': avoid_unsafe,
+            'avoid_unclassified_lanes': avoid_unclassified_lanes,
+            'allow_quiet_service_lanes': allow_quiet_service_lanes,
         }
 
         # Keep compatibility with mocks that only accept the older signature.
@@ -254,6 +278,7 @@ def find_distinct_paths(
             kwargs.pop('prefer_nature_trails', None)
             kwargs.pop('prefer_paved', None)
             kwargs.pop('avoid_unsafe_roads', None)
+            kwargs.pop('avoid_unclassified_lanes', None)
             return route_finder.find_route(start_point, end_point, **kwargs)
     
     result = {}
@@ -293,12 +318,12 @@ def find_distinct_paths(
         weights=extremist_weights,
         use_wsm=True,
         combine_for_run=combine_nature,
-        lit=prefer_lit,
-        avoid_unlit=heavily_avoid_unlit,
-        pedestrian=prefer_pedestrian,
-        dedicated_pavements=prefer_dedicated_pavements,
+        lit=prefer_lit_streets,
+        avoid_unlit=avoid_unlit_streets,
+        pedestrian=prefer_segregated_paths,
+        dedicated_pavements=prefer_separated_paths,
         nature_trails=prefer_nature_trails,
-        paved=prefer_paved,
+        paved=prefer_paved_surfaces,
         avoid_unsafe=avoid_unsafe_roads,
     )
     
@@ -318,12 +343,12 @@ def find_distinct_paths(
         weights=user_weights,
         use_wsm=True,
         combine_for_run=combine_nature,
-        lit=prefer_lit,
-        avoid_unlit=heavily_avoid_unlit,
-        pedestrian=prefer_pedestrian,
-        dedicated_pavements=prefer_dedicated_pavements,
+        lit=prefer_lit_streets,
+        avoid_unlit=avoid_unlit_streets,
+        pedestrian=prefer_segregated_paths,
+        dedicated_pavements=prefer_separated_paths,
         nature_trails=prefer_nature_trails,
-        paved=prefer_paved,
+        paved=prefer_paved_surfaces,
         avoid_unsafe=avoid_unsafe_roads,
     )
     

@@ -2,84 +2,131 @@
 
 ## Overview
 
-The Advanced Routing Options provide precise, user-directed modifiers that shape how the Weighted Sum Model (WSM) A\* routing engine expands graph nodes. Rather than adding or pruning nodes strictly before search, these options calculate dynamic multiplicative penalties and rewards on edge weights at runtime, directly changing geometrical output in response to subjective preference thresholds.
+Advanced options are runtime multipliers in the WSM A\* solver. They do not rebuild the graph; instead they adjust per-edge cost during `distance_between` using OSM tags such as `highway`, `surface`, `lit`, `sidewalk`, `foot`, `bicycle`, `segregated`, and `maxspeed`.
 
-## Toggles & Multipliers
+## Canonical Toggle Keys
 
-### Environmental & Surface Types
+- `prefer_separated_paths`
+- `prefer_nature_trails`
+- `prefer_paved_surfaces`
+- `prefer_lit_streets`
+- `avoid_unlit_streets`
+- `avoid_unsafe_roads`
+- `avoid_unclassified_lanes`
+- `prefer_segregated_paths`
+- `allow_quiet_service_lanes`
 
-The system supports strict geometrical and topological deviations by favouring specific classifications of walking structure. These toggles inherently change how the WSM views road classifications (`highway` and `surface` tags) without needing to reload the cached spatial graph.
+Legacy keys are still accepted for compatibility:
 
-1. **Prefer Dedicated Pavements (`prefer_dedicated_pavements`)**
-   - **Cost Adjustments:**
-     - Active transport structures (`cycleway`, `path`, `footway`, `pedestrian`, `track`, `bridleway`, `steps`, `living_street`) receive a **0.78×** reward.
-     - Hard paved surfaces (`paved`, `asphalt`, `concrete`, `concrete:plates`, `concrete:lanes`, `paving_stones`) receive a **0.90×** reward.
-     - Explicit designations (e.g. `foot=designated` + `bicycle=designated`) receive extra quality tier bonuses (**0.85×** to **0.96×**).
-     - Shared vehicular lanes (`motorway`, `trunk`, `primary`, `secondary`, `tertiary` and links) receive a severe **2.8×** penalty.
-     - Natural trail surfaces receive a **1.35×** penalty.
-   - **Behaviour:** Holistic infrastructure preference. Actively hunts high-quality active-travel corridors while keeping away from major roads and muddy trails. Designed for activities like road running.
+- `prefer_dedicated_pavements` -> `prefer_separated_paths`
+- `prefer_paved` -> `prefer_paved_surfaces`
+- `prefer_lit` -> `prefer_lit_streets`
+- `heavily_avoid_unlit` -> `avoid_unlit_streets`
+- `prefer_pedestrian` -> legacy fallback to separated mode when no newer path-intent toggle is present
 
-2. **Prefer Paved Surfaces (`prefer_paved`)**
-   - **Cost Adjustments:** A purely material-based check:
-     - Hard surfaces (`paved`, `asphalt`, `concrete`, etc.) = **1.0×** (Neutral)
-     - Rough/Cobbled surfaces (`sett`, `cobblestone`, `metal`, `wood`) = **1.1×** penalty.
-     - Gravel/Compacted = **1.3×** penalty.
-     - Soft surfaces (`dirt`, `grass`, `mud`, `sand`, etc.) = **2.0×** penalty.
-     - Unknown surface = **1.2×** penalty.
-   - **Behaviour:** Just wants to keep your shoes out of the mud. Ignores road types or traffic risk as long as the ground is paved.
+## Path and Surface Modifiers
 
-3. **Prefer Nature Trails (`prefer_nature_trails`)**
-   - **Cost Adjustments:**
-     - Natural surfaces (`dirt`, `grass`, `woodchips`, `mud`, `gravel`, `compacted`, etc.) receive a **0.78×** reward.
-     - Nature trail highways (`path`, `track`, `bridleway`, `footway`, `steps`) receive a **0.72×** reward.
-     - Hard urban surfaces receive a **1.35×** penalty.
-     - Vehicle-focused highways receive a massive **4.0×** penalty.
-   - **Behaviour:** Pulls the route away from urban structures and towards off-road, natural terrain.
+### `prefer_separated_paths`
 
-4. **Prefer Pedestrian (`prefer_pedestrian`)**
-   - **Cost Adjustments:**
-     - Pedestrian paths (`pedestrian`, `path`, `footway`, `cycleway`, `track`, `living_street`) = **0.2×** reward.
-     - Vehicle-focused roads get a **5.0×** penalty.
-   - **Behaviour:** Strongly anchors paths to urban pedestrian-only structures.
+Runner-oriented tier ladder:
 
-### Lighting Options
+1. Tier 1: `highway=cycleway|path|pedestrian` with `foot=yes|designated|permissive` -> `0.70x`
+2. Tier 2: `highway=footway` + `footway=sidewalk` + paved surface + `foot=yes|designated|permissive` -> `0.82x`
+3. Tier 3: paved `highway=footway` -> `0.92x`
+4. Tier 4: quiet service fallback (only when enabled) -> `0.97x`
 
-Leverages a blend of OSM `lit=*` tags and council streetlight context, actively calculating lighting contexts (`daylight`, `twilight`, `night`) and regimes (`all_night`, `part_night`). Dedicated active-travel paths with missing lit tags default to 1.0 (neutral), preventing an accidental bias against cycleways at night.
+Additional effects while enabled:
 
-1. **Prefer Lit Streets (`prefer_lit`)**
-   - **Cost Adjustments:** Modifies edges with a soft bias pull for night routing:
-     - `lit` = **0.85×**
-     - `limited` = **1.3×**
-     - `unlit` = **1.8×**
-     - `unknown` = **1.2×**
+- `highway=motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link` -> `2.8x`
+- high-speed `highway=unclassified` without sidewalk/foot/cycleway safety cues (maxspeed `>= 50 km/h`) -> `2.2x`
+- Tier 1-3 paved surfaces (`paved`, `asphalt`, `concrete`, `concrete:plates`, `concrete:lanes`, `paving_stones`) -> extra `0.90x`
+- Tier 1-3 soft trail surfaces (`dirt`, `earth`, `ground`, `mud`, `sand`, `grass`, `grass_paver`, `woodchips`, `gravel`, `fine_gravel`, `compacted`) -> extra `1.25x`
+- PROW-like hints in `designation/public_footpath/prow` on Tier 1 links -> extra `0.93x`
 
-2. **Heavily Avoid Unlit (`heavily_avoid_unlit`)**
-   - **Cost Adjustments:** Aggressively penalises unlit tags to force routing near light sources:
-     - `lit` = **0.70×**
-     - `limited` = **2.5×**
-     - `unlit` = **5.0×**
-     - `unknown` = **3.0×**
+### `prefer_segregated_paths`
 
-### Safety Option
+Bonus-only rule:
 
-1. **Avoid Unsafe Roads (`avoid_unsafe_roads`)**
-   - **Cost Adjustments:** Evaluates high-risk roads (`primary`, `secondary`, `tertiary` and links). If no explicit pedestrian safety tagging exists (e.g., `sidewalk=both`, `foot=designated`), the edge receives a **3.5×** multiplier penalty.
-   - **Behaviour:** Reduces risk by aggressively routing away from dangerous roadside walking.
+- `segregated=yes` -> `0.90x`
+- `segregated=no` or missing -> `1.00x` (neutral)
 
-## Implementation Mechanics
+### `allow_quiet_service_lanes`
 
-The canonical API endpoints parse boolean flags automatically. The main traversal loop in `wsm_astar.py` executes these flags independently by checking explicit tags and dictionaries (like `_ACTIVE_TRAVEL_HARD_SURFACE_TAGS`). During the `distance_between` logic, the baseline WSM cost is incrementally multiplied by every modifier that evaluates to true.
+Allows Tier 4 fallback if all checks pass:
 
-```python
-# During calculating the cost of edge n1 -> n2
-if self.prefer_paved:
-    cost *= _compute_surface_multiplier(data)
+- `highway=service`
+- parseable `maxspeed` and `<= 30 km/h` (numeric and `mph` values supported)
+- pedestrian-friendly access indicator present:
+  - `sidewalk=both|left|right|yes|separate`, or
+  - `foot=yes|designated`, or
+  - `bicycle=yes|designated`
+- soft trail surfaces are excluded
 
-if self.prefer_dedicated_pavements:
-    cost *= _compute_dedicated_pavements_multiplier(data)
+### `prefer_paved_surfaces`
 
-if self.avoid_unsafe_roads:
-    cost *= _compute_unsafe_road_multiplier(data)
-```
+Material-only penalty map:
 
-This dynamic runtime approach maintains extremely low latency whilst still radically altering pathfinding geometries.
+- hard paved -> `1.0x`
+- rough/cobbled (`sett`, `cobblestone`, `cobblestone:flattened`, `metal`, `wood`) -> `1.1x`
+- gravel/compacted (`compacted`, `fine_gravel`, `gravel`) -> `1.3x`
+- soft (`dirt`, `earth`, `ground`, `mud`, `sand`, `grass`, `grass_paver`, `woodchips`) -> `2.0x`
+- unknown/missing -> `1.2x`
+
+### `prefer_nature_trails`
+
+Trail-biased mode:
+
+- trail highways (`path`, `track`, `bridleway`, `footway`, `steps`) -> `0.72x`
+- natural surfaces (`dirt`, `earth`, `ground`, `mud`, `sand`, `grass`, `grass_paver`, `woodchips`, `gravel`, `fine_gravel`, `compacted`) -> `0.78x`
+- vehicle-focused highways -> `4.0x`
+- residential/unclassified/service/living_street -> `1.35x`
+- hard paved surfaces -> `1.35x`
+- trail highway with missing surface -> extra `0.90x`
+
+Conflict rule: enabling `prefer_nature_trails` disables separated/paved-focused toggles.
+
+## Lighting and Safety
+
+### `prefer_lit_streets`
+
+- lit -> `0.85x`
+- limited -> `1.3x`
+- unlit -> `1.8x`
+- unknown -> `1.2x`
+
+### `avoid_unlit_streets`
+
+- lit -> `0.70x`
+- limited -> `2.5x`
+- unlit -> `5.0x`
+- unknown -> `3.0x`
+
+Precedence rule: `avoid_unlit_streets` overrides `prefer_lit_streets`.
+
+### `avoid_unsafe_roads`
+
+Unsafe candidate classes:
+
+- `highway=primary|primary_link|secondary|secondary_link|tertiary|tertiary_link`
+- `highway=unclassified` with parseable `maxspeed >= 50 km/h` and no pedestrian/cycle safety cues
+
+Safety exemptions:
+
+- `sidewalk=both|left|right|yes|separate`
+- `foot=yes|designated`
+- cycleway infrastructure signals (`cycleway` or `cycleway:both` in `lane|track|separate|yes|shared_lane|share_busway|opposite_lane|opposite_track`)
+
+Unsafe candidate without exemption -> `3.5x`.
+
+### `avoid_unclassified_lanes`
+
+Last-resort lane-avoidance mode:
+
+- targets `highway=unclassified`
+- requires missing pedestrian/cycle safety cues:
+  - no `sidewalk=both|left|right|yes|separate`
+  - no `foot=yes|designated`
+  - no `cycleway`/`cycleway:both` safety markers (`lane|track|separate|yes|shared_lane|share_busway|opposite_lane|opposite_track`)
+- applies strong penalty `8.0x`
+
+This is a soft-ban design: penalties are finite, so the router can still use these lanes when no practical alternative exists.

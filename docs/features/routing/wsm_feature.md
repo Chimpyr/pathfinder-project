@@ -135,11 +135,13 @@ response = requests.post('/api/route', json={
     'end_lon': -2.591,
     'use_wsm': True,
     'weights': {'greenness': 5, 'distance': 3},  # Optional
-    'prefer_dedicated_pavements': True,  # Optional advanced modifiers
+    'prefer_separated_paths': True,  # Optional advanced modifiers
     'prefer_nature_trails': False,
     'prefer_lit_streets': False,
-    'heavily_avoid_unlit': False,
+    'avoid_unlit_streets': False,
     'avoid_unsafe_roads': False,
+    'prefer_segregated_paths': False,
+    'allow_quiet_service_lanes': False,
 })
 ```
 
@@ -147,8 +149,10 @@ response = requests.post('/api/route', json={
 
 On top of the general WSM scoring, the engine applies multipliers before finalizing an edge's cost:
 
-- `prefer_lit_streets` / `heavily_avoid_unlit`: Provides a bonus (<1.0) to routes correctly flagged as lit, or massive penalties (up to 5.0x) for unknown or unlit segments.
-- `prefer_dedicated_pavements`: Strongly favors designated active-travel corridors with hard surfaces and penalizes vehicle-focused roads.
+- `prefer_lit_streets` / `avoid_unlit_streets`: Provides a bonus (<1.0) to routes correctly flagged as lit, or massive penalties (up to 5.0x) for unknown or unlit segments.
+- `prefer_separated_paths`: Uses runner-oriented path tiers to prioritize separated links and discourage major roads.
+- `prefer_segregated_paths`: Bonus-only preference for `segregated=yes` edges.
+- `allow_quiet_service_lanes`: Enables low-speed service-lane fallback in separated mode.
 - `prefer_nature_trails`: Favors trail-like highways and natural surfaces while penalizing vehicle-heavy corridors and hard paved options.
 - `avoid_unsafe_roads`: Applies a heavy penalty to primary/secondary/tertiary roads that lack `sidewalk` and `foot` safety indicators.
 
