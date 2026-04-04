@@ -34,6 +34,33 @@
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <style>
         #map { height: 100%; width: 100%; }
+
+        /* Keep advanced modal readable when tag lists are long. */
+        #advanced-options-modal code {
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        #advanced-options-modal details summary {
+            list-style: none;
+        }
+
+        #advanced-options-modal details summary::-webkit-details-marker {
+            display: none;
+        }
+
+        /* Scroll performance: avoid full repaint of all cards while scrolling. */
+        #advanced-options-modal [data-advanced-scroll-region] {
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
+
+        #advanced-options-modal [data-advanced-scroll-region] > .grid > div {
+            content-visibility: auto;
+            contain: layout style paint;
+            contain-intrinsic-size: 220px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 h-screen w-screen overflow-hidden flex">
@@ -1306,8 +1333,8 @@
     <!-- Main Application JS -->
     <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
     <!-- Help Modal for Advanced Options -->
-    <div id="advanced-options-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
+    <div id="advanced-options-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black bg-opacity-55 p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <!-- Header -->
             <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800 z-10">
                 <h3 class="text-lg font-bold text-gray-800 dark:text-white">
@@ -1319,7 +1346,7 @@
             </div>
             
             <!-- Content -->
-            <div class="p-6 space-y-6 text-sm text-gray-600 dark:text-gray-300">
+            <div data-advanced-scroll-region class="p-6 space-y-6 text-sm text-gray-600 dark:text-gray-300 flex-1 overflow-y-auto min-h-0">
                 <p class="italic text-gray-500">These settings control how the <strong>Generator</strong> (creates the shape) and the <strong>Router</strong> (finds the path) behave.</p>
                 
                 <div class="grid gap-4">
@@ -1330,6 +1357,26 @@
                             Prefer Dedicated Pavements
                         </div>
                         <p>Prefers designated, hard-surface walking and cycling corridors suitable for road running or steady pavement pace.</p>
+                        <details class="mt-3 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300 cursor-pointer select-none">
+                                Show advanced (OSM tags and multipliers)
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Primary checks</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link</code> -&gt; <strong>2.8&times;</strong> penalty</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=cycleway|path|footway|pedestrian|track|bridleway|steps|living_street</code> -&gt; <strong>0.78&times;</strong> reward</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=paved|asphalt|concrete|concrete:plates|concrete:lanes|paving_stones</code> -&gt; <strong>0.90&times;</strong> reward</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=dirt|earth|ground|mud|sand|grass|grass_paver|woodchips|gravel|fine_gravel|compacted</code> -&gt; <strong>1.35&times;</strong> penalty</li>
+                                </ul>
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Quality tiers on dedicated hard-surface paths</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">foot=designated</code> and <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">bicycle=designated</code> -&gt; tier_a (<strong>0.85&times;</strong>)</li>
+                                    <li>One designated marker -&gt; tier_b (<strong>0.92&times;</strong>)</li>
+                                    <li>Also receives shared active-travel quality bonus when this toggle is on: tier_a <strong>0.82&times;</strong>, tier_b <strong>0.90&times;</strong>, tier_c <strong>0.96&times;</strong></li>
+                                </ul>
+                            </div>
+                        </details>
                     </div>
 
                     <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -1338,6 +1385,23 @@
                             Prefer Nature Trails
                         </div>
                         <p>Prefers trail-like paths and natural surfaces (where mapped), while strongly discouraging vehicle-heavy roads.</p>
+                        <details class="mt-3 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300 cursor-pointer select-none">
+                                Show advanced (OSM tags and multipliers)
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Primary checks</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=path|track|bridleway|footway|steps</code> -&gt; <strong>0.72&times;</strong> reward</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=dirt|earth|ground|mud|sand|grass|grass_paver|woodchips|gravel|fine_gravel|compacted</code> -&gt; <strong>0.78&times;</strong> reward</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link</code> -&gt; <strong>4.0&times;</strong> penalty</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=residential|unclassified|service|living_street</code> -&gt; <strong>1.35&times;</strong> penalty</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=paved|asphalt|concrete|concrete:plates|concrete:lanes|paving_stones</code> -&gt; <strong>1.35&times;</strong> penalty</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=path|track|bridleway|footway|steps</code> with unknown surface -&gt; extra <strong>0.90&times;</strong> reward</li>
+                                </ul>
+                                <p class="text-gray-500 dark:text-gray-400">When this is enabled, the solver disables Prefer Dedicated Pavements and Prefer Paved Surfaces to avoid conflicting goals.</p>
+                            </div>
+                        </details>
                     </div>
 
                     <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -1346,6 +1410,22 @@
                             Prefer Paved Surfaces
                         </div>
                         <p>Avoids unpaved surfaces (dirt, gravel, grass). Ideal for road cycling or keeping your shoes clean.</p>
+                        <details class="mt-3 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300 cursor-pointer select-none">
+                                Show advanced (OSM tags and multipliers)
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Surface map used by the router</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=paved|asphalt|concrete|concrete:plates|concrete:lanes|paving_stones</code> -&gt; <strong>1.0&times;</strong></li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=sett|cobblestone|cobblestone:flattened|metal|wood</code> -&gt; <strong>1.1&times;</strong></li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=compacted|fine_gravel|gravel</code> -&gt; <strong>1.3&times;</strong></li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface=dirt|earth|ground|mud|sand|grass|grass_paver|woodchips</code> -&gt; <strong>2.0&times;</strong></li>
+                                    <li>Missing or unknown <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">surface</code> -&gt; <strong>1.2&times;</strong></li>
+                                </ul>
+                                <p class="text-gray-500 dark:text-gray-400">This toggle only uses the OSM surface tag. It does not directly check traffic intensity or sidewalk presence.</p>
+                            </div>
+                        </details>
                     </div>
 
                     <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -1354,6 +1434,26 @@
                             Prefer Lit Streets
                         </div>
                         <p>Applies lighting-aware bias using OSM and council-augmented edge lighting where available. <em>Note: Sparse OSM data or missing local council data can reduce effect strength.</em></p>
+                        <details class="mt-3 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300 cursor-pointer select-none">
+                                Show advanced (OSM tags and multipliers)
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Lighting classes and multipliers</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">lit=yes|automatic|24/7</code> -&gt; class <strong>lit</strong> -&gt; <strong>0.85&times;</strong></li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">lit=limited|disused</code> -&gt; class <strong>limited</strong> -&gt; <strong>1.3&times;</strong></li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">lit=no</code> -&gt; class <strong>unlit</strong> -&gt; <strong>1.8&times;</strong></li>
+                                    <li>Missing/unknown class -&gt; default <strong>1.2&times;</strong>, except dedicated paths with unknown lighting use <strong>1.0&times;</strong></li>
+                                </ul>
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Other tags that affect class resolution</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">lighting_regime</code> all-night hints: all night, all_night, allnight, 24/7, 24h, 24 hour, dusk to dawn, dusk-dawn, sunset to sunrise</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">lighting_regime</code> part-night hints: part night, part_night, partnight, switch off, switch_off, switchoff, midnight, curfew</li>
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">lighting_context</code>: daylight disables lighting multipliers, twilight/night enables them</li>
+                                </ul>
+                            </div>
+                        </details>
                     </div>
 
                     <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -1362,6 +1462,22 @@
                             Heavily Avoid Unlit Streets
                         </div>
                         <p>Much stronger version of "Prefer lit streets". Confirmed unlit streets receive a <strong>5&times; cost penalty</strong>; unknown street lighting receives a <strong>3&times; penalty</strong>. Unknown lighting on dedicated paths is treated as neutral. <em>Note: Sparse OSM lighting data, or missing/non-overlapping council lighting data, can produce longer detours.</em></p>
+                        <details class="mt-3 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300 cursor-pointer select-none">
+                                Show advanced (OSM tags and multipliers)
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Heavy lighting table</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li>lit -&gt; <strong>0.70&times;</strong></li>
+                                    <li>limited -&gt; <strong>2.5&times;</strong></li>
+                                    <li>unlit -&gt; <strong>5.0&times;</strong></li>
+                                    <li>unknown -&gt; default <strong>3.0&times;</strong>, except dedicated paths with unknown lighting use <strong>1.0&times;</strong></li>
+                                </ul>
+                                <p class="text-gray-500 dark:text-gray-400">This mode uses the same OSM tag parsing as Prefer Lit Streets (<code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">lit</code>, <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">lighting_regime</code>, <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway</code>, and <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">lighting_context</code>) but applies stronger penalties.</p>
+                                <p class="text-gray-500 dark:text-gray-400">Selecting this option programmatically disables Prefer Lit Streets in the solver to keep behavior deterministic.</p>
+                            </div>
+                        </details>
                     </div>
 
                     <div class="border rounded-lg p-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -1370,6 +1486,22 @@
                             Avoid Unsafe Roads
                         </div>
                         <p>Heavily penalises major roads (Highways, Trunk roads, busy Primaries). The router will actively avoid these.</p>
+                        <details class="mt-3 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300 cursor-pointer select-none">
+                                Show advanced (OSM tags and multipliers)
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">OSM tags checked</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">highway=primary|primary_link|secondary|secondary_link|tertiary|tertiary_link</code> marks an edge as potentially unsafe</li>
+                                    <li>Safe sidewalk values: <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">sidewalk=both|left|right|yes|separate</code></li>
+                                    <li>Safe foot values: <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800">foot=yes|designated</code></li>
+                                    <li>If an edge is in an unsafe highway class and has no safe sidewalk/foot signal -&gt; <strong>3.5&times;</strong> penalty</li>
+                                </ul>
+                                <p class="font-semibold text-gray-700 dark:text-gray-200">Shared active-travel quality bonus while enabled</p>
+                                <p>When a dedicated hard-surface path has strong pedestrian/cycle designation, an extra bonus can apply: tier_a <strong>0.82&times;</strong>, tier_b <strong>0.90&times;</strong>, tier_c <strong>0.96&times;</strong>.</p>
+                            </div>
+                        </details>
                     </div>
 
                     <!-- Shape Generation Options -->
@@ -1379,6 +1511,14 @@
                             Scenic Bearings
                         </div>
                         <p><strong>Influences Loop Shape.</strong> Instead of choosing random directions, the solver scans the map for Green/Water areas and orients the loop towards them. <br><em class="text-xs">Disabling this reverts to fixed triangle shapes.</em></p>
+                        <details class="mt-3 rounded-md border border-indigo-200 dark:border-indigo-800 bg-white/70 dark:bg-indigo-950/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300 cursor-pointer select-none">
+                                Show advanced
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-indigo-700 dark:text-indigo-200 space-y-2">
+                                <p>This option changes loop waypoint orientation before final A* routing. It does <strong>not</strong> add direct per-edge OSM tag multipliers in the same way as the routing modifiers above.</p>
+                            </div>
+                        </details>
                     </div>
 
                     <div class="border rounded-lg p-3 border-purple-100 dark:border-purple-900 bg-purple-50/50 dark:bg-purple-900/20">
@@ -1389,6 +1529,14 @@
                         <p><strong>Influences Loop Shape.</strong> <br>
                         <strong>Low:</strong> Simple Triangles (Predictable). <br>
                         <strong>High:</strong> Complex Shapes (Quads/Pentagons) with random variation. Generates more natural-looking routes.</p>
+                        <details class="mt-3 rounded-md border border-purple-200 dark:border-purple-800 bg-white/70 dark:bg-purple-950/30">
+                            <summary class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-300 cursor-pointer select-none">
+                                Show advanced
+                            </summary>
+                            <div class="px-3 pb-3 pt-1 text-xs text-purple-700 dark:text-purple-200 space-y-2">
+                                <p>This option controls loop complexity/randomness in shape generation. It does <strong>not</strong> directly alter edge multipliers tied to OSM tags during WSM A* edge scoring.</p>
+                            </div>
+                        </details>
                     </div>
                 </div>
             </div>
