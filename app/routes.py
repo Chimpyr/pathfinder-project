@@ -1128,7 +1128,7 @@ def calculate_route():
         
         # Parse routing settings from request
         use_wsm = bool(data.get('use_wsm', False))
-        combine_nature = True
+        combine_nature = bool(data.get('combine_nature', False))
         scenic_preferences_enabled = bool(data.get('scenic_preferences_enabled', False))
 
         advanced_options = _resolve_advanced_options(data)

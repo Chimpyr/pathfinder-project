@@ -318,7 +318,7 @@ def find_distinct_paths(
     route_extremist, _, _, dist_extremist, time_extremist = _run_route(
         weights=extremist_weights,
         use_wsm=True,
-        combine_for_run=combine_nature,
+        combine_for_run=True,  # Scenic Emphasis always uses combined nature (OR-semantics)
         lit=prefer_lit_streets,
         avoid_unlit=avoid_unlit_streets,
         pedestrian=prefer_segregated_paths,
