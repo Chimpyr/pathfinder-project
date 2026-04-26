@@ -27,6 +27,7 @@ ROUTE_COLOURS = {
     'quietness': '#A855F7',     # Purple - quietness preference
     'social': '#F97316',        # Orange - social/POI preference
     'slope': '#78716C',         # Brown/stone - flat terrain preference
+    'scenic': '#10B981',        # Teal - generic scenic preference
 }
 
 # Priority order for tie-breaking when multiple weights share max value
@@ -114,7 +115,7 @@ def generate_max_scenic_weights(user_weights: Dict[str, float]) -> Tuple[Dict[st
         user_weights: Dictionary of user-provided feature weights.
     
     Returns:
-        Tuple of (weight dictionary).
+        Tuple of (weight dictionary, dominant feature name).
     """
 
     weights = {
@@ -126,7 +127,7 @@ def generate_max_scenic_weights(user_weights: Dict[str, float]) -> Tuple[Dict[st
         'slope': 0.0,
     }
     
-    return weights
+    return weights, 'scenic'
 
 def get_extremist_colour(dominant_feature: str) -> str:
     """
@@ -308,10 +309,10 @@ def find_distinct_paths(
         'colour': ROUTE_COLOURS['baseline'],
     }
     
-    # Run 2: Extremist (maximise strongest preference)
-    extremist_weights, dominant_feature = generate_extremist_weights(user_weights)
+    # Run 2: Extremist (maximise overall scenic value)
+    extremist_weights, dominant_feature = generate_max_scenic_weights(user_weights)
     if verbose:
-        print(f"[Distinct Paths] Run 2 - Extremist weights: {extremist_weights}")
+        print(f"[Distinct Paths] Run 2 - Scenic weights: {extremist_weights}")
         print(f"[Distinct Paths] Dominant feature: {dominant_feature}")
     
     route_extremist, _, _, dist_extremist, time_extremist = _run_route(
