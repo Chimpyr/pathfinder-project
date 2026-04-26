@@ -7,45 +7,52 @@ Based on Wang et al. (2021) research validating road hierarchy as a proxy for tr
 Higher noise_factor = quieter road = lower cost when routing for quiet paths.
 
 Edge attributes added:
-- noise_factor: Classification value (1.0=noisy, 2.0=quiet, 1.5=neutral)
+- noise_factor: Multi-tier classification (1.0 = very noisy … 5.0 = very quiet)
 - raw_quiet_cost: Inverted cost for normalisation (lower = quieter)
 """
 
 from typing import Optional
 import networkx as nx
 
-# Highway tags associated with high traffic/noise
-NOISY_TAGS: frozenset = frozenset({
-    'motorway', 'motorway_link',
-    'trunk', 'trunk_link', 
-    'primary', 'primary_link',
-    'secondary', 'secondary_link'
-})
+# Multi-tier noise classification (higher value = quieter = more desirable)
+# Wider spread (1.0 to 5.0) gives normalisation much more room to
+# differentiate road types, making "prefer quiet" routing effective.
+NOISE_TIERS: dict = {
+    # Tier 1 — Very noisy (dual carriageways, motorways)
+    'motorway': 1.0, 'motorway_link': 1.0,
+    'trunk': 1.0, 'trunk_link': 1.2,
+    # Tier 2 — Noisy (major urban arterials)
+    'primary': 1.5, 'primary_link': 1.7,
+    # Tier 3 — Moderate (collector roads)
+    'secondary': 2.0, 'secondary_link': 2.2,
+    # Tier 4 — Calm (local distributor roads)
+    'tertiary': 2.8, 'tertiary_link': 2.8,
+    'unclassified': 3.0,
+    # Tier 5 — Quiet (residential streets)
+    'residential': 3.5, 'living_street': 4.0,
+    'service': 3.5,
+    # Tier 6 — Very quiet (dedicated active-travel paths)
+    'cycleway': 4.5, 'pedestrian': 4.5,
+    'footway': 5.0, 'path': 5.0,
+    'track': 4.8, 'bridleway': 4.8, 'steps': 4.5,
+}
 
-# Highway tags associated with low traffic/quiet environments
-QUIET_TAGS: frozenset = frozenset({
-    'residential', 'living_street',
-    'footway', 'path', 'pedestrian',
-    'cycleway', 'track', 'service',
-    'bridleway', 'steps'
-})
-
-# Noise factor values (higher = quieter = more desirable for quiet routing)
-NOISE_FACTOR_NOISY: float = 1.0
-NOISE_FACTOR_QUIET: float = 2.0
-NOISE_FACTOR_DEFAULT: float = 1.5  # Unknown/tertiary roads
+NOISE_FACTOR_DEFAULT: float = 2.5  # Unknown roads — assumed moderate
 
 
 def classify_highway(highway_tag: Optional[str]) -> float:
     """
     Classify a highway tag into a noise factor.
     
+    Uses a multi-tier lookup (1.0 = very noisy … 5.0 = very quiet)
+    to provide fine-grained differentiation between road types.
+    
     Args:
         highway_tag: The OSM highway tag value (e.g., 'residential', 'primary').
                      Can be None if tag is missing.
     
     Returns:
-        float: Noise factor (1.0=noisy, 2.0=quiet, 1.5=neutral/unknown)
+        float: Noise factor (1.0 = very noisy … 5.0 = very quiet)
     """
     if highway_tag is None:
         return NOISE_FACTOR_DEFAULT
@@ -53,12 +60,7 @@ def classify_highway(highway_tag: Optional[str]) -> float:
     # Normalise to lowercase for consistent matching
     tag_lower = highway_tag.lower() if isinstance(highway_tag, str) else str(highway_tag).lower()
     
-    if tag_lower in NOISY_TAGS:
-        return NOISE_FACTOR_NOISY
-    elif tag_lower in QUIET_TAGS:
-        return NOISE_FACTOR_QUIET
-    else:
-        return NOISE_FACTOR_DEFAULT
+    return NOISE_TIERS.get(tag_lower, NOISE_FACTOR_DEFAULT)
 
 
 def process_graph_quietness(graph: nx.MultiDiGraph) -> nx.MultiDiGraph:

@@ -90,10 +90,30 @@ _SAFE_CYCLEWAY_VALUES = frozenset({
     'shared_lane', 'share_busway',
     'opposite_lane', 'opposite_track',
 })
-_UNSAFE_ROAD_PENALTY: float = 3.5
+_UNSAFE_ROAD_PENALTY: float = 15.0
 _HIGH_SPEED_UNCLASSIFIED_THRESHOLD_KMH: float = 50.0
-_HIGH_SPEED_UNCLASSIFIED_SEPARATED_PENALTY: float = 2.2
-_UNCLASSIFIED_LAST_RESORT_PENALTY: float = 8.0
+_HIGH_SPEED_UNCLASSIFIED_SEPARATED_PENALTY: float = 8.0
+_UNCLASSIFIED_LAST_RESORT_PENALTY: float = 25.0
+
+# Multiplicative noise penalty — applied when quietness weight is significant.
+# Unlike the additive norm_quiet in the WSM formula, this multiplicative
+# approach ensures noisy streets are genuinely avoided even on short edges.
+_NOISE_MULTIPLIER_BY_HIGHWAY: Dict[str, float] = {
+    'motorway': 12.0, 'motorway_link': 12.0,
+    'trunk': 10.0, 'trunk_link': 8.0,
+    'primary': 6.0, 'primary_link': 5.0,
+    'secondary': 5.0, 'secondary_link': 4.0,
+    'tertiary': 3.0, 'tertiary_link': 3.0,
+    'unclassified': 2.0,
+    'residential': 1.0, 'living_street': 1.0,
+    'service': 1.0,
+    'cycleway': 0.80, 'pedestrian': 0.80,
+    'footway': 0.70, 'path': 0.70,
+    'track': 0.75, 'bridleway': 0.75, 'steps': 0.85,
+}
+_NOISE_MULTIPLIER_DEFAULT: float = 1.5  # Unknown roads — assume moderate noise
+# Minimum quietness weight (normalised) to activate multiplicative penalty.
+_NOISE_MULTIPLIER_WEIGHT_THRESHOLD: float = 0.05
 
 # Highway/surface groupings used by newer intent-led routing toggles.
 _VEHICLE_FOCUSED_HIGHWAY_TAGS = frozenset({
@@ -278,6 +298,21 @@ def _compute_unsafe_road_multiplier(edge_data: dict) -> float:
     return 1.0
 
 
+def _compute_noise_multiplier(edge_data: dict) -> float:
+    """Multiplicative noise penalty based on highway classification.
+
+    Rewards quiet paths (footway, cycleway) with a small bonus and
+    heavily penalises major arterial roads.  Works in tandem with the
+    additive ``norm_quiet`` term in the WSM formula to ensure noisy
+    roads are genuinely avoided, even on short edges where additive
+    costs are too small to force rerouting.
+    """
+    highway = _primary_tag_value(edge_data.get('highway'))
+    if highway is None:
+        return _NOISE_MULTIPLIER_DEFAULT
+    return _NOISE_MULTIPLIER_BY_HIGHWAY.get(highway, _NOISE_MULTIPLIER_DEFAULT)
+
+
 def _compute_unclassified_lane_multiplier(
     edge_data: dict,
     avoid_unclassified_lanes: bool,
@@ -456,7 +491,7 @@ def _compute_dedicated_pavements_multiplier(
     multiplier = 1.0
 
     if highway in _VEHICLE_FOCUSED_HIGHWAY_TAGS:
-        multiplier *= 2.8
+        multiplier *= 10.0
     elif _is_high_speed_unclassified_without_safety(edge_data):
         multiplier *= _HIGH_SPEED_UNCLASSIFIED_SEPARATED_PENALTY
 
@@ -873,6 +908,10 @@ class WSMNetworkXAStar(AStar):
             if self.avoid_unsafe_roads:
                 cost *= _compute_unsafe_road_multiplier(data)
 
+            # Apply multiplicative noise penalty when quietness is weighted.
+            if self.weights.get('quietness', 0) >= _NOISE_MULTIPLIER_WEIGHT_THRESHOLD:
+                cost *= _compute_noise_multiplier(data)
+
             # Last-resort mode for narrow country lanes mapped as unclassified.
             cost *= _compute_unclassified_lane_multiplier(
                 data,
@@ -899,7 +938,9 @@ class WSMNetworkXAStar(AStar):
             if not hasattr(self, '_debug_count'):
                 self._debug_count = 0
             if self._debug_count < 10:
-                print(f"[WSM Debug] Edge {n1}->{n2}: norm_water={norm_water:.3f}, norm_green={norm_green:.3f}, norm_length={norm_length:.3f}, cost={cost:.4f}")
+                _hw = _primary_tag_value(data.get('highway'))
+                _nm = _compute_noise_multiplier(data) if self.weights.get('quietness', 0) >= _NOISE_MULTIPLIER_WEIGHT_THRESHOLD else 1.0
+                print(f"[WSM Debug] Edge {n1}->{n2}: hw={_hw}, norm_quiet={norm_quiet:.3f}, noise_mult={_nm:.1f}, norm_length={norm_length:.3f}, cost={cost:.4f}")
                 self._debug_count += 1
             
             if cost < best_cost:
