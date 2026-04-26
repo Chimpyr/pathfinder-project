@@ -450,6 +450,19 @@ function initFormSubmit() {
     routeForm.addEventListener("submit", async (e) => {
       console.log("[RoutingUI] Form submit event fired");
       e.preventDefault();
+
+      // Automatically enable Street Lighting Map overlay if lighting preferences are toggled
+      const preferLit = preferLitToggle && preferLitToggle.checked;
+      const avoidUnlit = heavilyAvoidUnlitToggle && heavilyAvoidUnlitToggle.checked;
+      
+      if (preferLit || avoidUnlit) {
+        const lightingOverlayToggle = document.getElementById("lighting-overlay-toggle");
+        if (lightingOverlayToggle && !lightingOverlayToggle.checked) {
+          lightingOverlayToggle.checked = true;
+          lightingOverlayToggle.dispatchEvent(new Event("change"));
+        }
+      }
+
       if (appState.routingMode === "loop") {
         await handleLoopSubmit();
       } else {

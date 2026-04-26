@@ -30,11 +30,11 @@ _LIT_DEFAULT: float = 1.2  # Unknown/missing lit tag
 
 # "Heavily avoid unlit" uses much stronger penalties
 _LIT_HEAVY_PENALTY_BY_CLASS: Dict[str, float] = {
-    'lit': 0.70,
+    'lit': 1.0,
     'limited': 2.5,
-    'unlit': 5.0,
+    'unlit': 5000.0,
 }
-_LIT_HEAVY_DEFAULT: float = 3.0  # Unknown/missing → assume unlit
+_LIT_HEAVY_DEFAULT: float = 500.0  # Unknown/missing → assume unlit
 
 _VALID_LIGHTING_CONTEXTS = frozenset({'daylight', 'twilight', 'night'})
 
@@ -193,8 +193,6 @@ def _base_lit_class(edge_data: dict) -> str:
 def resolve_effective_lit_class(edge_data: dict, lighting_context: str = 'night') -> str:
     """Resolve the effective lighting class for current context and regime."""
     context = _normalise_lighting_context(lighting_context)
-    if context == 'daylight':
-        return 'not_relevant'
 
     base_class = _base_lit_class(edge_data)
     regime_class = _normalise_lighting_regime(edge_data.get('lighting_regime'))
@@ -240,15 +238,14 @@ def _compute_lit_multiplier(
         Multiplier to apply to edge cost.
     """
     context = _normalise_lighting_context(lighting_context)
-    if context == 'daylight':
-        return 1.0
 
     table = _LIT_HEAVY_PENALTY_BY_CLASS if heavily_avoid else _LIT_PENALTY_BY_CLASS
     default = _LIT_HEAVY_DEFAULT if heavily_avoid else _LIT_DEFAULT
 
-    # Unknown lit status on dedicated paths is common and should not be
-    # interpreted as "unsafe street lighting".
-    dedicated_path_default = 1.0 if _is_dedicated_path(edge_data) else default
+    # Unknown lit status on dedicated paths is common.
+    # Normally we assume they are safe (1.0), but if the user explicitly wants to
+    # *heavily* avoid unlit areas, we must penalize these unknown dark paths too.
+    dedicated_path_default = default if heavily_avoid else 1.0
 
     effective_lit_class = resolve_effective_lit_class(edge_data, lighting_context=context)
     if effective_lit_class in {'not_relevant', 'unknown'}:

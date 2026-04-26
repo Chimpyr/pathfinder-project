@@ -130,8 +130,11 @@ def _assign_role_by_index(selected: List['LoopCandidate']) -> Dict[int, str]:
     if not selected:
         return role_by_index
 
-    role_by_index[0] = 'best_match'
-    remaining = list(range(1, len(selected)))
+    # Find the candidate with the genuinely highest quality score
+    # rather than blindly assuming index 0 is best.
+    best_idx = max(range(len(selected)), key=lambda i: selected[i].quality_score)
+    role_by_index[best_idx] = 'best_match'
+    remaining = [i for i in range(len(selected)) if i != best_idx]
 
     if remaining:
         scenic_idx = min(
@@ -146,7 +149,7 @@ def _assign_role_by_index(selected: List['LoopCandidate']) -> Dict[int, str]:
         remaining.remove(scenic_idx)
 
     if remaining:
-        best_route = selected[0].route
+        best_route = selected[best_idx].route
         diverse_idx = max(
             remaining,
             key=lambda i: (
@@ -413,7 +416,7 @@ def select_diverse_candidates(
         List of K diverse LoopCandidate objects with assigned colours/labels.
     """
     if len(candidates) <= k:
-        selected = candidates
+        selected = sorted(candidates, key=lambda c: c.quality_score, reverse=True)
     else:
         selected = []
         remaining = list(candidates)
